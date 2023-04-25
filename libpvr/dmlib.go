@@ -123,7 +123,7 @@ func (p *Pvr) dmifyRunJson(container, volume string) error {
 	if err != nil {
 		return err
 	}
-	err = os.Rename(runJsonPath+".new", runJsonPath)
+	err = RenameFile(runJsonPath+".new", runJsonPath)
 	if err != nil {
 		return err
 	}
@@ -254,7 +254,7 @@ func (p *Pvr) DmCVerityApply(prefix string) error {
 			if err != nil {
 				return err
 			}
-			os.Rename(manifestPath+".new", manifestPath)
+			RenameFile(manifestPath+".new", manifestPath)
 			p.AddFile([]string{path.Join(container, hashDevice)}, false)
 
 			fmt.Println("- Updated " + manifestPath)
@@ -331,7 +331,7 @@ func (p *Pvr) DmCVerityConvert(container string, volume string) error {
 	if err != nil {
 		return err
 	}
-	os.Rename(manifestPath+".new", manifestPath)
+	RenameFile(manifestPath+".new", manifestPath)
 	p.AddFile([]string{path.Join(container, manifestMap["hash_device"].(string)),
 		path.Join(container, DmVolumes, volume+".json")}, false)
 

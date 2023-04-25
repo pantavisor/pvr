@@ -162,7 +162,7 @@ func (p *PvrAuthConfig) Save() error {
 		return err
 	}
 
-	err = os.Rename(configNew, configPath)
+	err = RenameFile(configNew, configPath)
 	return err
 }
 

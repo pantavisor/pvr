@@ -289,7 +289,7 @@ func updatePvrBinary(extractPath string) error {
 		return err
 	}
 
-	err = os.Rename(tempFile, *pvrPath)
+	err = RenameFile(tempFile, *pvrPath)
 	if err != nil {
 		return err
 	}

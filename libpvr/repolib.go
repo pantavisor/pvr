@@ -290,7 +290,7 @@ func (p *Pvr) AddFile(globs []string, forceObject bool) error {
 	if err != nil {
 		return err
 	}
-	err = os.Rename(filepath.Join(p.Pvrdir, "new.XXX"), filepath.Join(p.Pvrdir, "new"))
+	err = RenameFile(filepath.Join(p.Pvrdir, "new.XXX"), filepath.Join(p.Pvrdir, "new"))
 	if err != nil {
 		return err
 	}
@@ -725,7 +725,7 @@ func (p *Pvr) prepCommitCheckpoint() error {
 
 	fd.Close()
 
-	err = os.Rename(fNewPath, fPath)
+	err = RenameFile(fNewPath, fPath)
 
 	if err != nil {
 		goto exit
@@ -783,7 +783,7 @@ func (p *Pvr) Commit(msg string, isCheckpoint bool) (err error) {
 		if err != nil {
 			return err
 		}
-		err = os.Rename(filepath.Join(p.Objdir, sha+".new"),
+		err = RenameFile(filepath.Join(p.Objdir, sha+".new"),
 			path.Join(p.Objdir, sha))
 		if err != nil {
 			return err
@@ -815,7 +815,7 @@ func (p *Pvr) Commit(msg string, isCheckpoint bool) (err error) {
 			if err != nil {
 				return err
 			}
-			err = os.Rename(filepath.Join(p.Objdir, sha+".new"),
+			err = RenameFile(filepath.Join(p.Objdir, sha+".new"),
 				path.Join(p.Objdir, sha))
 			if err != nil {
 				return err
@@ -831,7 +831,7 @@ func (p *Pvr) Commit(msg string, isCheckpoint bool) (err error) {
 	}
 
 	os.WriteFile(filepath.Join(p.Pvrdir, "commitmsg.new"), []byte(msg), 0644)
-	err = os.Rename(filepath.Join(p.Pvrdir, "commitmsg.new"), filepath.Join(p.Pvrdir, "commitmsg"))
+	err = RenameFile(filepath.Join(p.Pvrdir, "commitmsg.new"), filepath.Join(p.Pvrdir, "commitmsg"))
 	if err != nil {
 		return err
 	}
@@ -856,7 +856,8 @@ func (p *Pvr) Commit(msg string, isCheckpoint bool) (err error) {
 		return err
 	}
 
-	err = os.Rename(filepath.Join(p.Pvrdir, "json.new"), filepath.Join(p.Pvrdir, "json"))
+	err = RenameFile(filepath.Join(p.Pvrdir, "json.new"), filepath.Join(p.Pvrdir, "json"))
+
 	if err != nil {
 		return err
 	}
@@ -916,7 +917,7 @@ func (p *Pvr) PutLocal(repoPath string) error {
 			return err
 		}
 
-		err = os.Rename(filepath.Join(objectsPath, base+".new"),
+		err = RenameFile(filepath.Join(objectsPath, base+".new"),
 			path.Join(objectsPath, base))
 		return err
 	})
@@ -929,7 +930,7 @@ func (p *Pvr) PutLocal(repoPath string) error {
 		return err
 	}
 
-	return os.Rename(filepath.Join(repoPath, "json.new"),
+	return RenameFile(filepath.Join(repoPath, "json.new"),
 		path.Join(repoPath, "json"))
 }
 
@@ -1619,7 +1620,7 @@ func (p *Pvr) SaveConfig() error {
 	if err != nil {
 		return err
 	}
-	err = os.Rename(configNew, configPath)
+	err = RenameFile(configNew, configPath)
 	return err
 }
 
@@ -2045,7 +2046,7 @@ func (p *Pvr) GetRepoLocal(getPath string, merge bool, showFilenames bool, state
 			fmt.Fprintln(os.Stderr, "ERROR : "+err.Error())
 			return objectsCount, err
 		}
-		err = os.Rename(objPathNew, objPath)
+		err = RenameFile(objPathNew, objPath)
 		if err != nil {
 			return objectsCount, err
 		}
@@ -2076,7 +2077,7 @@ func (p *Pvr) GetRepoLocal(getPath string, merge bool, showFilenames bool, state
 		}
 
 		// all succeeded, atomically commiting the json
-		err = os.Rename(filepath.Join(p.Pvrdir, "json.new"), filepath.Join(p.Pvrdir, "json"))
+		err = RenameFile(filepath.Join(p.Pvrdir, "json.new"), filepath.Join(p.Pvrdir, "json"))
 	}
 
 	return objectsCount, err
@@ -2403,7 +2404,7 @@ func (p *Pvr) GetRepoRemote(url *url.URL, merge bool, showFilenames bool, state 
 		}
 
 		// all succeeded, atomically commiting the json
-		err = os.Rename(filepath.Join(p.Pvrdir, "json.new"), filepath.Join(p.Pvrdir, "json"))
+		err = RenameFile(filepath.Join(p.Pvrdir, "json.new"), filepath.Join(p.Pvrdir, "json"))
 	}
 
 	return objectsCount, err
@@ -2575,7 +2576,7 @@ func (p *Pvr) resetInternal(hardlink bool, canonicalJson bool, state *PvrMap) (e
 			if err != nil {
 				return err
 			}
-			err = os.Rename(targetP+".new", targetP)
+			err = RenameFile(targetP+".new", targetP)
 			if err != nil {
 				return err
 			}
@@ -2596,7 +2597,7 @@ func (p *Pvr) resetInternal(hardlink bool, canonicalJson bool, state *PvrMap) (e
 					return errors.New("Object cannot be checked out; wrong sha: " + newFileSha + " == " + v.(string))
 				}
 
-				err = os.Rename(targetP+".new", targetP)
+				err = RenameFile(targetP+".new", targetP)
 				if err != nil {
 					return err
 				}
@@ -2815,7 +2816,7 @@ func (p *Pvr) Import(src string) error {
 		if err != nil {
 			return err
 		}
-		err = os.Rename(filePathNew, filePath)
+		err = RenameFile(filePathNew, filePath)
 		if err != nil {
 			return err
 		}

@@ -513,7 +513,7 @@ func (p *Pvr) GetFromRepo(app *AppData) (string, *Source, error) {
 	srcAppPath := filepath.Join(p.Dir, parts[0])
 	destAppPath := filepath.Join(p.Dir, app.Appname)
 	if srcAppPath != destAppPath {
-		if err = os.Rename(srcAppPath, destAppPath); err != nil {
+		if err = RenameFile(srcAppPath, destAppPath); err != nil {
 			return "", nil, err
 		}
 	}
@@ -698,7 +698,7 @@ func MakeSquash(rootfsPath string, app *AppData) error {
 		fmt.Println(errb.String())
 	}
 
-	return os.Rename(tempSquashFile, squashFile)
+	return RenameFile(tempSquashFile, squashFile)
 }
 
 func GetPersistence(app *AppData) (map[string]string, error) {
