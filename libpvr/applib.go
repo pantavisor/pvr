@@ -301,7 +301,13 @@ func (p *Pvr) RunAsRoot() error {
 		return nil
 	}
 
-	fakerootPath, err = exec.LookPath("fakeroot")
+	fakerootCmd := os.Getenv("FAKEROOT_CMD")
+
+	if fakerootCmd == "" {
+		fakerootCmd = "fakeroot"
+	}
+
+	fakerootPath, err = exec.LookPath(fakerootCmd)
 	if err == nil {
 		args := append([]string{fakerootPath}, os.Args...)
 		return syscall.Exec(fakerootPath, args, os.Environ())
