@@ -24,6 +24,7 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"os/user"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -290,7 +291,17 @@ func (p *Pvr) CheckIfIsRunningAsRoot() error {
 
 func (p *Pvr) RunAsRoot() error {
 	var fakerootPath string
-	fakerootPath, err := exec.LookPath("fakeroot")
+
+	usr, err := user.Current()
+	if err != nil {
+		euid := syscall.Geteuid()
+		usr, err = user.LookupId(fmt.Sprintf("%d", euid))
+	}
+	if usr.Uid == "0" {
+		return nil
+	}
+
+	fakerootPath, err = exec.LookPath("fakeroot")
 	if err == nil {
 		args := append([]string{fakerootPath}, os.Args...)
 		return syscall.Exec(fakerootPath, args, os.Environ())
