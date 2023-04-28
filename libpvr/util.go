@@ -212,7 +212,7 @@ func RenameFile(src string, dst string) (err error) {
 	if err != nil {
 		return fmt.Errorf("failed to copy source file %s to %s: %s", src, dst, err)
 	}
-	err = os.RemoveAll(src)
+	err = os.Remove(src)
 	if err != nil {
 		return fmt.Errorf("failed to cleanup source file %s: %s", src, err)
 	}
