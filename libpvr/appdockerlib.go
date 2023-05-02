@@ -37,14 +37,6 @@ func AddDockerApp(p *Pvr, app *AppData) error {
 	}
 
 	appPath := filepath.Join(p.Dir, app.Appname)
-	err = os.Mkdir(appPath, 0755)
-	if err != nil && os.IsExist(err) && app.ForceAdd {
-		err = Remove(appPath)
-
-	}
-	if err != nil {
-		return err
-	}
 
 	if app.From == "" {
 		return ErrEmptyFrom
@@ -66,6 +58,10 @@ func AddDockerApp(p *Pvr, app *AppData) error {
 			DockerSource:  app.Source,
 			FormatOptions: app.FormatOptions,
 		},
+	}
+
+	if app.ForceAdd {
+		RemoveAll(appPath)
 	}
 
 	baseManifest, err := p.GetApplicationManifest(app.Base)

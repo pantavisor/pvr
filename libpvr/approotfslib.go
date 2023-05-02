@@ -149,8 +149,10 @@ func AddRootFsApp(p *Pvr, app *AppData) error {
 		Template:     TEMPLATE_BUILTIN_LXC_DOCKER,
 		TemplateArgs: app.TemplateArgs,
 		Config:       config,
-		DockerSource: DockerSource{},
 		Persistence:  persistence,
+		DockerSource: DockerSource{
+			FormatOptions: app.FormatOptions,
+		},
 		RootFsSource: RootFsSource{
 			RootFsURL: app.From,
 		},
