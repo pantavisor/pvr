@@ -115,9 +115,6 @@ func InstallRootFsApp(p *Pvr, app *AppData, appManifest *Source) error {
 
 func AddRootFsApp(p *Pvr, app *AppData) error {
 	appPath := filepath.Join(p.Dir, app.Appname)
-	if _, err := os.Stat(appPath); !os.IsNotExist(err) {
-		return nil
-	}
 
 	from, err := GetFromRootFs(app)
 	if err != nil {
@@ -157,6 +154,10 @@ func AddRootFsApp(p *Pvr, app *AppData) error {
 		RootFsSource: RootFsSource{
 			RootFsURL: app.From,
 		},
+	}
+
+	if app.ForceAdd {
+		RemoveAll(appPath)
 	}
 
 	err = os.Mkdir(appPath, 0777)

@@ -37,8 +37,13 @@ func AddDockerApp(p *Pvr, app *AppData) error {
 	}
 
 	appPath := filepath.Join(p.Dir, app.Appname)
-	if _, err := os.Stat(appPath); !os.IsNotExist(err) {
-		return nil
+	err = os.Mkdir(appPath, 0755)
+	if err != nil && os.IsExist(err) && app.ForceAdd {
+		err = Remove(appPath)
+
+	}
+	if err != nil {
+		return err
 	}
 
 	if app.From == "" {

@@ -554,6 +554,7 @@ type AppData struct {
 	DoOverlay       bool
 	Base            string
 	ManifestType    string
+	ForceAdd        bool
 }
 
 func (p *Pvr) GenerateApplicationSquashFS(app *AppData, appManifest *Source) error {
