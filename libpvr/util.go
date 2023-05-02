@@ -1022,7 +1022,7 @@ skip:
 			userNick = splits[0]
 			deviceNick = splits[1]
 		} else {
-			return "", errors.New("clone URL is not a valid URL, nor in pvr device ref format; see --help")
+			return "", errors.New("clone URL '"+uri.Path+"' is not a valid URL, nor in pvr device ref format; see --help")
 		}
 		fixedUri = "https://pvr.pantahub.com/" + userNick + "/" + deviceNick
 	}
