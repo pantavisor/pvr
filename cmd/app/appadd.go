@@ -138,6 +138,7 @@ func CommandAppAdd() cli.Command {
 				SourceType:    c.String("type"),
 				TemplateArgs:  templateArgs,
 				Config:        config,
+				ForceAdd:      c.Bool("force"),
 			}
 
 			if c.IsSet("group") && c.IsSet("runlevel") {
@@ -263,6 +264,11 @@ func CommandAppAdd() cli.Command {
 			Name:   "add-only,ao",
 			Usage:  "Only add the src.json but don't install",
 			EnvVar: "PVR_APP_ADD_ONLY",
+		},
+		cli.BoolFlag{
+			Name:   "force,f",
+			Usage:  "Force App Add even if it exists already",
+			EnvVar: "PVR_APP_ADD_FORCE",
 		},
 	}
 
