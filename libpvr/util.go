@@ -135,23 +135,9 @@ func RemoveAll(path string) error {
 		return err
 	}
 
-	rm, err := exec.LookPath(RM_CMD)
+	err := os.RemoveAll(path)
 	if err != nil {
-		return err
-	}
-
-	args := []string{rm, "-rvf", path}
-	rmCmd := exec.Command(args[0], args[1:]...)
-	var out bytes.Buffer
-	var stderr bytes.Buffer
-	rmCmd.Stdout = &out
-	rmCmd.Stderr = &stderr
-	err = rmCmd.Run()
-	if IsDebugEnabled {
-		fmt.Fprintln(os.Stderr, "rm output: "+out.String())
-	}
-	if err != nil {
-		fmt.Fprintln(os.Stderr, fmt.Sprint(err)+": "+stderr.String())
+		fmt.Fprintln(os.Stderr, fmt.Sprint(err))
 	}
 	return err
 }
