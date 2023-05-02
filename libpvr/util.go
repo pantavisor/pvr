@@ -147,21 +147,11 @@ func Remove(path string) error {
 	if _, err := os.Lstat(path); err != nil {
 		return err
 	}
-	rm, err := exec.LookPath(RM_CMD)
+	err := os.Remove(path)
 	if err != nil {
-		return err
+		fmt.Fprintln(os.Stderr, fmt.Sprint(err))
 	}
-	args := []string{rm, "-f", path}
-	rmCmd := exec.Command(args[0], args[1:]...)
-	var out bytes.Buffer
-	var stderr bytes.Buffer
-	rmCmd.Stdout = &out
-	rmCmd.Stderr = &stderr
-	err = rmCmd.Run()
-	if err != nil {
-		fmt.Fprintln(os.Stderr, fmt.Sprint(err)+": "+stderr.String())
-	}
-	return nil
+	return err
 }
 
 func Copy(dst, src string) error {
