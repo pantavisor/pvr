@@ -162,7 +162,7 @@ func AddRootFsApp(p *Pvr, app *AppData) error {
 		RemoveAll(appPath)
 	}
 
-	err = os.Mkdir(appPath, 0777)
+	err = os.MkdirAll(appPath, 0777)
 	if err != nil {
 		return err
 	}
