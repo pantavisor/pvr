@@ -341,6 +341,18 @@ func (p *Pvr) GetWorkingGroupsJson() (result []interface{}, err error) {
 			}
 			return
 		}
+		if strings.HasPrefix(k, "device.json") {
+			devjson := v.(map[string]interface{})
+			groupsv := devjson["groups"]
+
+			switch vv := groupsv.(type) {
+			case []interface{}:
+				result = vv
+			default:
+				err = errors.New("ERROR: groups not an array")
+			}
+			return
+		}
 	}
 	return
 }
@@ -1856,7 +1868,6 @@ func (p *Pvr) GetStateJson(uri string) (
 			if err != nil {
 				return
 			}
-			RemoveAll(repoPath)
 		}
 
 		localJsonPath := filepath.Join(repoPath, "json")
@@ -1868,6 +1879,7 @@ func (p *Pvr) GetStateJson(uri string) (
 		if err != nil {
 			return
 		}
+		RemoveAll(repoPath)
 	} else {
 
 		if u.Scheme == "" {
