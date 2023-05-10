@@ -739,26 +739,22 @@ func (p *Pvr) Commit(msg string, isCheckpoint bool) (err error) {
 		return err
 	}
 
-	newJson, err := jsonpatch.MergePatch(p.PristineJson, *status.JsonDiff)
-
+	newJson, err := MergePatch(p.PristineJson, *status.JsonDiff)
 	if err != nil {
 		return err
 	}
 
 	newJson, err = FormatJsonC(newJson)
-
 	if err != nil {
 		return err
 	}
 
 	err = os.WriteFile(filepath.Join(p.Pvrdir, "json.new"), newJson, 0644)
-
 	if err != nil {
 		return err
 	}
 
 	err = os.Rename(filepath.Join(p.Pvrdir, "json.new"), filepath.Join(p.Pvrdir, "json"))
-
 	if err != nil {
 		return err
 	}

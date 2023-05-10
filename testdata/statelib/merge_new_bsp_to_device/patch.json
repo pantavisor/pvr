@@ -1,0 +1,57 @@
+{
+  "#spec": "pantavisor-service-system@1",
+  "_sigs/bsp.json": {
+    "#spec": "pvs@2",
+    "protected": "eyJhbGciOiJSUzI1NiIsImp3ayI6eyJrdHkiOiJSU0EiLCJuIjoidjRJa0w1MzBYRlkyT1V4aG9vOWVRaWZ1TmxRRk9mOGxHblowUlVGSm9aTkRRNWlHRWlxeXhNMEtpOVh5UUpVV1g2RHpXY3lSVVZPUklJS29hRS1yZlB3YUh1QmdOVDRXY2RzRjN6NTRsWGQ5TUNsdWdfejl5bEgtVFNLUGFKam9ORlAyTVdDX0p5dXUxbG5ucW5iNUdzUlQ1WFh1RlA4MTNwVDlnX25fRmFWbDNuendMUnQ5ZmhHOGs3Y1M5MlJyR2Y0R1pqQnYzUEtORnJWOHBvTmZ1aDI5WHJtcTBWc3ktVGpPNUphT2Q2bzVFcXhGZXBKTnMtS21mMUdMZjlfYS1rN0I3YUQyQWdKYy1hSk9GZ2VEVjNtUFBESXFfbmtPeG9tYXA0a3ZlR0RjbkxMcDg2T1VkUEJaLWVjZHl4ZmhRT3plcm44c2o4ODQ1bmhmWlpPRkN3IiwiZSI6IkFRQUIifSwicHZzIjp7ImluY2x1ZGUiOlsiYnNwLyoqIiwiX2NvbmZpZy9ic3AvKioiXSwiZXhjbHVkZSI6WyJic3AvYnVpbGQuanNvbiIsImJzcC9zcmMuanNvbiJdfSwidHlwIjoiUFZTIiwieDVjIjpbIk1JSURhakNDQWxLZ0F3SUJBZ0lSQUtCc2hlL0F3UDlkYjZ1T1NJTFN1OEl3RFFZSktvWklodmNOQVFFTEJRQXdIREVhTUJnR0ExVUVBd3dSVUdGdWRHRjJhWE52Y2lCRVpYWWdRMEV3SGhjTk1qSXdOakV5TVRBd01ERTRXaGNOTWpRd09URTBNVEF3TURFNFdqQWFNUmd3RmdZRFZRUUREQTl3ZGkxa1pYWmxiRzl3WlhJdE1ERXdnZ0VpTUEwR0NTcUdTSWIzRFFFQkFRVUFBNElCRHdBd2dnRUtBb0lCQVFDL2dpUXZuZlJjVmpZNVRHR2lqMTVDSis0MlZBVTUveVVhZG5SRlFVbWhrME5EbUlZU0tyTEV6UXFMMWZKQWxSWmZvUE5aekpGUlU1RWdncWhvVDZ0OC9Cb2U0R0ExUGhaeDJ3WGZQbmlWZDMwd0tXNkQvUDNLVWY1TklvOW9tT2cwVS9ZeFlMOG5LNjdXV2VlcWR2a2F4RlBsZGU0VS96WGVsUDJEK2Y4VnBXWGVmUEF0RzMxK0VieVR0eEwzWkdzWi9nWm1NRy9jOG8wV3RYeW1nMSs2SGIxZXVhclJXekw1T003a2xvNTNxamtTckVWNmtrMno0cVovVVl0LzM5cjZUc0h0b1BZQ0FsejVvazRXQjROWGVZODhNaXIrZVE3R2lacW5pUzk0WU55Y3N1bnpvNVIwOEZuNTV4M0xGK0ZBN042dWZ5eVB6emptZUY5bGs0VUxBZ01CQUFHamdhZ3dnYVV3Q1FZRFZSMFRCQUl3QURBZEJnTlZIUTRFRmdRVTFlM3haaEhSQkp6MkpKSnlSMTZmMkxHMjJHTXdWd1lEVlIwakJGQXdUb0FVV1l1UStwS0M0SWJwbUNtdkUvajRJZXFSZ1QyaElLUWVNQnd4R2pBWUJnTlZCQU1NRVZCaGJuUmhkbWx6YjNJZ1JHVjJJRU5CZ2hSamNRWjBlaXFxdEJrODBlQmpJQVNUU2NXSnlqQVRCZ05WSFNVRUREQUtCZ2dyQmdFRkJRY0RBekFMQmdOVkhROEVCQU1DQjRBd0RRWUpLb1pJaHZjTkFRRUxCUUFEZ2dFQkFCVzBVQ3pINW03a3E0UTRiL2p6UUszTlB5OVBGOHA5bGg4S3M1ZHZISUFRYkxtTUt5RmJYUWlyblhxZWVlSFg5K01URTZMN21KVVo2RVpvYmUxamlKNlRHM3BycTgzV3JRSEVoQlBXWTk1YWxkUEFuWEJ4SE9LejlvL3FhMytlVVlYdWhNWitQUGJZZGNtWm9lODJBNzdKVnNHMUpGY2VpRGxYVnpiOC8ranVtZ3gwVTNzWFc3YUFyMVpXYU00VmpaTHRsZndCT0ovUUNNOGx0UmFSMk96N21UamZVNTNaWDNROHNWQVRHZVVFaEdsU3pISFRCNC9vTWdGdndhaE9pZlN5Mm5STUUvQXkvQ2pMMy9IMjFFMEdEcC9pQm9BZ1BvNy9BaE1kRTlpRjJXZ3RjQXdFVUVwdmp2V0k0WWs3WWJtMzNQSXRUaGw3Q0NOY280dU5POW89Il19",
+    "signature": "USKn4KGF40edouHs8U2fLG5I10GD_3UkTx654A2aP7LiZoX5N2Bv-EJQyvJcOqevZ-e9cRpN1JiJkps8s2oWCK0wyh9jLe6fXP3pmnf3yCYoIi6CRisbKf3xaFpjnyCS7cT5EHM9U4PRf_cC2Vfx2XKsro40G7ZP1dalXSPz5YsdFlYBFmFIov6zNtkQ7CnjtAYPUQnA8wgWRneobe8AF-NTH2NPkbHvLbh7MyrkLKBYqpQ6UjCyECuV0TCZ88zf7Bbp37YWiEygi58ueQEzKJD4XQ020SwNxOe65CGC-vMSmmOhL-QN8-2nI2Xm9EUzmqjE1-6_9-2hfuCg5wkwJQ"
+  },
+  "bsp/addon-plymouth.cpio.xz4": "beae6a7bb235916cac52bcfece64c30615cded8c4c640e6941e7ecabe53b4920",
+  "bsp/build.json": {
+    "altrepogroups": "",
+    "branch": "master",
+    "commit": "db8e48ddfac75511c6c368c7678f1b1b2268666c",
+    "gitdescribe": "015-rc5-105-gdb8e48d",
+    "pipeline": "689898438",
+    "platform": "rpi64-5.10.y",
+    "project": "pantacor/pv-manifest",
+    "pvrversion": "pvr version 034-37-g84c3032c",
+    "target": "rpi64-5.10.y",
+    "time": "2022-11-09 13:39:16 +0000"
+  },
+  "bsp/drivers.json": {
+    "#spec": "driver-aliases@1",
+    "all": {
+      "bluetooth": [
+        "btbcm",
+        "hci_uart"
+      ],
+      "wifi": [
+        "brcmutil",
+        "brcmfmac"
+      ],
+      "wireguard": [
+        "wireguard"
+      ]
+    },
+    "dtb:all": {}
+  },
+  "bsp/firmware.squashfs": "8de41e48b9074b740f3eb871ed2eb50ec8facfcb2ea3da40491bcf1697a797ce",
+  "bsp/kernel.img": "9f6ca0146a4672322f18a5ab8822606c737867cd2ccc5a71a9c3e687d1c61176",
+  "bsp/modules.squashfs": "370719b05ebc375ca6c296e02f5a279098323dcdc19df9d51ad203ff40541152",
+  "bsp/pantavisor": "9b6d07981a3cb7adb0eedeae0be1a938859043d50ddfebeeccb6fd7bf225a719",
+  "bsp/run.json": {
+    "addons": [
+      "addon-plymouth.cpio.xz4"
+    ],
+    "firmware": "firmware.squashfs",
+    "initrd": "pantavisor",
+    "initrd_config": "trail.config",
+    "linux": "kernel.img",
+    "modules": "modules.squashfs"
+  },
+  "bsp/src.json": {
+    "#spec": "bsp-manifest-src@1",
+    "pvr": "https://pvr.pantahub.com/pantahub-ci/rpi64_5_10_y_bsp_latest#bsp,_sigs,groups.json"
+  },
+  "bsp/trail.config": "b236948bd3caaf31c00af82fbeeb0816962e39a96ad6c5cf9bfc1a547cdbe005"
+}

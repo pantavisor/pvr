@@ -1,0 +1,281 @@
+{
+  "#spec": "pantavisor-service-system@1",
+  "_config/pv-avahi/etc/hostname": "2c8b08da5ce60398e1f19af0e5dccc744df274b826abe585eaba68c525434806",
+  "_config/pvr-sdk/etc/pvr-sdk/config.json": {
+    "httpd": {
+      "listen": "0.0.0.0",
+      "port": "12368"
+    }
+  },
+  "_sigs/_hostconfig.json": {
+    "#spec": "pvs@2",
+    "protected": "eyJhbGciOiJSUzI1NiIsImp3ayI6eyJrdHkiOiJSU0EiLCJuIjoidjRJa0w1MzBYRlkyT1V4aG9vOWVRaWZ1TmxRRk9mOGxHblowUlVGSm9aTkRRNWlHRWlxeXhNMEtpOVh5UUpVV1g2RHpXY3lSVVZPUklJS29hRS1yZlB3YUh1QmdOVDRXY2RzRjN6NTRsWGQ5TUNsdWdfejl5bEgtVFNLUGFKam9ORlAyTVdDX0p5dXUxbG5ucW5iNUdzUlQ1WFh1RlA4MTNwVDlnX25fRmFWbDNuendMUnQ5ZmhHOGs3Y1M5MlJyR2Y0R1pqQnYzUEtORnJWOHBvTmZ1aDI5WHJtcTBWc3ktVGpPNUphT2Q2bzVFcXhGZXBKTnMtS21mMUdMZjlfYS1rN0I3YUQyQWdKYy1hSk9GZ2VEVjNtUFBESXFfbmtPeG9tYXA0a3ZlR0RjbkxMcDg2T1VkUEJaLWVjZHl4ZmhRT3plcm44c2o4ODQ1bmhmWlpPRkN3IiwiZSI6IkFRQUIifSwicHZzIjp7ImluY2x1ZGUiOlsiX2hvc3Rjb25maWcvKioiXSwiZXhjbHVkZSI6WyJzcmMuanNvbiIsIl9zaWdzLy5qc29uIl19LCJ0eXAiOiJQVlMiLCJ4NWMiOlsiTUlJRGFqQ0NBbEtnQXdJQkFnSVJBS0JzaGUvQXdQOWRiNnVPU0lMU3U4SXdEUVlKS29aSWh2Y05BUUVMQlFBd0hERWFNQmdHQTFVRUF3d1JVR0Z1ZEdGMmFYTnZjaUJFWlhZZ1EwRXdIaGNOTWpJd05qRXlNVEF3TURFNFdoY05NalF3T1RFME1UQXdNREU0V2pBYU1SZ3dGZ1lEVlFRRERBOXdkaTFrWlhabGJHOXdaWEl0TURFd2dnRWlNQTBHQ1NxR1NJYjNEUUVCQVFVQUE0SUJEd0F3Z2dFS0FvSUJBUUMvZ2lRdm5mUmNWalk1VEdHaWoxNUNKKzQyVkFVNS95VWFkblJGUVVtaGswTkRtSVlTS3JMRXpRcUwxZkpBbFJaZm9QTlp6SkZSVTVFZ2dxaG9UNnQ4L0JvZTRHQTFQaFp4MndYZlBuaVZkMzB3S1c2RC9QM0tVZjVOSW85b21PZzBVL1l4WUw4bks2N1dXZWVxZHZrYXhGUGxkZTRVL3pYZWxQMkQrZjhWcFdYZWZQQXRHMzErRWJ5VHR4TDNaR3NaL2dabU1HL2M4bzBXdFh5bWcxKzZIYjFldWFyUld6TDVPTTdrbG81M3Fqa1NyRVY2a2syejRxWi9VWXQvMzlyNlRzSHRvUFlDQWx6NW9rNFdCNE5YZVk4OE1pcitlUTdHaVpxbmlTOTRZTnljc3Vuem81UjA4Rm41NXgzTEYrRkE3TjZ1Znl5UHp6am1lRjlsazRVTEFnTUJBQUdqZ2Fnd2dhVXdDUVlEVlIwVEJBSXdBREFkQmdOVkhRNEVGZ1FVMWUzeFpoSFJCSnoySkpKeVIxNmYyTEcyMkdNd1Z3WURWUjBqQkZBd1RvQVVXWXVRK3BLQzRJYnBtQ212RS9qNEllcVJnVDJoSUtRZU1Cd3hHakFZQmdOVkJBTU1FVkJoYm5SaGRtbHpiM0lnUkdWMklFTkJnaFJqY1FaMGVpcXF0Qms4MGVCaklBU1RTY1dKeWpBVEJnTlZIU1VFRERBS0JnZ3JCZ0VGQlFjREF6QUxCZ05WSFE4RUJBTUNCNEF3RFFZSktvWklodmNOQVFFTEJRQURnZ0VCQUJXMFVDekg1bTdrcTRRNGIvanpRSzNOUHk5UEY4cDlsaDhLczVkdkhJQVFiTG1NS3lGYlhRaXJuWHFlZWVIWDkrTVRFNkw3bUpVWjZFWm9iZTFqaUo2VEczcHJxODNXclFIRWhCUFdZOTVhbGRQQW5YQnhIT0t6OW8vcWEzK2VVWVh1aE1aK1BQYllkY21ab2U4MkE3N0pWc0cxSkZjZWlEbFhWemI4LytqdW1neDBVM3NYVzdhQXIxWldhTTRWalpMdGxmd0JPSi9RQ004bHRSYVIyT3o3bVRqZlU1M1pYM1E4c1ZBVEdlVUVoR2xTekhIVEI0L29NZ0Z2d2FoT2lmU3kyblJNRS9BeS9DakwzL0gyMUUwR0RwL2lCb0FnUG83L0FoTWRFOWlGMldndGNBd0VVRXB2anZXSTRZazdZYm0zM1BJdFRobDdDQ05jbzR1Tk85bz0iXX0",
+    "signature": "QnjVDCHAZOnEF92MBEQdUDyP0ONrUnTIXbRCX6b3tEjSQZY_6ToHEoYnYxL4zv8VVZmeVw-AdMdBezP-V1cQF5_R3MbmBcECUpuQ7OpGZR8ITakX-K1XgIwpKt8g3Lfxdupe_fkVCCUZNFnT5arrL2LQq-L0cX0wO_y4xJTuymYTT1FCA-lb3pPpfJEpMvPuwTs2RGb_q4QuG3ZFKBAdzAZ7z58y0Uy8GtS-fJqcv0pPOiLGksdxDjhJYFttODlqpGVXpyv95M0aiip7KhyER8PORNwkncjvHpnmVHC_TGta9begZFilvNqZm0DSjwlCl9bl2h_9FQaRXycDkJbVqQ"
+  },
+  "_sigs/nginx.json": {
+    "#spec": "pvs@2",
+    "protected": "eyJhbGciOiJSUzI1NiIsImp3ayI6eyJrdHkiOiJSU0EiLCJuIjoidjRJa0w1MzBYRlkyT1V4aG9vOWVRaWZ1TmxRRk9mOGxHblowUlVGSm9aTkRRNWlHRWlxeXhNMEtpOVh5UUpVV1g2RHpXY3lSVVZPUklJS29hRS1yZlB3YUh1QmdOVDRXY2RzRjN6NTRsWGQ5TUNsdWdfejl5bEgtVFNLUGFKam9ORlAyTVdDX0p5dXUxbG5ucW5iNUdzUlQ1WFh1RlA4MTNwVDlnX25fRmFWbDNuendMUnQ5ZmhHOGs3Y1M5MlJyR2Y0R1pqQnYzUEtORnJWOHBvTmZ1aDI5WHJtcTBWc3ktVGpPNUphT2Q2bzVFcXhGZXBKTnMtS21mMUdMZjlfYS1rN0I3YUQyQWdKYy1hSk9GZ2VEVjNtUFBESXFfbmtPeG9tYXA0a3ZlR0RjbkxMcDg2T1VkUEJaLWVjZHl4ZmhRT3plcm44c2o4ODQ1bmhmWlpPRkN3IiwiZSI6IkFRQUIifSwicHZzIjp7ImluY2x1ZGUiOlsibmdpbngvKioiXSwiZXhjbHVkZSI6WyJuZ2lueC9zcmMuanNvbiIsIl9zaWdzL25naW54Lmpzb24iXX0sInR5cCI6IlBWUyIsIng1YyI6WyJNSUlEYWpDQ0FsS2dBd0lCQWdJUkFLQnNoZS9Bd1A5ZGI2dU9TSUxTdThJd0RRWUpLb1pJaHZjTkFRRUxCUUF3SERFYU1CZ0dBMVVFQXd3UlVHRnVkR0YyYVhOdmNpQkVaWFlnUTBFd0hoY05Nakl3TmpFeU1UQXdNREU0V2hjTk1qUXdPVEUwTVRBd01ERTRXakFhTVJnd0ZnWURWUVFEREE5d2RpMWtaWFpsYkc5d1pYSXRNREV3Z2dFaU1BMEdDU3FHU0liM0RRRUJBUVVBQTRJQkR3QXdnZ0VLQW9JQkFRQy9naVF2bmZSY1ZqWTVUR0dpajE1Q0orNDJWQVU1L3lVYWRuUkZRVW1oazBORG1JWVNLckxFelFxTDFmSkFsUlpmb1BOWnpKRlJVNUVnZ3Fob1Q2dDgvQm9lNEdBMVBoWngyd1hmUG5pVmQzMHdLVzZEL1AzS1VmNU5JbzlvbU9nMFUvWXhZTDhuSzY3V1dlZXFkdmtheEZQbGRlNFUvelhlbFAyRCtmOFZwV1hlZlBBdEczMStFYnlUdHhMM1pHc1ovZ1ptTUcvYzhvMFd0WHltZzErNkhiMWV1YXJSV3pMNU9NN2tsbzUzcWprU3JFVjZrazJ6NHFaL1VZdC8zOXI2VHNIdG9QWUNBbHo1b2s0V0I0TlhlWTg4TWlyK2VRN0dpWnFuaVM5NFlOeWNzdW56bzVSMDhGbjU1eDNMRitGQTdONnVmeXlQenpqbWVGOWxrNFVMQWdNQkFBR2pnYWd3Z2FVd0NRWURWUjBUQkFJd0FEQWRCZ05WSFE0RUZnUVUxZTN4WmhIUkJKejJKSkp5UjE2ZjJMRzIyR013VndZRFZSMGpCRkF3VG9BVVdZdVErcEtDNElicG1DbXZFL2o0SWVxUmdUMmhJS1FlTUJ3eEdqQVlCZ05WQkFNTUVWQmhiblJoZG1semIzSWdSR1YySUVOQmdoUmpjUVowZWlxcXRCazgwZUJqSUFTVFNjV0p5akFUQmdOVkhTVUVEREFLQmdnckJnRUZCUWNEQXpBTEJnTlZIUThFQkFNQ0I0QXdEUVlKS29aSWh2Y05BUUVMQlFBRGdnRUJBQlcwVUN6SDVtN2txNFE0Yi9qelFLM05QeTlQRjhwOWxoOEtzNWR2SElBUWJMbU1LeUZiWFFpcm5YcWVlZUhYOStNVEU2TDdtSlVaNkVab2JlMWppSjZURzNwcnE4M1dyUUhFaEJQV1k5NWFsZFBBblhCeEhPS3o5by9xYTMrZVVZWHVoTVorUFBiWWRjbVpvZTgyQTc3SlZzRzFKRmNlaURsWFZ6YjgvK2p1bWd4MFUzc1hXN2FBcjFaV2FNNFZqWkx0bGZ3Qk9KL1FDTThsdFJhUjJPejdtVGpmVTUzWlgzUThzVkFUR2VVRWhHbFN6SEhUQjQvb01nRnZ3YWhPaWZTeTJuUk1FL0F5L0NqTDMvSDIxRTBHRHAvaUJvQWdQbzcvQWhNZEU5aUYyV2d0Y0F3RVVFcHZqdldJNFlrN1libTMzUEl0VGhsN0NDTmNvNHVOTzlvPSJdfQ",
+    "signature": "FWXQeOrwDn5KeYXSD5rVajjWN37N98e_rA8EJCjc4PIo63vTRCOXzqlUui2rr2KP1GH5gYJrnKgkmvcL77fnAOaSr5DDmK_wTxyBvVDfb11MEYetpv6YJpef8W3aateZX6geep4aCQTgvGaLt-QYwd2csJYnMFGjYDnUzoeAt8oTA5ohjHH5Hn_FNo_AdqdlIgvn-r2TgrtF-VCIapQirSh-uuFUKP1JGzd6TyMO6j2HPR5yubRJP76xDDMDAOhmPDBcSeQX2uIbxOrGaLuRoh4ZzwQ-wYsDftXC-8dzSUzy1irkk9iA_4R62sJTtd7tK5QeQ-hs2MT64-PM-O9csw"
+  },
+  "_sigs/pv-avahi.json": {
+    "#spec": "pvs@2",
+    "protected": "eyJhbGciOiJSUzI1NiIsImp3ayI6eyJrdHkiOiJSU0EiLCJuIjoidjRJa0w1MzBYRlkyT1V4aG9vOWVRaWZ1TmxRRk9mOGxHblowUlVGSm9aTkRRNWlHRWlxeXhNMEtpOVh5UUpVV1g2RHpXY3lSVVZPUklJS29hRS1yZlB3YUh1QmdOVDRXY2RzRjN6NTRsWGQ5TUNsdWdfejl5bEgtVFNLUGFKam9ORlAyTVdDX0p5dXUxbG5ucW5iNUdzUlQ1WFh1RlA4MTNwVDlnX25fRmFWbDNuendMUnQ5ZmhHOGs3Y1M5MlJyR2Y0R1pqQnYzUEtORnJWOHBvTmZ1aDI5WHJtcTBWc3ktVGpPNUphT2Q2bzVFcXhGZXBKTnMtS21mMUdMZjlfYS1rN0I3YUQyQWdKYy1hSk9GZ2VEVjNtUFBESXFfbmtPeG9tYXA0a3ZlR0RjbkxMcDg2T1VkUEJaLWVjZHl4ZmhRT3plcm44c2o4ODQ1bmhmWlpPRkN3IiwiZSI6IkFRQUIifSwicHZzIjp7ImluY2x1ZGUiOlsicHYtYXZhaGkvKioiLCJfY29uZmlnL3B2LWF2YWhpLyoqIl0sImV4Y2x1ZGUiOlsicHYtYXZhaGkvc3JjLmpzb24iLCJfc2lncy9wdi1hdmFoaS5qc29uIl19LCJ0eXAiOiJQVlMiLCJ4NWMiOlsiTUlJRGFqQ0NBbEtnQXdJQkFnSVJBS0JzaGUvQXdQOWRiNnVPU0lMU3U4SXdEUVlKS29aSWh2Y05BUUVMQlFBd0hERWFNQmdHQTFVRUF3d1JVR0Z1ZEdGMmFYTnZjaUJFWlhZZ1EwRXdIaGNOTWpJd05qRXlNVEF3TURFNFdoY05NalF3T1RFME1UQXdNREU0V2pBYU1SZ3dGZ1lEVlFRRERBOXdkaTFrWlhabGJHOXdaWEl0TURFd2dnRWlNQTBHQ1NxR1NJYjNEUUVCQVFVQUE0SUJEd0F3Z2dFS0FvSUJBUUMvZ2lRdm5mUmNWalk1VEdHaWoxNUNKKzQyVkFVNS95VWFkblJGUVVtaGswTkRtSVlTS3JMRXpRcUwxZkpBbFJaZm9QTlp6SkZSVTVFZ2dxaG9UNnQ4L0JvZTRHQTFQaFp4MndYZlBuaVZkMzB3S1c2RC9QM0tVZjVOSW85b21PZzBVL1l4WUw4bks2N1dXZWVxZHZrYXhGUGxkZTRVL3pYZWxQMkQrZjhWcFdYZWZQQXRHMzErRWJ5VHR4TDNaR3NaL2dabU1HL2M4bzBXdFh5bWcxKzZIYjFldWFyUld6TDVPTTdrbG81M3Fqa1NyRVY2a2syejRxWi9VWXQvMzlyNlRzSHRvUFlDQWx6NW9rNFdCNE5YZVk4OE1pcitlUTdHaVpxbmlTOTRZTnljc3Vuem81UjA4Rm41NXgzTEYrRkE3TjZ1Znl5UHp6am1lRjlsazRVTEFnTUJBQUdqZ2Fnd2dhVXdDUVlEVlIwVEJBSXdBREFkQmdOVkhRNEVGZ1FVMWUzeFpoSFJCSnoySkpKeVIxNmYyTEcyMkdNd1Z3WURWUjBqQkZBd1RvQVVXWXVRK3BLQzRJYnBtQ212RS9qNEllcVJnVDJoSUtRZU1Cd3hHakFZQmdOVkJBTU1FVkJoYm5SaGRtbHpiM0lnUkdWMklFTkJnaFJqY1FaMGVpcXF0Qms4MGVCaklBU1RTY1dKeWpBVEJnTlZIU1VFRERBS0JnZ3JCZ0VGQlFjREF6QUxCZ05WSFE4RUJBTUNCNEF3RFFZSktvWklodmNOQVFFTEJRQURnZ0VCQUJXMFVDekg1bTdrcTRRNGIvanpRSzNOUHk5UEY4cDlsaDhLczVkdkhJQVFiTG1NS3lGYlhRaXJuWHFlZWVIWDkrTVRFNkw3bUpVWjZFWm9iZTFqaUo2VEczcHJxODNXclFIRWhCUFdZOTVhbGRQQW5YQnhIT0t6OW8vcWEzK2VVWVh1aE1aK1BQYllkY21ab2U4MkE3N0pWc0cxSkZjZWlEbFhWemI4LytqdW1neDBVM3NYVzdhQXIxWldhTTRWalpMdGxmd0JPSi9RQ004bHRSYVIyT3o3bVRqZlU1M1pYM1E4c1ZBVEdlVUVoR2xTekhIVEI0L29NZ0Z2d2FoT2lmU3kyblJNRS9BeS9DakwzL0gyMUUwR0RwL2lCb0FnUG83L0FoTWRFOWlGMldndGNBd0VVRXB2anZXSTRZazdZYm0zM1BJdFRobDdDQ05jbzR1Tk85bz0iXX0",
+    "signature": "g2BRtQUeL6fABcVk0V9E40qtAjf_qpnT66vODcartLQL0LUu4F9FT0GHE3RUAufm-STS79VuOluDec1eX76piPyVfzmspaaDk0pOgqCq4PJD27GO80LosZSpee4TNjPnzoQoyKsOWoYyGNfMJ3spKVeH1NDS4Uh_ZkJ5u0_x5jLxzx-eRMGbTJ3EFYK7g7zn6pbE0vFD1uUwgf0QisLHnBhI41Nhyawao_0UGKzlDeU10FIn4DXMwvcRfRXkIvwdMR4klnkDXKs9yAW8i5CtsJZIHw4LMXJmsOfACcdGKd7z4U-ypLqN0x05fIvkdssLiLJsO7RapTui6C0KxpvEig"
+  },
+  "_sigs/pvr-sdk.json": {
+    "#spec": "pvs@2",
+    "protected": "eyJhbGciOiJSUzI1NiIsImp3ayI6eyJrdHkiOiJSU0EiLCJuIjoidjRJa0w1MzBYRlkyT1V4aG9vOWVRaWZ1TmxRRk9mOGxHblowUlVGSm9aTkRRNWlHRWlxeXhNMEtpOVh5UUpVV1g2RHpXY3lSVVZPUklJS29hRS1yZlB3YUh1QmdOVDRXY2RzRjN6NTRsWGQ5TUNsdWdfejl5bEgtVFNLUGFKam9ORlAyTVdDX0p5dXUxbG5ucW5iNUdzUlQ1WFh1RlA4MTNwVDlnX25fRmFWbDNuendMUnQ5ZmhHOGs3Y1M5MlJyR2Y0R1pqQnYzUEtORnJWOHBvTmZ1aDI5WHJtcTBWc3ktVGpPNUphT2Q2bzVFcXhGZXBKTnMtS21mMUdMZjlfYS1rN0I3YUQyQWdKYy1hSk9GZ2VEVjNtUFBESXFfbmtPeG9tYXA0a3ZlR0RjbkxMcDg2T1VkUEJaLWVjZHl4ZmhRT3plcm44c2o4ODQ1bmhmWlpPRkN3IiwiZSI6IkFRQUIifSwicHZzIjp7ImluY2x1ZGUiOlsicHZyLXNkay8qKiIsIl9jb25maWcvcHZyLXNkay8qKiJdLCJleGNsdWRlIjpbInB2ci1zZGsvc3JjLmpzb24iLCJfc2lncy9wdnItc2RrLmpzb24iXX0sInR5cCI6IlBWUyIsIng1YyI6WyJNSUlEYWpDQ0FsS2dBd0lCQWdJUkFLQnNoZS9Bd1A5ZGI2dU9TSUxTdThJd0RRWUpLb1pJaHZjTkFRRUxCUUF3SERFYU1CZ0dBMVVFQXd3UlVHRnVkR0YyYVhOdmNpQkVaWFlnUTBFd0hoY05Nakl3TmpFeU1UQXdNREU0V2hjTk1qUXdPVEUwTVRBd01ERTRXakFhTVJnd0ZnWURWUVFEREE5d2RpMWtaWFpsYkc5d1pYSXRNREV3Z2dFaU1BMEdDU3FHU0liM0RRRUJBUVVBQTRJQkR3QXdnZ0VLQW9JQkFRQy9naVF2bmZSY1ZqWTVUR0dpajE1Q0orNDJWQVU1L3lVYWRuUkZRVW1oazBORG1JWVNLckxFelFxTDFmSkFsUlpmb1BOWnpKRlJVNUVnZ3Fob1Q2dDgvQm9lNEdBMVBoWngyd1hmUG5pVmQzMHdLVzZEL1AzS1VmNU5JbzlvbU9nMFUvWXhZTDhuSzY3V1dlZXFkdmtheEZQbGRlNFUvelhlbFAyRCtmOFZwV1hlZlBBdEczMStFYnlUdHhMM1pHc1ovZ1ptTUcvYzhvMFd0WHltZzErNkhiMWV1YXJSV3pMNU9NN2tsbzUzcWprU3JFVjZrazJ6NHFaL1VZdC8zOXI2VHNIdG9QWUNBbHo1b2s0V0I0TlhlWTg4TWlyK2VRN0dpWnFuaVM5NFlOeWNzdW56bzVSMDhGbjU1eDNMRitGQTdONnVmeXlQenpqbWVGOWxrNFVMQWdNQkFBR2pnYWd3Z2FVd0NRWURWUjBUQkFJd0FEQWRCZ05WSFE0RUZnUVUxZTN4WmhIUkJKejJKSkp5UjE2ZjJMRzIyR013VndZRFZSMGpCRkF3VG9BVVdZdVErcEtDNElicG1DbXZFL2o0SWVxUmdUMmhJS1FlTUJ3eEdqQVlCZ05WQkFNTUVWQmhiblJoZG1semIzSWdSR1YySUVOQmdoUmpjUVowZWlxcXRCazgwZUJqSUFTVFNjV0p5akFUQmdOVkhTVUVEREFLQmdnckJnRUZCUWNEQXpBTEJnTlZIUThFQkFNQ0I0QXdEUVlKS29aSWh2Y05BUUVMQlFBRGdnRUJBQlcwVUN6SDVtN2txNFE0Yi9qelFLM05QeTlQRjhwOWxoOEtzNWR2SElBUWJMbU1LeUZiWFFpcm5YcWVlZUhYOStNVEU2TDdtSlVaNkVab2JlMWppSjZURzNwcnE4M1dyUUhFaEJQV1k5NWFsZFBBblhCeEhPS3o5by9xYTMrZVVZWHVoTVorUFBiWWRjbVpvZTgyQTc3SlZzRzFKRmNlaURsWFZ6YjgvK2p1bWd4MFUzc1hXN2FBcjFaV2FNNFZqWkx0bGZ3Qk9KL1FDTThsdFJhUjJPejdtVGpmVTUzWlgzUThzVkFUR2VVRWhHbFN6SEhUQjQvb01nRnZ3YWhPaWZTeTJuUk1FL0F5L0NqTDMvSDIxRTBHRHAvaUJvQWdQbzcvQWhNZEU5aUYyV2d0Y0F3RVVFcHZqdldJNFlrN1libTMzUEl0VGhsN0NDTmNvNHVOTzlvPSJdfQ",
+    "signature": "t_P0Y3Uvve2ZkfJVN8_N-_A48giqjIGcrjsGV8uNJULqD3x5I1ljzj4Umf2r9uxcQatjejPXfPskM0c1L2DYJPjMyuvh3hM8glSgKBPL_B3hsfQngwSiiPS6ifCrBGEpaN8kiduAl2i2wbHb9lLDg0S1pd7uc495yKvO9rHafye6J5c58xdtYff_Xe8pDYYubIIV_3MH8ZbZri01AoD6oo7wFZqeoPPkCwC-2UZ1OVOakNdOxC6S4jo0ADYmoc1Vb-Rm_45btqJP9tsQJRczbCVllYCCWaWMgEgkHloB-q4nIStGWSxUej1xXFDKEllYIgdN4P0VCJkLTh6gli_4QQ"
+  },
+  "_sigs/pvwebstatus.json": {
+    "#spec": "pvs@2",
+    "protected": "eyJhbGciOiJSUzI1NiIsImp3ayI6eyJrdHkiOiJSU0EiLCJuIjoidjRJa0w1MzBYRlkyT1V4aG9vOWVRaWZ1TmxRRk9mOGxHblowUlVGSm9aTkRRNWlHRWlxeXhNMEtpOVh5UUpVV1g2RHpXY3lSVVZPUklJS29hRS1yZlB3YUh1QmdOVDRXY2RzRjN6NTRsWGQ5TUNsdWdfejl5bEgtVFNLUGFKam9ORlAyTVdDX0p5dXUxbG5ucW5iNUdzUlQ1WFh1RlA4MTNwVDlnX25fRmFWbDNuendMUnQ5ZmhHOGs3Y1M5MlJyR2Y0R1pqQnYzUEtORnJWOHBvTmZ1aDI5WHJtcTBWc3ktVGpPNUphT2Q2bzVFcXhGZXBKTnMtS21mMUdMZjlfYS1rN0I3YUQyQWdKYy1hSk9GZ2VEVjNtUFBESXFfbmtPeG9tYXA0a3ZlR0RjbkxMcDg2T1VkUEJaLWVjZHl4ZmhRT3plcm44c2o4ODQ1bmhmWlpPRkN3IiwiZSI6IkFRQUIifSwicHZzIjp7ImluY2x1ZGUiOlsicHZ3ZWJzdGF0dXMvKioiXSwiZXhjbHVkZSI6WyJwdndlYnN0YXR1cy9zcmMuanNvbiIsIl9zaWdzL3B2d2Vic3RhdHVzLmpzb24iXX0sInR5cCI6IlBWUyIsIng1YyI6WyJNSUlEYWpDQ0FsS2dBd0lCQWdJUkFLQnNoZS9Bd1A5ZGI2dU9TSUxTdThJd0RRWUpLb1pJaHZjTkFRRUxCUUF3SERFYU1CZ0dBMVVFQXd3UlVHRnVkR0YyYVhOdmNpQkVaWFlnUTBFd0hoY05Nakl3TmpFeU1UQXdNREU0V2hjTk1qUXdPVEUwTVRBd01ERTRXakFhTVJnd0ZnWURWUVFEREE5d2RpMWtaWFpsYkc5d1pYSXRNREV3Z2dFaU1BMEdDU3FHU0liM0RRRUJBUVVBQTRJQkR3QXdnZ0VLQW9JQkFRQy9naVF2bmZSY1ZqWTVUR0dpajE1Q0orNDJWQVU1L3lVYWRuUkZRVW1oazBORG1JWVNLckxFelFxTDFmSkFsUlpmb1BOWnpKRlJVNUVnZ3Fob1Q2dDgvQm9lNEdBMVBoWngyd1hmUG5pVmQzMHdLVzZEL1AzS1VmNU5JbzlvbU9nMFUvWXhZTDhuSzY3V1dlZXFkdmtheEZQbGRlNFUvelhlbFAyRCtmOFZwV1hlZlBBdEczMStFYnlUdHhMM1pHc1ovZ1ptTUcvYzhvMFd0WHltZzErNkhiMWV1YXJSV3pMNU9NN2tsbzUzcWprU3JFVjZrazJ6NHFaL1VZdC8zOXI2VHNIdG9QWUNBbHo1b2s0V0I0TlhlWTg4TWlyK2VRN0dpWnFuaVM5NFlOeWNzdW56bzVSMDhGbjU1eDNMRitGQTdONnVmeXlQenpqbWVGOWxrNFVMQWdNQkFBR2pnYWd3Z2FVd0NRWURWUjBUQkFJd0FEQWRCZ05WSFE0RUZnUVUxZTN4WmhIUkJKejJKSkp5UjE2ZjJMRzIyR013VndZRFZSMGpCRkF3VG9BVVdZdVErcEtDNElicG1DbXZFL2o0SWVxUmdUMmhJS1FlTUJ3eEdqQVlCZ05WQkFNTUVWQmhiblJoZG1semIzSWdSR1YySUVOQmdoUmpjUVowZWlxcXRCazgwZUJqSUFTVFNjV0p5akFUQmdOVkhTVUVEREFLQmdnckJnRUZCUWNEQXpBTEJnTlZIUThFQkFNQ0I0QXdEUVlKS29aSWh2Y05BUUVMQlFBRGdnRUJBQlcwVUN6SDVtN2txNFE0Yi9qelFLM05QeTlQRjhwOWxoOEtzNWR2SElBUWJMbU1LeUZiWFFpcm5YcWVlZUhYOStNVEU2TDdtSlVaNkVab2JlMWppSjZURzNwcnE4M1dyUUhFaEJQV1k5NWFsZFBBblhCeEhPS3o5by9xYTMrZVVZWHVoTVorUFBiWWRjbVpvZTgyQTc3SlZzRzFKRmNlaURsWFZ6YjgvK2p1bWd4MFUzc1hXN2FBcjFaV2FNNFZqWkx0bGZ3Qk9KL1FDTThsdFJhUjJPejdtVGpmVTUzWlgzUThzVkFUR2VVRWhHbFN6SEhUQjQvb01nRnZ3YWhPaWZTeTJuUk1FL0F5L0NqTDMvSDIxRTBHRHAvaUJvQWdQbzcvQWhNZEU5aUYyV2d0Y0F3RVVFcHZqdldJNFlrN1libTMzUEl0VGhsN0NDTmNvNHVOTzlvPSJdfQ",
+    "signature": "NH_He19tP2fZtWUuYiuNyT9G7teqH-22ueXAA8PTWGvlcuHwbJWTpPUOSWWK-6l49YhFPkmW1ocDQEhtHe1hkTD9i5jkWf6wHYJK8FREbC54XPqZn2IRteV3uQW0YD3p60a4QALQ_g04YKlrIWQe5KAkt21f3exDYjM0mPCkD3MiMMeSHAJNVeudJdG9L6pCW5W9ffSsWvyj1yBo2gzOy06rL_3tTbdkTw5MwNPAjNXfG9dsFR0DIGU_aZYqsfJuKDjBXjcYir_w28-U5C6taf-ejH6YTHIIrXtjNEng9DdzIpckXBJecPRlDcmE5ZiirF_5D1PF-SgyBwZmS4xoGg"
+  },
+  "network-mapping.json": {},
+  "nginx/lxc.container.conf": "106c6cc9868c50f512d03cabbdb02585d5e6be30a9dceaf7b291be8ffa795ff1",
+  "nginx/root.squashfs": "94362e03eade077df675ec7c09647e5df1f74e2e93499d42d58b030201a7c860",
+  "nginx/root.squashfs.docker-digest": "69acfaec2497a19d585ebb7ebfe55fe7162d97826f916808e84758962cea9c07",
+  "nginx/run.json": {
+    "#spec": "service-manifest-run@1",
+    "config": "lxc.container.conf",
+    "drivers": {
+      "manual": [],
+      "optional": [],
+      "required": []
+    },
+    "name": "nginx",
+    "root-volume": "root.squashfs",
+    "storage": {
+      "lxc-overlay": {
+        "persistence": "boot"
+      }
+    },
+    "type": "lxc",
+    "volumes": []
+  },
+  "nginx/src.json": {
+    "#spec": "service-manifest-src@1",
+    "docker_config": {
+      "AttachStderr": false,
+      "AttachStdin": false,
+      "AttachStdout": false,
+      "Cmd": [
+        "nginx",
+        "-g",
+        "daemon off;"
+      ],
+      "Domainname": "",
+      "Entrypoint": [
+        "/docker-entrypoint.sh"
+      ],
+      "Env": [
+        "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "NGINX_VERSION=1.24.0",
+        "NJS_VERSION=0.7.12",
+        "PKG_RELEASE=1~bullseye"
+      ],
+      "ExposedPorts": {
+        "80/tcp": {}
+      },
+      "Hostname": "",
+      "Image": "sha256:1aaa523fc011a002a5c298f5e3d7cb1daa6fdc570b3eaa9ceed89e887a0dc253",
+      "Labels": {
+        "maintainer": "NGINX Docker Maintainers <docker-maint@nginx.com>"
+      },
+      "OpenStdin": false,
+      "StdinOnce": false,
+      "StopSignal": "SIGQUIT",
+      "Tty": false,
+      "User": "",
+      "WorkingDir": ""
+    },
+    "docker_digest": "nginx@sha256:7b1a24f01896ee101a6871ce943eda9934d4b32787023c04c2c0510068c48c3a",
+    "docker_name": "nginx",
+    "docker_source": "remote,local",
+    "docker_tag": "stable",
+    "template": "builtin-lxc-docker"
+  },
+  "pv-avahi/lxc.container.conf": "03c7a009259477721f65c13202c206b96046a768f712829f6dde2fae5355f75b",
+  "pv-avahi/root.squashfs": "7f64ab9af93a3c408ba2d52bd1ea35fb8df2cc0f6a35405ba5b37236ffe5bf24",
+  "pv-avahi/root.squashfs.docker-digest": "5798c689e445f7d5132af907bdba082f0211c82be5dcceb4dfed3c5db31f2b64",
+  "pv-avahi/run.json": {
+    "#spec": "service-manifest-run@1",
+    "config": "lxc.container.conf",
+    "drivers": {
+      "manual": [],
+      "optional": [],
+      "required": []
+    },
+    "group": "platform",
+    "name": "pv-avahi",
+    "root-volume": "root.squashfs",
+    "storage": {
+      "lxc-overlay": {
+        "persistence": "boot"
+      }
+    },
+    "type": "lxc",
+    "volumes": []
+  },
+  "pv-avahi/src.json": {
+    "#spec": "service-manifest-src@1",
+    "args": {
+      "PV_GROUP": "platform"
+    },
+    "docker_config": {
+      "AttachStderr": false,
+      "AttachStdin": false,
+      "AttachStdout": false,
+      "Cmd": [
+        "/sbin/init"
+      ],
+      "Domainname": "",
+      "Env": [
+        "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+      ],
+      "Hostname": "",
+      "Image": "sha256:701f4bbc1d5b707fc7daabf637cb2fa12532d05ceea6be24f8bb15a55805843b",
+      "OpenStdin": false,
+      "StdinOnce": false,
+      "Tty": false,
+      "User": "",
+      "WorkingDir": ""
+    },
+    "docker_digest": "registry.gitlab.com/pantacor/pv-platforms/pv-avahi@sha256:895b2af2b5d407235f2b8c7c568532108a44946898694282340ef0315e2afb28",
+    "docker_name": "registry.gitlab.com/pantacor/pv-platforms/pv-avahi",
+    "docker_source": "remote,local",
+    "docker_tag": "arm32v6",
+    "template": "builtin-lxc-docker"
+  },
+  "pvr-sdk/_dm/root.squashfs.json": {
+    "data_device": "root.squashfs",
+    "hash_device": "root.squashfs.hash",
+    "root_hash": "2b95173c2fba9391e7e5fc441a7ef54265b4dcc0f70392fc9089f340c57e5b3c",
+    "salt": "64440fb2cd2374345715ed8fa574e5b798d97b30b8d90d79d70012f4ac97462b",
+    "type": "dm-verity",
+    "uuid": "125e28bb-90af-4d13-b72b-c14549476299"
+  },
+  "pvr-sdk/lxc.container.conf": "a69205914de2e8b95270f94591d5c015796590da5273db35ef6b2ed40631fcca",
+  "pvr-sdk/root.squashfs": "e866210562d443d0cc91dbd22da19e53a990eb01046f692b422318335eeba362",
+  "pvr-sdk/root.squashfs.docker-digest": "4ad4b3d2fa805c1d984a974815fd5cf32bf1f7b6eb7030e955c93aef2aaef9ed",
+  "pvr-sdk/root.squashfs.hash": "ef1e1bccf87ea2214fb68ac98f755f6226fd602042e3448176887ee0fdad69c3",
+  "pvr-sdk/run.json": {
+    "#spec": "service-manifest-run@1",
+    "config": "lxc.container.conf",
+    "drivers": {
+      "manual": [],
+      "optional": [],
+      "required": []
+    },
+    "group": "platform",
+    "name": "pvr-sdk",
+    "restart_policy": "system",
+    "roles": [
+      "mgmt"
+    ],
+    "root-volume": "dm:root.squashfs",
+    "status_goal": "STARTED",
+    "storage": {
+      "docker--etc-dropbear": {
+        "persistence": "permanent"
+      },
+      "docker--etc-volume": {
+        "persistence": "permanent"
+      },
+      "docker--home-pantavisor-.ssh": {
+        "persistence": "permanent"
+      },
+      "docker--var-pvr-sdk": {
+        "persistence": "permanent"
+      },
+      "lxc-overlay": {
+        "persistence": "boot"
+      }
+    },
+    "type": "lxc",
+    "volumes": []
+  },
+  "pvr-sdk/src.json": {
+    "#spec": "service-manifest-src@1",
+    "args": {
+      "PV_GROUP": "platform",
+      "PV_LXC_EXTRA_CONF": "lxc.mount.entry = /volumes/_pv/addons/plymouth/text-io var/run/plymouth-io-sockets none bind,rw,optional,create=dir 0 0",
+      "PV_RESTART_POLICY": "system",
+      "PV_ROLES": [
+        "mgmt"
+      ],
+      "PV_SECURITY_WITH_STORAGE": "yes",
+      "PV_STATUS_GOAL": "STARTED"
+    },
+    "dm_enabled": {
+      "root.squashfs": true
+    },
+    "docker_config": {
+      "ArgsEscaped": true,
+      "Cmd": [
+        "/sbin/init"
+      ],
+      "Env": [
+        "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "PVR_DISABLE_SELF_UPGRADE=true",
+        "PVR_CONFIG_DIR=/var/pvr-sdk/.pvr"
+      ],
+      "Volumes": {
+        "/etc-volume": {},
+        "/etc/dropbear": {},
+        "/home/pantavisor/.ssh": {},
+        "/var/pvr-sdk": {}
+      },
+      "WorkingDir": "/workspace"
+    },
+    "docker_digest": "registry.gitlab.com/pantacor/pv-platforms/pvr-sdk@sha256:3f29016b59823f9edd8515ef23f9629498eafb4ff95f8a4769d09a4b2f8b3daa",
+    "docker_name": "registry.gitlab.com/pantacor/pv-platforms/pvr-sdk",
+    "docker_source": "remote,local",
+    "docker_tag": "arm32v6-feature-remove-signature-dependencies",
+    "template": "builtin-lxc-docker"
+  },
+  "pvwebstatus/lxc.container.conf": "ef6a1e03f820e9e7b480ef7df8402b0b0ce92d4a97f48eb07f80952c1a87d8f7",
+  "pvwebstatus/root.squashfs": "7758de0929e4cdddf27986d9318e2564877f30c3d640eabaa645ec3e3b5e1461",
+  "pvwebstatus/root.squashfs.docker-digest": "65308529f5a18d425540d3179e080267c79663d4299a514e67679153611817a8",
+  "pvwebstatus/run.json": {
+    "#spec": "service-manifest-run@1",
+    "config": "lxc.container.conf",
+    "drivers": {
+      "manual": [],
+      "optional": [],
+      "required": []
+    },
+    "name": "pvwebstatus",
+    "root-volume": "root.squashfs",
+    "storage": {
+      "lxc-overlay": {
+        "persistence": "boot"
+      }
+    },
+    "type": "lxc",
+    "volumes": []
+  },
+  "pvwebstatus/src.json": {
+    "#spec": "service-manifest-src@1",
+    "docker_config": {
+      "ArgsEscaped": true,
+      "Cmd": [
+        "/app/pantavisor-web-status"
+      ],
+      "Env": [
+        "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+      ],
+      "ExposedPorts": {
+        "5000/tcp": {}
+      },
+      "WorkingDir": "/app"
+    },
+    "docker_digest": "registry.gitlab.com/pantacor/pantavisor-web-status@sha256:d53911ee10126c289e1b6ae860eb1b724ff1de8fab96c519bc498f08dd85f790",
+    "docker_name": "registry.gitlab.com/pantacor/pantavisor-web-status",
+    "docker_source": "remote,local",
+    "docker_tag": "master",
+    "template": "builtin-lxc-docker"
+  },
+  "storage-mapping.json": {}
+}

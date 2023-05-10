@@ -14,6 +14,8 @@
 package libpvr
 
 import (
+	"encoding/base64"
+	"regexp"
 	"strings"
 
 	jsonpatch "github.com/asac/json-patch"
@@ -152,13 +154,22 @@ func PatchState(srcBuff, patchBuff []byte, srcFrags, patchFrag string, merge boo
 	}
 
 	if len(patchState) == 0 && len(strings.Split(patchFrag, ",")) == len(strings.Split(srcFrags, ",")) {
-		patchState, err = renameKeys(srcState, srcFrags, patchFrag)
+		srcState, err = renameKeys(srcState, srcFrags, patchFrag)
 		if err != nil {
 			return nil, nil, err
 		}
 	}
 
 	patchState, err = FilterByFrags(patchState, patchFrag)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// TODO: here before running the merge or adding alg
+	// i should add the logic to search for _sigs in the patch, then look for same signatures
+	// in the src state, decode those signatures and delete everything in the include, exclude from
+	// src state, and after that execute the normal merge of states.
+	err = CleanPatchSignedPkg(&srcState, &patchState)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -192,6 +203,10 @@ func PatchState(srcBuff, patchBuff []byte, srcFrags, patchFrag string, merge boo
 		}
 	}
 
+	if _, ok := patchState["#spec"]; !ok {
+		patchState["#spec"] = "pantavisor-service-system@1"
+	}
+
 	err = cjson.Unmarshal(jsonMerged, &patchState)
 	if err != nil {
 		return nil, nil, err
@@ -217,4 +232,192 @@ func renameKeys(state map[string]interface{}, srcFrags, patchFrag string) (map[s
 	}
 
 	return pJSONMap, nil
+}
+
+func MergePatch(srcData []byte, patchData []byte) ([]byte, error) {
+	// newJson, err := jsonpatch.MergePatch(srcData, patchData)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	var srcState PvrMap
+	var patchState PvrMap
+
+	err := cjson.Unmarshal(srcData, &srcState)
+	if err != nil {
+		return nil, err
+	}
+
+	err = cjson.Unmarshal(patchData, &patchState)
+	if err != nil {
+		return nil, err
+	}
+
+	err = CleanPatchSignedPkg(&srcState, &patchState)
+	if err != nil {
+		return nil, err
+	}
+
+	srcCleaned, err := cjson.Marshal(&srcState)
+	if err != nil {
+		return nil, err
+	}
+
+	merged, err := jsonpatch.MergePatch(srcCleaned, patchData)
+	if err != nil {
+		return nil, err
+	}
+
+	return merged, nil
+}
+
+func CleanRemovedSignatures(initialState, finalState *PvrMap) error {
+	var err error
+	signedExpresions := []*regexp.Regexp{}
+	fState := *finalState
+
+	for key, value := range *initialState {
+		if !strings.HasPrefix(key, "_sigs/") || key == "#spec" {
+			continue
+		}
+		_, ok := fState[key]
+		if ok {
+			continue
+		}
+
+		signedExpresions, err = appendToSignedExpression(signedExpresions, key, value)
+		if err != nil {
+			return err
+		}
+	}
+
+	if len(signedExpresions) == 0 {
+		return nil
+	}
+
+	for key := range *initialState {
+		if someValid(signedExpresions, key) {
+			delete(*initialState, key)
+		}
+	}
+
+	for key := range *finalState {
+		if someValid(signedExpresions, key) {
+			delete(*finalState, key)
+		}
+	}
+
+	return nil
+}
+
+func CleanPatchSignedPkg(src, patch *PvrMap) error {
+	var err error
+	signedSrcExpresions := []*regexp.Regexp{}
+	signedPatchExpresions := []*regexp.Regexp{}
+	srcJson := *src
+
+	for key, value := range *patch {
+		if !strings.HasPrefix(key, "_sigs/") || key == "#spec" {
+			continue
+		}
+
+		if value == nil {
+			value = srcJson[key]
+			signedSrcExpresions, err = appendToSignedExpression(signedSrcExpresions, key, value)
+			if err != nil {
+				return err
+			}
+			signedPatchExpresions, err = appendToSignedExpression(signedPatchExpresions, key, value)
+			if err != nil {
+				return err
+			}
+		} else {
+			signedSrcExpresions, err = appendToSignedExpression(signedSrcExpresions, key, value)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	if len(signedSrcExpresions) == 0 && len(signedPatchExpresions) == 0 {
+		return nil
+	}
+
+	for key := range *src {
+		if someValid(signedSrcExpresions, key) {
+			delete(*src, key)
+		}
+	}
+
+	for key := range *patch {
+		if someValid(signedPatchExpresions, key) {
+			delete(*patch, key)
+		}
+	}
+
+	return nil
+}
+
+func appendToSignedExpression(signedExpresions []*regexp.Regexp, key string, value interface{}) ([]*regexp.Regexp, error) {
+	var tmpDecoded PvrMap
+
+	signature := value.(map[string]interface{})
+	protected, ok := signature["protected"]
+	if !ok {
+		return signedExpresions, nil
+	}
+	if _, ok = signature["signature"]; !ok {
+		return signedExpresions, nil
+	}
+
+	r, err := convertGlobToRegex(key)
+	if err != nil {
+		return signedExpresions, err
+	}
+	signedExpresions = append(signedExpresions, r)
+
+	decodedBuff, err := base64.RawStdEncoding.DecodeString(protected.(string))
+	if err != nil {
+		return signedExpresions, err
+	}
+
+	err = cjson.Unmarshal(decodedBuff, &tmpDecoded)
+	if err != nil {
+		return signedExpresions, err
+	}
+
+	pvs := tmpDecoded["pvs"].(map[string]interface{})
+	include := pvs["include"].([]interface{})
+	exclude := pvs["exclude"].([]interface{})
+
+	for _, element := range append(include, exclude...) {
+		r, err := convertGlobToRegex(element.(string))
+		if err != nil {
+			return signedExpresions, err
+		}
+		signedExpresions = append(signedExpresions, r)
+	}
+
+	return signedExpresions, nil
+}
+
+func someValid(regexs []*regexp.Regexp, comparable string) bool {
+	for _, r := range regexs {
+		if r.MatchString(comparable) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func convertGlobToRegex(element string) (*regexp.Regexp, error) {
+	regexS := strings.ReplaceAll(
+		strings.ReplaceAll(
+			element,
+			"/**", "/.*",
+		),
+		"/*", "[^/]*",
+	)
+
+	return regexp.Compile("^" + regexS)
 }

@@ -1,0 +1,5 @@
+pvr
+.vscode
+testdata/*.json
+.pvr
+_test/results
