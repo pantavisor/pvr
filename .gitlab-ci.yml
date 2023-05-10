@@ -18,13 +18,13 @@ build-tags:
   stage: build
   script:
     - docker pull $CONTAINER_IMAGE:stable || true
-    - docker build --build-arg DOCKERTAG=stable --cache-from $CONTAINER_IMAGE:stable --tag $CONTAINER_IMAGE:$CI_BUILD_REF --tag $CONTAINER_IMAGE:stable .
-    - test -n "$CI_BUILD_TAG" && docker tag $CONTAINER_IMAGE:$CI_BUILD_REF $CONTAINER_IMAGE:$CI_BUILD_TAG || true
-    - docker push $CONTAINER_IMAGE:$CI_BUILD_REF
+    - docker build --build-arg DOCKERTAG=stable --cache-from $CONTAINER_IMAGE:stable --tag $CONTAINER_IMAGE:$CI_COMMIT_SHORT_SHA --tag $CONTAINER_IMAGE:stable .
+    - test -n "$CI_BUILD_TAG" && docker tag $CONTAINER_IMAGE:$CI_BUILD_TAG || true
+    - docker push $CONTAINER_IMAGE:$CI_COMMIT_SHORT_SHA
     - docker push $CONTAINER_IMAGE:stable
     - test -n "$CI_BUILD_TAG" && docker push $CONTAINER_IMAGE:$CI_BUILD_TAG || true
     - tempdir=`mktemp -d`
-    - docker run --rm $CONTAINER_IMAGE:$CI_BUILD_REF | tar -C $tempdir -x
+    - docker run --rm $CONTAINER_IMAGE:$CI_COMMIT_SHORT_SHA| tar -C $tempdir -x
     - tar -cvzf pvr-$CI_BUILD_TAG.linux.amd64.tar.gz -C $tempdir/bin/linux_amd64 pvr
     - tar -cvzf pvr-$CI_BUILD_TAG.linux.arm.tar.gz -C $tempdir/bin/linux_arm pvr
     - tar -cvzf pvr-$CI_BUILD_TAG.linux.arm64.tar.gz -C $tempdir/bin/linux_arm64 pvr
@@ -53,11 +53,11 @@ build-master:
   stage: build
   script:
     - docker pull $CONTAINER_IMAGE:latest || true
-    - docker build --build-arg DOCKERTAG=latest --cache-from $CONTAINER_IMAGE:latest --tag $CONTAINER_IMAGE:$CI_BUILD_REF --tag $CONTAINER_IMAGE:latest .
-    - docker push $CONTAINER_IMAGE:$CI_BUILD_REF
+    - docker build --build-arg DOCKERTAG=latest --cache-from $CONTAINER_IMAGE:latest --tag $CONTAINER_IMAGE:$CI_COMMIT_SHORT_SHA --tag $CONTAINER_IMAGE:latest .
+    - docker push $CONTAINER_IMAGE:$CI_COMMIT_SHORT_SHA
     - docker push $CONTAINER_IMAGE:latest
     - tempdir=`mktemp -d`
-    - docker run --rm $CONTAINER_IMAGE:$CI_BUILD_REF | tar -C $tempdir -x
+    - docker run --rm $CONTAINER_IMAGE:$CI_COMMIT_SHORT_SHA| tar -C $tempdir -x
     - tar -cvzf pvr.linux.amd64.tar.gz -C $tempdir/bin/linux_amd64 pvr
     - tar -cvzf pvr.linux.arm.tar.gz -C $tempdir/bin/linux_arm pvr
     - tar -cvzf pvr.linux.arm64.tar.gz -C $tempdir/bin/linux_arm64 pvr
@@ -84,12 +84,12 @@ build-master:
 build:
   stage: build
   script:
-    - docker pull $CONTAINER_IMAGE:$CI_BUILD_REF_SLUG || true
-    - docker build --build-arg DOCKERTAG=$CI_BUILD_REF_SLUG --cache-from $CONTAINER_IMAGE:$CI_BUILD_REF_SLUG --tag $CONTAINER_IMAGE:$CI_BUILD_REF --tag $CONTAINER_IMAGE:$CI_BUILD_REF_SLUG .
-    - docker push $CONTAINER_IMAGE:$CI_BUILD_REF
-    - docker push $CONTAINER_IMAGE:$CI_BUILD_REF_SLUG
+    - docker pull $CONTAINER_IMAGE:$CI_COMMIT_REF_SLUG-$CI_COMMIT_SHORT_SHA || true
+    - docker build --build-arg DOCKERTAG=$CI_COMMIT_REF_SLUG-$CI_COMMIT_SHORT_SHA --cache-from $CONTAINER_IMAGE:$CI_COMMIT_REF_SLUG-$CI_COMMIT_SHORT_SHA --tag $CONTAINER_IMAGE:$CI_COMMIT_REF_SLUG-$CI_COMMIT_SHORT_SHA .
+    - docker push $CONTAINER_IMAGE:$CI_COMMIT_REF_SLUG-$CI_COMMIT_SHORT_SHA
+    - docker push $CONTAINER_IMAGE:$CI_COMMIT_REF_SLUG-$CI_COMMIT_SHORT_SHA
     - tempdir=`mktemp -d`
-    - docker run --rm $CONTAINER_IMAGE:$CI_BUILD_REF | tar -C $tempdir -x
+    - docker run --rm $CONTAINER_IMAGE:$CI_COMMIT_REF_SLUG-$CI_COMMIT_SHORT_SHA | tar -C $tempdir -x
     - tar -cvzf pvr.linux.amd64.tar.gz -C $tempdir/bin/linux_amd64 pvr
     - tar -cvzf pvr.linux.arm.tar.gz -C $tempdir/bin/linux_arm pvr
     - tar -cvzf pvr.linux.arm64.tar.gz -C $tempdir/bin/linux_arm64 pvr
