@@ -32,6 +32,7 @@ import (
 	"gitlab.com/pantacor/pvr/cmd"
 	"gitlab.com/pantacor/pvr/cmd/app"
 	"gitlab.com/pantacor/pvr/cmd/device"
+	"gitlab.com/pantacor/pvr/cmd/dm"
 	"gitlab.com/pantacor/pvr/cmd/sig"
 	"gitlab.com/pantacor/pvr/libpvr"
 )
