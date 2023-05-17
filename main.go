@@ -29,16 +29,20 @@ import (
 
 	"github.com/go-resty/resty"
 	"github.com/urfave/cli"
+	"gitlab.com/pantacor/pvr/cmd"
+	"gitlab.com/pantacor/pvr/cmd/app"
+	"gitlab.com/pantacor/pvr/cmd/device"
+	"gitlab.com/pantacor/pvr/cmd/sig"
 	"gitlab.com/pantacor/pvr/libpvr"
 )
 
 func main() {
 
-	app := cli.NewApp()
-	app.EnableBashCompletion = true
-	app.Name = "pvr"
-	app.Usage = "PantaVisor Repo"
-	app.Version = VERSION
+	cliApp := cli.NewApp()
+	cliApp.EnableBashCompletion = true
+	cliApp.Name = "pvr"
+	cliApp.Usage = "PantaVisor Repo"
+	cliApp.Version = VERSION
 	home := os.Getenv("HOME")
 
 	if home == "" {
@@ -52,7 +56,7 @@ func main() {
 		}
 		home = usr.HomeDir
 	}
-	app.Flags = []cli.Flag{
+	cliApp.Flags = []cli.Flag{
 		cli.StringFlag{
 			Name:   "access-token, a",
 			Usage:  "Use `ACCESS_TOKEN` for authorization with core services",
@@ -99,7 +103,7 @@ func main() {
 		},
 	}
 
-	app.Before = func(c *cli.Context) error {
+	cliApp.Before = func(c *cli.Context) error {
 		libpvr.IsDebugEnabled = c.GlobalBool("debug")
 		resty.SetTLSClientConfig(&tls.Config{InsecureSkipVerify: c.GlobalBool("insecure")})
 		resty.SetDebug(libpvr.IsDebugEnabled)
@@ -164,46 +168,47 @@ func main() {
 		return nil
 	}
 
-	app.Commands = []cli.Command{
-		CommandInit(),
-		CommandAdd(),
-		CommandJson(),
-		CommandClaim(),
-		CommandDiff(),
-		CommandStatus(),
-		CommandCommit(),
-		CommandSig(),
-		CommandPut(),
-		CommandPost(),
-		CommandGet(),
-		CommandInspect(),
-		CommandRemoteInfo(),
-		CommandStepInfo(),
-		CommandDeploy(),
-		CommandMerge(),
-		CommandReset(),
-		CommandClone(),
-		CommandFastCopy(),
-		CommandPutObjects(),
-		CommandExport(),
-		CommandImport(),
-		CommandRegister(),
-		CommandScanDeprecated(),
-		CommandPsDeprecated(),
-		CommandLogsDeprecated(),
-		CommandApp(),
-		CommandSelfUpgrade(),
-		CommandGlobalConfig(),
-		CommandWhoami(),
-		CommandLogin(),
-		CommandDevice(),
-		CommandCompletion(),
-		CommandDmApply(),
-		CommandDmConvert(),
-		CommandVersion(),
+	cliApp.Commands = []cli.Command{
+		cmd.CommandInit(),
+		cmd.CommandAdd(),
+		cmd.CommandJson(),
+		cmd.CommandClaim(),
+		cmd.CommandDiff(),
+		cmd.CommandStatus(),
+		cmd.CommandCommit(),
+		cmd.CommandPut(),
+		cmd.CommandPost(),
+		cmd.CommandGet(),
+		cmd.CommandInspect(),
+		cmd.CommandRemoteInfo(),
+		cmd.CommandStepInfo(),
+		cmd.CommandDeploy(),
+		cmd.CommandMerge(),
+		cmd.CommandReset(),
+		cmd.CommandClone(),
+		cmd.CommandFastCopy(),
+		cmd.CommandPutObjects(),
+		cmd.CommandExport(),
+		cmd.CommandImport(),
+		cmd.CommandRegister(),
+		cmd.CommandScanDeprecated(),
+		cmd.CommandPsDeprecated(),
+		cmd.CommandLogsDeprecated(),
+		cmd.CommandSelfUpgrade(),
+		cmd.CommandGlobalConfig(),
+		cmd.CommandWhoami(),
+		cmd.CommandLogin(),
+		cmd.CommandCompletion(),
+		cmd.CommandVersion(),
+		// SubCommands
+		dm.CommandDmApply(),
+		dm.CommandDmConvert(),
+		device.CommandDevice(),
+		app.CommandApp(),
+		sig.CommandSig(),
 	}
 
-	err := app.Run(os.Args)
+	err := cliApp.Run(os.Args)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR: %s\n", err.Error())
 		os.Exit(1)
