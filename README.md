@@ -1,3 +1,5 @@
+# PVR
+
 PVR operates on two types of entities:
 
 Sumodules:
@@ -5,8 +7,6 @@ Sumodules:
 - PVR Repository
 - PVR Pantahub
 - PVR Devel
-
-# PVR Repository
 
 ## Features
 
@@ -297,8 +297,7 @@ pvr fastcopy -m "your commit message to remember" \
 	https://pvr.pantahub.com/yournick/yourdevice
 ```
 
-NOTE: this will delete app apps and bsp/ entries before replacing them. If you dont want that you have to use
-#fragment encoded in the URL to select specific source elements to copy and replace.
+NOTE: this will delete app apps and bsp/ entries before replacing them. If you dont want that you have to use fragment encoded in the URL to select specific source elements to copy and replace.
 
 
 To fastcopy a specific folder of your source device and replace the matching folder you coudl simply use:
@@ -342,7 +341,7 @@ pvr fastcopy -m "copy pvr-sdk from source device to yourdevice" \
 ```
 
 
-# PVR Device Commands
+### PVR Device Commands
 
 PVR Devices commands provide convenience for developers and individuals
 that operate their very own pantavisor enabled solutions.
@@ -351,7 +350,7 @@ These commands are designed for developers that want to interface with devices
 in their own local network, but not does not replace a fleet management
 solution.
 
-## pvr device scan
+#### pvr device scan
 
 Scan for pantavisor enabled devices on local network.
 
@@ -370,51 +369,7 @@ Scanning ...
         PVR Clone: https://api.pantahub.com:443/trails/5b0aa4363c6f7200095b2566
 ```
 
-# References
-
-## Example pvr json
-
-```
-{
-	"#spec": "pantavisor-multi-platform@1",
-	"0base.cpio.xz": "d58791088d7e6be67b43b927f06b2deee3bf0ab0a73509852d3c1e47d0e09296",
-	"alpine-mini.json": {
-		"configs": [
-			"lxc-alpine.config"
-		],
-		"exec": "/sbin/init",
-		"name": "alpine-mini",
-		"share": [
-			"NETWORK",
-			"UTS",
-			"IPC"
-		],
-		"type": "lxc"
-	},
-	"alpine-mini.squashfs": "219e14651a6f2158bead0bcf37c9efa7dca2b9a96f3661d9d78e1f7d4118e7a1",
-	"firmware.squashfs": "dfbfa0ffebf8fd75d0e07eb4ee8228b167b928831449f66e511182da6e3027dd",
-	"kernel.img": "fec9b1db203e4ceb3b45d6bf09b6d1c971d9db0e90498b9142ee53c578269497",
-	"lxc-alpine.config": "de878a7e0a3b4f23ea5b47520c8105d569f543d76c49ab0b2f6b3a5472cd5162",
-	"modules.squashfs": "abe82a1b95c7314355da396ee7a25459aace231ad3057692572d90c6799d432b",
-	"pantavisor.json": {
-		"firmware": "/volumes/firmware.squashfs",
-		"initrd": [
-			"0base.cpio.gz"
-		],
-		"linux": "kernel.img",
-		"platforms:": [
-			"alpine-mini"
-		],
-		"volumes": [
-			"alpine-mini.squashfs",
-			"firmware.squashfs",
-			"modules.squashfs"
-		]
-	}
-}
-```
-
-## pvr claim -c <DEVICE_NICK> https://api.pantahub.com:443/devices/<DEVICE_ID>
+#### pvr claim -c <DEVICE_NICK> https://api.pantahub.com:443/devices/<DEVICE_ID>
 
 pvr claim: Claims a new device
 
@@ -426,7 +381,7 @@ Username: youremail@gmail.com
 Password: *****
 ```
 
-## pvr device create [DEVICE_NICK]
+#### pvr device create [DEVICE_NICK]
 
 pvr device create creates a new device from an existing device diretory usings its same state values.
 
@@ -448,7 +403,7 @@ example1$ pvr device create mydevice1
 Device Created Successfully
 ```
 
-## pvr device get <DEVICE_NICK|ID>
+#### pvr device get <DEVICE_NICK|ID>
 
 pvr device get : Get Device details
 
@@ -485,7 +440,7 @@ example2$ pvr device get heavily_strong_pika
 }
 ```
 
-## pvr device set <DEVICE_NICK|ID> <KEY1>=<VALUE1> [KEY2]=[VALUE2]...[KEY-N]=[VALUE-N]
+#### pvr device set <DEVICE_NICK|ID> <KEY1>=<VALUE1> [KEY2]=[VALUE2]...[KEY-N]=[VALUE-N]
 
 pvr device set : Set or Update device user-meta & device-meta fields (Note:If you are logged in as USER then you can update user-meta field but if you are logged in as DEVICE then you can update device-meta field)
 
@@ -509,7 +464,7 @@ device-meta field Updated Successfully
 
 ```
 
-## pvr device logs [--template=<short|json|<gotemplate>] <deviceid|devicenick>[/source][@level][#platform]
+#### pvr device logs [--template=<short|json|<gotemplate>] <deviceid|devicenick>[/source][@level][#platform]
 
 pvr device logs list the logs with filter options of device,source,level & platform
 
@@ -614,7 +569,7 @@ example7\$ pvr device logs --platform=linux,windows
 
 ```
 
-## pvr export <FILENAME.tar.gz>
+### pvr export <FILENAME.tar.gz>
 
 pvr export : Exports repo into single file (tarball)
 
@@ -627,7 +582,7 @@ app2 device.tar.gz network-mapping.json pv-avahi storage-mapping.json
 
 ```
 
-## pvr import <FILENAME.tar.gz>
+### pvr import <FILENAME.tar.gz>
 
 pvr import : import repo tarball (like the one produced by 'pvr export') into pvr in current working dir.It can import files with.gz or .tgz extension as well as plain .tar. Will not do pvr checkout, so working directory stays untouched.
 
@@ -637,12 +592,12 @@ example1\$ pvr import device.tar.gz
 
 ```
 
-# PVR Pantahub Commands
+### PVR Pantahub Commands
 
 Since version 006 PVR also provides convenience commands for interacting with pantahub
 regardless beyond publishing pvr repositories to pantahub trails.
 
-## pvr ps
+#### pvr ps
 
 `WARNING:`This command is DEPRECATED, please use `pvr device ps` instead
 
@@ -661,7 +616,7 @@ ID NICK REV STATUS STATE SEEN MESSAGE
 
 ```
 
-## pvr logs <deviceid|devicenick>[/source][@level][#platform]
+#### pvr logs <deviceid|devicenick>[/source][@level][#platform]
 
 `WARNING:`This command is DEPRECATED, please use `pvr device logs` instead
 
@@ -702,7 +657,7 @@ example3\$ pvr logs --platform=linux,windows
 
 ```
 
-### pvr logs --template=<json|short|TEMPLATE>
+#### pvr logs --template=<json|short|TEMPLATE>
 
 Log output can be formatted using `--template` flag.
 
@@ -740,7 +695,7 @@ Also we offer the following template functions:
     * Any golang time constant is supported, see https://golang.org/pkg/time/#pkg-constants (e.g. ANSIC, UnixDate, ... )
 
 
-## pvr login [END_POINT]
+#### pvr login [END_POINT]
 
 Login to pantahub with your username & password with an optional end point
 Note:Default endpoint is https://api.pantahub.com/auth/auth_status
@@ -787,7 +742,7 @@ LoggedIn Successfully!
 
 ```
 
-## pvr whoami
+#### pvr whoami
 
 pvr whoami : List the loggedin details with pantahub instances
 
@@ -798,7 +753,7 @@ sirinibin(prn:::accounts:/5bf2ac9e41b2dd0009a96c97) at https://api.pantahub.com/
 
 ```
 
-## pvr get [remote-or-local-repository[#part1,part2,-unpart]] [target-repository]
+### pvr get [remote-or-local-repository[#part1,part2,-unpart]] [target-repository]
 
 Update target-repository from remote or local repository
 
@@ -890,7 +845,7 @@ and then replace working copy with pristine state using pvr checkout:
 pvr checkout
 ```
 
-## pvr global-config
+### pvr global-config
 
 pvr global-config :Get Global Configuration details of the repo.
 
@@ -905,7 +860,7 @@ example1\$ pvr global-config
 
 ```
 
-## pvr merge [remote-or-local-repository[#part]] [target-repository]
+### pvr merge [remote-or-local-repository[#part]] [target-repository]
 
 pvr merge : Merge content of repository into target-directory.Default target-repository is the local .pvr one. If not <repository> is provided the last one is used.
 
@@ -930,7 +885,7 @@ ff2a85a62cd09f1 [OK]
 
 Same syntax for retrieving remote or local or just a part of a repository as for ```pvr get``` do apply.
 
-## pvr putobjects <OBJECTS_ENDPOINT>
+### pvr putobjects <OBJECTS_ENDPOINT>
 
 pvr putobjects : put objects from local repository to objects-endpoint
 
@@ -952,7 +907,7 @@ pvr-sdk/lxc. [OK]
 ```
 
 
-## pvr self-upgrade
+### pvr self-upgrade
 
 pvr self-upgrade : Update pvr command to the latest version
 
@@ -982,7 +937,7 @@ PVR has been updated!
 
 ```
 
-## pvr checkout|reset
+### pvr checkout|reset
 
 pvr checkout|reset : checkout/reset working directory to match the repo stat.reset/checkout also forgets about added files; pvr status and diff will yield empty
 
@@ -992,7 +947,7 @@ example1\$ pvr checkout
 
 ```
 
-## pvr register [API_URL] -u \<USERNAME\> -p \<PASSWORD\> -e \<EMAIL\>
+### pvr register [API_URL] -u \<USERNAME\> -p \<PASSWORD\> -e \<EMAIL\>
 
 pvr register : register new user account with pantahub
 
@@ -1008,7 +963,7 @@ Follow this link to continue and after that come back and continue
 
 ```
 
-# PVR App Commands
+### PVR App Commands
 
 Since 022 pvr app commands are docker multi platform ready.
 
@@ -1041,7 +996,7 @@ Similar to add, developers can conveniently change platform selection
 through the same `--platform` argument when using the `pvr app update`
 operation.
 
-## pvr app add <APP_NAME> --from=<DOCKER_IMAGE> --source=[remote|local],[remote|local]
+#### pvr app add <APP_NAME> --from=<DOCKER_IMAGE> --source=[remote|local],[remote|local]
 
 pvr app add creates a new application and generates files by pulling layers from a given docker image in either remote or local docker repo's.
 By default it will first look in remote repo. when not found it will pull from local docker repo,the priority can be changed using the --source flag(default:remote,local).
@@ -1066,11 +1021,11 @@ Application added
 
 ```
 
-## How to use rootfs type
+##### How to use rootfs type
 
 We now can create an app, install an app, and update an app using as source a root filesystem, that filesystem could be as a tar in local for the computer is running the PVR, could be a plain folder with the filesystem inside, or could be an URL where the tar is to be downloaded.
 
-#### Add app from rootfs
+##### Add app from rootfs
 
 ```
 pvr app add --from=~/Desktop/pvwebstatus -t rootfs pvwebstatus
@@ -1151,11 +1106,11 @@ pvr app add --base nginx_base --from=highercomve/hello_world_nginx:latest hello_
 
 and if you take a look on https://hub.docker.com/_/nginx you will see that has the same architectures as https://hub.docker.com/r/highercomve/hello_world_nginx and the diff is going to be only the index.html and the configuration for the nginx.
 
-## How to use pvr type
+##### How to use pvr type
 
 Another source that could be used as a source for an application is a device description inside your computer or from a PV repository URL.
 
-#### Add app from pvr
+##### Add app from pvr
 
 You could use any PVR repository compatible URL, which could be a local .pvr folder or a remote repository URL.
 
@@ -1163,7 +1118,7 @@ You could use any PVR repository compatible URL, which could be a local .pvr fol
 pvr app add -t pvr --from https://pvr.pantahub.com/highercomve/one_marketplace_production#tailscale tailscale
 ```
 
-## pvr app info <APP_NAME>
+#### pvr app info <APP_NAME>
 
 pvr app info <appname> :output info and state of appname
 
@@ -1193,7 +1148,7 @@ For docker app install will take the docker_digest and docker_ovl_digest
 value from $APP_NAME/src.json and generate the matching rootfs and ovr files.
 
 
-## pvr app ls
+#### pvr app ls
 
 pvr app ls :list applications in pvr checkout
 
@@ -1209,7 +1164,7 @@ pvr-sdk
 
 ```
 
-## pvr app rm <APP_NAME>
+#### pvr app rm <APP_NAME>
 
 pvr app rm <appname> : remove app from pvr checkout
 
@@ -1225,7 +1180,7 @@ pvr-sdk
 
 ```
 
-## pvr app update <APP_NAME>
+#### pvr app update <APP_NAME>
 
 pvr app update :update an existing application.
 
@@ -1236,32 +1191,53 @@ Application updated
 
 ```
 
-If PVR_APP_UPDATE_PATCH=true (or --patch parameter) is set, pvr
-app update will add the docker_diget_ovl reference to the src.json
-and call `app install`.
-
 `app install` will generate a diff overlay squashfs allowing
 to ship minor updates as a diff layer.
 
+##### src.json
 
-#### Update app from rootfs
+`src.json` is an input document used to store information about a Pantavisor container to be consumed by the `pvr app install` and `pvr app update` commands. It contains key-value pairs that define various aspects of the platform configuration.
 
-Here you can update like a normal docker container:
+###### `#spec`
+- Version of the service manifest specification. Only value supported is "service-manifest-src@1".
 
-```
-pvr app update pvwebstatus
-```
+###### `args`
+- Platform arguments:
+  - `PV_GROUP`: [Group](https://docs.pantahub.com/containers/#groups) to which the container belongs. Possible values: "data", "root", "platform" "app" or [any additional group](https://docs.pantahub.com/containers/#groups).
+  - `PV_RESTART_POLICY`: [Restart policy](https://docs.pantahub.com/containers/#restart-policy) for the container. Possible values: "system" or "container".
+  - `PV_ROLES`: [Roles](https://docs.pantahub.com/containers/#roles) assigned to the platform. Possible values: "mgmt" or empty.
+  - `PV_SECURITY_WITH_STORAGE`: Enable/disable [security](https://docs.pantahub.com/storage/#integrity) with storage. Possible values: "yes" or "no".
+  - `PV_STATUS_GOAL`: Desired [status goal](https://docs.pantahub.com/containers/#status-goal) for the platform. Possible values: "MOUNTED", "STARTED", or "READY".
 
-But  you can update from another tar or an URL
+###### `docker_config`
+- Docker container configuration:
+  - `ArgsEscaped`: Whether command-line arguments are escaped. Possible values: "true" or "false".
+  - `Cmd`: Command to run when starting the Docker container. Can be any binary path.
+  - `Env`: Environment variables for the Docker container. Can include any variables.
+  - `Volumes`: Volumes to be mounted by the Docker container. Can include any paths.
+  - `WorkingDir`: Working directory inside the Docker container. Can be any path.
 
+###### `docker_digest`
+- Digest (unique identifier) of the Docker image.
 
-```
-pvr app update --from=~/Desktop/pvwebstatus.tar pvwebstatus
-```
+###### `docker_name`
+- Name of the Docker image.
 
+###### `docker_source`
+- Source of the Docker image. Possible values: "remote" or "local".
 
-## pvr deploy <deploy-dir> [source-repos]+
+###### `docker_tag`
+- Tag associated with the Docker image.
 
+###### `persistence`
+- [Persistence](https://docs.pantahub.com/containers/#storage) settings for specific directories:
+  - Each path can have the values: "permanent", "revision", or "boot".
+  - Optional suffix: "@dm-versatile" to enable the [dm feature](More info: https://docs.pantahub.com/storage/#artifact-checksum)
+
+###### `template`
+- LXC configuration template used for creating the container.
+
+#### pvr deploy <deploy-dir> [source-repos]+
 
 With pvr deploy you can deploy one to many source repos to a deployment directory such as the
 one you find on the pantavisor device for each revision.
@@ -1279,7 +1255,23 @@ This command will create hardlinks of the objects to the objects pool so do not
 use this on a host where you intend the checkout to be edited.
 
 
-# PVR sig commands
+##### Update app from rootfs
+
+Here you can update like a normal docker container:
+
+```
+pvr app update pvwebstatus
+```
+
+But  you can update from another tar or an URL
+
+
+```
+pvr app update --from=~/Desktop/pvwebstatus.tar pvwebstatus
+```
+
+
+### PVR sig commands
 
 PVR sig commands offers support for maintaining pvs signatures inside your tree.
 
@@ -1293,7 +1285,7 @@ Commands currently supported are:
  * pvr sig ls - list files covered by signatures in _sigs/ hieararchy; by default sig ls will show signature info while considering _all_ signatures in the system state
 
 
-## PVR sig with CA commands
+#### PVR sig with CA commands
 
 ```
 commit c2d6f1450422b89d90948499c7cd6dd6949e5df3 (HEAD -> feature/pvs-ca, origin/feature/pvs-ca)
@@ -1345,7 +1337,7 @@ Date:   Wed Oct 20 17:58:50 2021 +0200
     ```
 ```
 
-## PVR sig options
+### PVR sig options
 
 To allow easier integration in higher level tools, like external signing tools
 `pvr sig` offers a few options to make their live easier.
@@ -1355,7 +1347,7 @@ the PVS headers and create the protected header and the payload of the jose toke
 inside pvr itself, but allow for easy export of the complete jose token including
 payload which then external tools can inspect and sign.
 
-### pvr sig add/update with payload
+#### pvr sig add/update with payload
 
 The first avenue is to produce a signature during signing that includes the full
 payload. This can be achieved through the `--with-payload` option for `pvr sig add`
@@ -1378,7 +1370,7 @@ signature to stdout:
 $ pvr sig --with-payload add --part awconnect
 ```
 
-### pvr sig ls with full jose token
+#### pvr sig ls with full jose token
 
 The second approach that might be viable is to take a package that was
 already signed by a developer or CI system, inspect it and resign it with
@@ -1395,7 +1387,7 @@ resign without further business logic. Example:
 $ pvr sig --with-payload ls --with-sig _sigs/awconnect.json 
 ```
 
-# PVR dm commands (device-mapper) (BETA)
+### PVR dm commands (device-mapper) (BETA)
 
 pvr device mapper support for container volumes allows for an easy way to
 postprocess the squashfs volumes produced by pvr app add etc. in a way that
@@ -1404,7 +1396,7 @@ the pantavisor device mapper addon can mount volumes using device-mapper.
 For now dm-verity type device mapper entries are supported by pantavisor
 client and hence pvr supports that mode first and foremost for now.
 
-## PVR dm-convert (BETA)
+#### PVR dm-convert (BETA)
 
 This command allows you to convert any standard squashfs volume into a
 device-mapper mounted volume.
@@ -1443,7 +1435,7 @@ volume handler.
 You can then `pvr commit` this and post it to a pantavisor device-mapper
 enabled device
 
-## PVR dm-apply (BETA)
+#### PVR dm-apply (BETA)
 
 This command iterates through the whole committed pristine json of the repo
 and updates the hash and manifests for all dm-verity manifests.
