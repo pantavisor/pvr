@@ -1139,7 +1139,7 @@ example1$ $ pvr app info nginx-app
 
 ```
 
-## pvr app install <APP_NAME>
+#### pvr app install <APP_NAME>
 
 pvr app install rerun the template engine and reproduce any rootfs binary
 that is not present in the $APP_NAME directory.
@@ -1147,6 +1147,48 @@ that is not present in the $APP_NAME directory.
 For docker app install will take the docker_digest and docker_ovl_digest
 value from $APP_NAME/src.json and generate the matching rootfs and ovr files.
 
+##### src.json
+
+`src.json` is an input document used to store information about a Pantavisor container to be consumed by the `pvr app install` and `pvr app update` commands. It contains key-value pairs that define various aspects of the platform configuration.
+
+###### `#spec`
+- Version of the service manifest specification. Only value supported is "service-manifest-src@1".
+
+###### `args`
+- Platform arguments:
+  - `PV_GROUP`: [Group](https://docs.pantahub.com/containers/#groups) to which the container belongs. Possible values: "data", "root", "platform" "app" or [any additional group](https://docs.pantahub.com/containers/#groups).
+  - `PV_RESTART_POLICY`: [Restart policy](https://docs.pantahub.com/containers/#restart-policy) for the container. Possible values: "system" or "container".
+  - `PV_ROLES`: [Roles](https://docs.pantahub.com/containers/#roles) assigned to the platform. Possible values: "mgmt" or empty.
+  - `PV_SECURITY_WITH_STORAGE`: Enable/disable [security](https://docs.pantahub.com/storage/#integrity) with storage. Possible values: "yes" or "no".
+  - `PV_STATUS_GOAL`: Desired [status goal](https://docs.pantahub.com/containers/#status-goal) for the platform. Possible values: "MOUNTED", "STARTED", or "READY".
+
+###### `docker_config`
+- Docker container configuration:
+  - `ArgsEscaped`: Whether command-line arguments are escaped. Possible values: "true" or "false".
+  - `Cmd`: Command to run when starting the Docker container. Can be any binary path.
+  - `Env`: Environment variables for the Docker container. Can include any variables.
+  - `Volumes`: Volumes to be mounted by the Docker container. Can include any paths.
+  - `WorkingDir`: Working directory inside the Docker container. Can be any path.
+
+###### `docker_digest`
+- Digest (unique identifier) of the Docker image.
+
+###### `docker_name`
+- Name of the Docker image.
+
+###### `docker_source`
+- Source of the Docker image. Possible values: "remote" or "local".
+
+###### `docker_tag`
+- Tag associated with the Docker image.
+
+###### `persistence`
+- [Persistence](https://docs.pantahub.com/containers/#storage) settings for specific directories:
+  - Each path can have the values: "permanent", "revision", or "boot".
+  - Optional suffix: "@dm-versatile" to enable the [dm feature](More info: https://docs.pantahub.com/storage/#artifact-checksum)
+
+###### `template`
+- LXC configuration template used for creating the container.
 
 #### pvr app ls
 
@@ -1194,48 +1236,6 @@ Application updated
 `app install` will generate a diff overlay squashfs allowing
 to ship minor updates as a diff layer.
 
-##### src.json
-
-`src.json` is an input document used to store information about a Pantavisor container to be consumed by the `pvr app install` and `pvr app update` commands. It contains key-value pairs that define various aspects of the platform configuration.
-
-###### `#spec`
-- Version of the service manifest specification. Only value supported is "service-manifest-src@1".
-
-###### `args`
-- Platform arguments:
-  - `PV_GROUP`: [Group](https://docs.pantahub.com/containers/#groups) to which the container belongs. Possible values: "data", "root", "platform" "app" or [any additional group](https://docs.pantahub.com/containers/#groups).
-  - `PV_RESTART_POLICY`: [Restart policy](https://docs.pantahub.com/containers/#restart-policy) for the container. Possible values: "system" or "container".
-  - `PV_ROLES`: [Roles](https://docs.pantahub.com/containers/#roles) assigned to the platform. Possible values: "mgmt" or empty.
-  - `PV_SECURITY_WITH_STORAGE`: Enable/disable [security](https://docs.pantahub.com/storage/#integrity) with storage. Possible values: "yes" or "no".
-  - `PV_STATUS_GOAL`: Desired [status goal](https://docs.pantahub.com/containers/#status-goal) for the platform. Possible values: "MOUNTED", "STARTED", or "READY".
-
-###### `docker_config`
-- Docker container configuration:
-  - `ArgsEscaped`: Whether command-line arguments are escaped. Possible values: "true" or "false".
-  - `Cmd`: Command to run when starting the Docker container. Can be any binary path.
-  - `Env`: Environment variables for the Docker container. Can include any variables.
-  - `Volumes`: Volumes to be mounted by the Docker container. Can include any paths.
-  - `WorkingDir`: Working directory inside the Docker container. Can be any path.
-
-###### `docker_digest`
-- Digest (unique identifier) of the Docker image.
-
-###### `docker_name`
-- Name of the Docker image.
-
-###### `docker_source`
-- Source of the Docker image. Possible values: "remote" or "local".
-
-###### `docker_tag`
-- Tag associated with the Docker image.
-
-###### `persistence`
-- [Persistence](https://docs.pantahub.com/containers/#storage) settings for specific directories:
-  - Each path can have the values: "permanent", "revision", or "boot".
-  - Optional suffix: "@dm-versatile" to enable the [dm feature](More info: https://docs.pantahub.com/storage/#artifact-checksum)
-
-###### `template`
-- LXC configuration template used for creating the container.
 
 #### pvr deploy <deploy-dir> [source-repos]+
 
