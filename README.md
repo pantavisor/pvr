@@ -1066,7 +1066,7 @@ Where the `pvwebstatus.config.json` is a JSON configuration.
 }
 ```
 
-### Add application that extends from another application
+##### Add application that extends from another application
 
 PVR and pantavisor support application that uses another application rootfs system as base and just create a diff squashfs for the files that are different in the added application.
 
@@ -1190,6 +1190,53 @@ value from $APP_NAME/src.json and generate the matching rootfs and ovr files.
 ###### `template`
 - LXC configuration template used for creating the container.
 
+Example of src.json:
+
+```
+{
+    "#spec": "service-manifest-src@1",
+    "args": {
+        "PV_GROUP": "platform",
+        "PV_LXC_EXTRA_CONF": "lxc.mount.entry = /volumes/_pv/addons/plymouth/text-io var/run/plymouth-io-sockets none bind,rw,optional,create=dir 0 0",
+        "PV_RESTART_POLICY": "system",
+        "PV_ROLES": [
+            "mgmt"
+        ],
+        "PV_SECURITY_WITH_STORAGE": "yes",
+        "PV_STATUS_GOAL": "STARTED"
+    },
+    "docker_config": {
+        "ArgsEscaped": true,
+        "Cmd": [
+            "/sbin/init"
+        ],
+        "Env": [
+            "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+            "PVR_DISABLE_SELF_UPGRADE=true",
+            "PVR_CONFIG_DIR=/var/pvr-sdk/.pvr"
+        ],
+        "Volumes": {
+            "/etc-volume": {},
+            "/etc/dropbear": {},
+            "/home/pantavisor/.ssh": {},
+            "/var/pvr-sdk": {}
+        },
+        "WorkingDir": "/workspace"
+    },
+    "docker_digest": "registry.gitlab.com/pantacor/pv-platforms/pvr-sdk@sha256:08c5339cc11bcde781bfa0e4662fe7449e3a07326323ec94e847d56913acbd49",
+    "docker_name": "registry.gitlab.com/pantacor/pv-platforms/pvr-sdk",
+    "docker_source": "remote,local",
+    "docker_tag": "arm32v6",
+    "persistence": {
+        "/var/dmcrypt/volume": "permanent@dm-versatile",
+                "/var/permanent": "permanent",
+                "/var/revision": "revision",
+                "/var/boot": "boot"
+    },
+    "template": "builtin-lxc-docker"
+}
+```
+
 #### pvr app ls
 
 pvr app ls :list applications in pvr checkout
@@ -1237,7 +1284,7 @@ Application updated
 to ship minor updates as a diff layer.
 
 
-#### pvr deploy <deploy-dir> [source-repos]+
+### pvr deploy <deploy-dir> [source-repos]+
 
 With pvr deploy you can deploy one to many source repos to a deployment directory such as the
 one you find on the pantavisor device for each revision.
@@ -1337,7 +1384,7 @@ Date:   Wed Oct 20 17:58:50 2021 +0200
     ```
 ```
 
-### PVR sig options
+#### PVR sig options
 
 To allow easier integration in higher level tools, like external signing tools
 `pvr sig` offers a few options to make their live easier.
