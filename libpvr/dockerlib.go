@@ -475,6 +475,7 @@ type AppData struct {
 	Password        string
 	Appmanifest     *Source
 	TemplateArgs    map[string]interface{}
+	Config          map[string]interface{}
 	DestinationPath string
 	LocalImage      DockerImage
 	RemoteImage     DockerImage

@@ -92,18 +92,20 @@ func AddDockerApp(p *Pvr, app *AppData) error {
 	}
 
 	if app.ConfigFile != "" {
-		dockerConfig := map[string]interface{}{}
-
 		config, err := GetDockerConfigFile(p, app)
 		if err != nil {
 			return err
 		}
 
 		for k, v := range config {
-			dockerConfig[k] = v
+			src.Config[k] = v
 		}
+	}
 
-		src.Config = dockerConfig
+	if app.Config != nil {
+		for k, v := range app.Config {
+			src.Config[k] = v
+		}
 	}
 
 	srcContent, err := json.MarshalIndent(src, " ", " ")

@@ -37,17 +37,23 @@ func AddPvApp(p *Pvr, app *AppData) error {
 		return err
 	}
 
-	if app.ConfigFile != "" {
-		if srcJson.Config == nil {
-			srcJson.Config = map[string]interface{}{}
-		}
+	if srcJson.Config == nil {
+		srcJson.Config = map[string]interface{}{}
+	}
 
+	if app.ConfigFile != "" {
 		config, err := GetDockerConfigFile(p, app)
 		if err != nil {
 			return err
 		}
 
 		for k, v := range config {
+			srcJson.Config[k] = v
+		}
+	}
+
+	if app.Config != nil {
+		for k, v := range app.Config {
 			srcJson.Config[k] = v
 		}
 	}

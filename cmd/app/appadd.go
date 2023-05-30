@@ -17,6 +17,7 @@
 package app
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -73,11 +74,22 @@ func CommandAppAdd() cli.Command {
 				return cli.NewExitError(err, 3)
 			}
 
+			if len(c.StringSlice("arg")) > 0 && c.String("arg-json") != "" {
+				return cli.NewExitError(errors.New("--arg-json and --arg can't be set a the same time"), 6)
+			}
+
+			if len(c.StringSlice("config")) > 0 && c.String("config-json") != "" {
+				return cli.NewExitError(errors.New("--config-json and --config can't be set a the same time"), 5)
+			}
+
 			appname := c.Args().Get(0)
 			// fix up trailing/leading / from appnames
 			appname = strings.Trim(appname, "/")
 
 			templateArgs := map[string]interface{}{}
+			if c.String("arg-json") != "" {
+				templateArgs, _ = libpvr.ReadArgsFile(c.String("arg-json"))
+			}
 
 			varSlice := c.StringSlice("arg")
 			for _, v := range varSlice {
@@ -89,6 +101,22 @@ func CommandAppAdd() cli.Command {
 				}
 			}
 
+			config := map[string]interface{}{}
+			configSlice := c.StringSlice("config")
+			for _, v := range configSlice {
+				va := strings.SplitN(v, "=", 2)
+				if len(va) == 2 {
+					var value interface{}
+					err := json.Unmarshal([]byte(va[1]), &value)
+					if err != nil {
+						value = va[1]
+					}
+					config[va[0]] = value
+				} else {
+					config[va[0]] = ""
+				}
+			}
+
 			err = libpvr.ValidateSourceFlag(c.String("source"))
 			if err != nil {
 				return cli.NewExitError(err, 3)
@@ -96,6 +124,7 @@ func CommandAppAdd() cli.Command {
 			if c.String("from") == "" {
 				return cli.NewExitError(errors.New(" --from flag is required (e.g. --from=nginx)"), 4)
 			}
+
 			app := &libpvr.AppData{
 				Appname:       appname,
 				Platform:      c.String("platform"),
@@ -108,6 +137,7 @@ func CommandAppAdd() cli.Command {
 				FormatOptions: c.String("format-options"),
 				SourceType:    c.String("type"),
 				TemplateArgs:  templateArgs,
+				Config:        config,
 			}
 
 			if c.IsSet("group") && c.IsSet("runlevel") {
@@ -201,12 +231,22 @@ func CommandAppAdd() cli.Command {
 		},
 		cli.StringFlag{
 			Name:   "config-json",
-			Usage:  "Docker image config",
+			Usage:  "Docker image config as json file",
+			EnvVar: "PVR_CONFIG_JSON",
+		},
+		cli.StringSliceFlag{
+			Name:   "config",
+			Usage:  "Docker image config as parameters",
 			EnvVar: "PVR_CONFIG_JSON",
 		},
 		cli.StringSliceFlag{
 			Name:   "arg",
-			Usage:  "Template Arguments",
+			Usage:  "Template Arguments as parameters",
+			EnvVar: "PVR_TEMPLATE_ARG",
+		},
+		cli.StringFlag{
+			Name:   "arg-json",
+			Usage:  "Template Arguments as json file",
 			EnvVar: "PVR_TEMPLATE_ARG",
 		},
 		cli.StringSliceFlag{
@@ -222,4 +262,8 @@ func CommandAppAdd() cli.Command {
 	}
 
 	return cmd
+}
+
+func bytes(s string) {
+	panic("unimplemented")
 }

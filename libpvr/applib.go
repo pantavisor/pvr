@@ -684,3 +684,24 @@ func GetDockerConfigFile(p *Pvr, app *AppData) (map[string]interface{}, error) {
 
 	return dockerConfig, nil
 }
+
+func ReadArgsFile(filePath string) (map[string]interface{}, error) {
+	argsConfig := map[string]interface{}{}
+	if filePath != "" {
+		file, err := ExpandPath(filePath)
+		if err != nil {
+			return argsConfig, err
+		}
+
+		config, err := os.ReadFile(file)
+		if err != nil {
+			return argsConfig, err
+		}
+		err = pvjson.Unmarshal(config, &argsConfig)
+		if err != nil {
+			return argsConfig, err
+		}
+	}
+
+	return argsConfig, nil
+}

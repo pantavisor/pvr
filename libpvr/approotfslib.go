@@ -129,16 +129,29 @@ func AddRootFsApp(p *Pvr, app *AppData) error {
 		return err
 	}
 
-	dockerConfig, err := GetDockerConfigFile(p, app)
-	if err != nil {
-		return err
+	config := map[string]interface{}{}
+	if app.ConfigFile != "" {
+		configFile, err := GetDockerConfigFile(p, app)
+		if err != nil {
+			return err
+		}
+
+		for k, v := range configFile {
+			config[k] = v
+		}
+	}
+
+	if app.Config != nil {
+		for k, v := range app.Config {
+			config[k] = v
+		}
 	}
 
 	src := Source{
 		Spec:         SRC_SPEC,
 		Template:     TEMPLATE_BUILTIN_LXC_DOCKER,
 		TemplateArgs: app.TemplateArgs,
-		Config:       dockerConfig,
+		Config:       config,
 		DockerSource: DockerSource{},
 		Persistence:  persistence,
 		RootFsSource: RootFsSource{
