@@ -449,7 +449,7 @@ func (p *Pvr) GetAppDockerDigest(appname string) (string, error) {
 	return appManifest.DockerDigest, nil
 }
 
-func updateDockerFromFrom(src *Source, from string) {
+func updateDockerFrom(src *Source, from string) {
 	components := strings.Split(from, ":")
 	if len(components) < 2 {
 		src.DockerTag = "latest"

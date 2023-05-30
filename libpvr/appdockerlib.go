@@ -68,7 +68,7 @@ func AddDockerApp(p *Pvr, app *AppData) error {
 		src.DockerDigest = baseManifest.DockerDigest
 	}
 
-	updateDockerFromFrom(&src, app.From)
+	updateDockerFrom(&src, app.From)
 
 	// Exists flag is true only if the image got loaded which will depend on
 	//  priority order provided in --source=local,remote
@@ -102,13 +102,8 @@ func AddDockerApp(p *Pvr, app *AppData) error {
 		for k, v := range config {
 			dockerConfig[k] = v
 		}
-		//	Exists flag is true only if the image got loaded which will depend on
-		//  priority order provided in --source=local,remote
-		if app.LocalImage.Exists {
-			app.LocalImage.DockerConfig = dockerConfig
-		} else if app.RemoteImage.Exists {
-			app.RemoteImage.DockerConfig = dockerConfig
-		}
+
+		src.Config = dockerConfig
 	}
 
 	srcContent, err := json.MarshalIndent(src, " ", " ")
@@ -142,7 +137,7 @@ func UpdateDockerApp(p *Pvr, app *AppData, appManifest *Source) (err error) {
 	}
 
 	if app.From != "" {
-		updateDockerFromFrom(appManifest, app.From)
+		updateDockerFrom(appManifest, app.From)
 	}
 
 	err = p.FindDockerImage(app)
