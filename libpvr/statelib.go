@@ -15,7 +15,6 @@ package libpvr
 
 import (
 	"encoding/base64"
-	"fmt"
 	"regexp"
 	"strings"
 
@@ -412,7 +411,6 @@ func someValid(regexs []*regexp.Regexp, comparable string) bool {
 }
 
 func convertGlobToRegex(element string) (*regexp.Regexp, error) {
-	fmt.Println("glob: ", element)
 	regexS := strings.ReplaceAll(
 		strings.ReplaceAll(
 			element,
@@ -420,8 +418,6 @@ func convertGlobToRegex(element string) (*regexp.Regexp, error) {
 		),
 		"/*", "[^/]*",
 	)
-
-	fmt.Println("regexS: ", regexS)
 
 	return regexp.Compile("^" + regexS)
 }
