@@ -92,7 +92,7 @@ func CommandPost() cli.Command {
 			}
 
 			err = pvr.Post(repoPath, c.String("envelope"), c.String("commit-msg"),
-				c.Int("rev"), c.Bool("force"))
+				c.String("rev"), c.Bool("force"))
 
 			if err != nil {
 				fmt.Println("ERROR: " + err.Error())
@@ -112,8 +112,7 @@ func CommandPost() cli.Command {
 			},
 			cli.StringFlag{
 				Name:  "rev",
-				Usage: "add 'rev' fieldcall to envelope",
-				Value: "-1",
+				Usage: "set a name for the new revision",
 			},
 			cli.BoolFlag{
 				Name:  "force, f",

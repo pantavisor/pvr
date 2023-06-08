@@ -70,7 +70,7 @@ func CommandFastCopy() cli.Command {
 			}
 
 			err = pvr.RemoteCopy(src, dest, c.Bool("merge"), c.String("envelope"), c.String("commit-msg"),
-				c.Int("rev"), c.Bool("force"))
+				c.String("rev"), c.Bool("force"))
 
 			if err != nil {
 				fmt.Println("ERROR: " + err.Error())

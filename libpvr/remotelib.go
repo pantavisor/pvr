@@ -36,7 +36,7 @@ import (
 // It is however legal input if pvrSrc has a fragement, but pvrDest does not
 // have one. In that case the same fragement is implicitely appended to pvrDest
 func (p *Pvr) RemoteCopy(pvrSrc string, pvrDest string, merge bool,
-	envelope string, commitMsg string, rev int, force bool) error {
+	envelope string, commitMsg string, rev string, force bool) error {
 
 	srcURL, err := url.Parse(pvrSrc)
 	if err != nil {

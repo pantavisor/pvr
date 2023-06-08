@@ -1539,7 +1539,7 @@ func (p *Pvr) PutObjects(uri string, force bool) error {
 }
 
 func (p *Pvr) postRemoteJson(remotePvr pvrapi.PvrRemote, pvrMap PvrMap, envelope string,
-	commitMsg string, rev int, force bool) ([]byte, error) {
+	commitMsg string, rev string, force bool) ([]byte, error) {
 
 	if envelope == "" {
 		envelope = "{}"
@@ -1556,8 +1556,10 @@ func (p *Pvr) postRemoteJson(remotePvr pvrapi.PvrRemote, pvrMap PvrMap, envelope
 		envJSON["commit-msg"] = commitMsg
 	}
 
-	if rev != 0 {
-		envJSON["rev"] = rev
+	if r, err := strconv.Atoi(rev); err == nil && r != 0 {
+		envJSON["rev"] = r
+	} else {
+		envJSON["rev"] = -1
 	}
 
 	if remotePvr.JsonKey != "" {
@@ -1599,7 +1601,7 @@ func (p *Pvr) postRemoteJson(remotePvr pvrapi.PvrRemote, pvrMap PvrMap, envelope
 // make a json post to a REST endpoint. You can provide metainfo etc. in post
 // argument as json. postKey if set will be used as key that refers to the posted
 // json. Example usage: json blog post, json revision repo with commit message etc
-func (p *Pvr) Post(uri string, envelope string, commitMsg string, rev int, force bool) error {
+func (p *Pvr) Post(uri string, envelope string, commitMsg string, rev string, force bool) error {
 
 	if uri == "" {
 		uri = p.Pvrconfig.DefaultPostUrl
@@ -1663,12 +1665,24 @@ func (p *Pvr) Post(uri string, envelope string, commitMsg string, rev int, force
 	stateSha := responseMap["state-sha"].(string)
 	revLocalNumber := responseMap["rev"].(json.Number)
 	revLocal := fmt.Sprintf("%s", revLocalNumber)
+	code := "0"
+	errormsg := "Empty reply from server"
 	if revLocal == "-1" {
 		revLocal = responseMap["revlocal"].(string)
+		if c, ok := responseMap["code"].(string); ok {
+			code = c
+		}
+		if msg, ok := responseMap["errormsg"].(string); ok {
+			errormsg = msg
+		}
 	}
 
-	fmt.Fprintf(os.Stderr, "Successfully posted Revision %s (%s) to device id %s\n", revLocal,
-		stateSha[:Min(8, len(stateSha))], responseMap["trail-id"])
+	if code == "0" {
+		fmt.Fprintf(os.Stderr, "Successfully posted Revision %s (%s) to device id %s\n",
+			revLocal, stateSha[:Min(8, len(stateSha))], responseMap["trail-id"])
+	} else {
+		fmt.Fprintf(os.Stderr, "\nError: %s\n", errormsg)
+	}
 
 	p.Pvrconfig.DefaultPostUrl = uri
 	if p.Pvrconfig.DefaultGetUrl == "" {
