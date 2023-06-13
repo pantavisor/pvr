@@ -295,13 +295,13 @@ func CleanRemovedSignatures(initialState, finalState *PvrMap) error {
 	}
 
 	for key := range *initialState {
-		if someValid(signedExpresions, key) {
+		if someValid(signedExpresions, key) && key != "#spec" {
 			delete(*initialState, key)
 		}
 	}
 
 	for key := range *finalState {
-		if someValid(signedExpresions, key) {
+		if someValid(signedExpresions, key) && key != "#spec" {
 			delete(*finalState, key)
 		}
 	}
@@ -311,30 +311,38 @@ func CleanRemovedSignatures(initialState, finalState *PvrMap) error {
 
 func CleanPatchSignedPkg(src, patch *PvrMap) error {
 	var err error
-	signedSrcExpresions := []*regexp.Regexp{}
-	signedPatchExpresions := []*regexp.Regexp{}
+	signedSrcExpresions := map[string][]*regexp.Regexp{}
+	signedPatchExpresions := map[string][]*regexp.Regexp{}
 	srcJson := *src
+	packages := map[string]bool{}
+	ok := false
 
 	for key, value := range *patch {
 		if !strings.HasPrefix(key, "_sigs/") || key == "#spec" {
 			continue
 		}
 
+		packageName := strings.ReplaceAll(strings.ReplaceAll(key, "_sigs/", ""), ".json", "")
+
+		packages[packageName] = false
+		signedSrcExpresions[packageName] = []*regexp.Regexp{}
+		signedPatchExpresions[packageName] = []*regexp.Regexp{}
+
 		if value == nil {
-			value = srcJson[key]
-			signedSrcExpresions, err = appendToSignedExpression(signedSrcExpresions, key, value)
+			value, ok = srcJson[key]
+			if !ok {
+				continue
+			}
+
+			signedSrcExpresions[packageName], err = appendToSignedExpression(signedPatchExpresions[packageName], key, value)
 			if err != nil {
 				return err
 			}
-			signedPatchExpresions, err = appendToSignedExpression(signedPatchExpresions, key, value)
-			if err != nil {
-				return err
-			}
-		} else {
-			signedSrcExpresions, err = appendToSignedExpression(signedSrcExpresions, key, value)
-			if err != nil {
-				return err
-			}
+		}
+
+		signedPatchExpresions[packageName], err = appendToSignedExpression(signedSrcExpresions[packageName], key, value)
+		if err != nil {
+			return err
 		}
 	}
 
@@ -342,15 +350,25 @@ func CleanPatchSignedPkg(src, patch *PvrMap) error {
 		return nil
 	}
 
-	for key := range *src {
-		if someValid(signedSrcExpresions, key) {
-			delete(*src, key)
+	for key := range *patch {
+		for p, exp := range signedPatchExpresions {
+			if someValid(exp, key) {
+				packages[p] = true
+			}
+		}
+
+		for p, exp := range signedSrcExpresions {
+			if someValid(exp, key) && packages[p] && key != "#spec" {
+				delete(*patch, key)
+			}
 		}
 	}
 
-	for key := range *patch {
-		if someValid(signedPatchExpresions, key) {
-			delete(*patch, key)
+	for key := range *src {
+		for p, exp := range signedPatchExpresions {
+			if someValid(exp, key) && packages[p] && key != "#spec" {
+				delete(*src, key)
+			}
 		}
 	}
 
