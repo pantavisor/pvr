@@ -325,8 +325,13 @@ func CleanPatchSignedPkg(src, patch *PvrMap) error {
 		packageName := strings.ReplaceAll(strings.ReplaceAll(key, "_sigs/", ""), ".json", "")
 
 		packages[packageName] = false
-		signedSrcExpresions[packageName] = []*regexp.Regexp{}
-		signedPatchExpresions[packageName] = []*regexp.Regexp{}
+		if _, ok := signedSrcExpresions[packageName]; !ok {
+			signedSrcExpresions[packageName] = []*regexp.Regexp{}
+		}
+
+		if _, ok := signedPatchExpresions[packageName]; !ok {
+			signedPatchExpresions[packageName] = []*regexp.Regexp{}
+		}
 
 		if value == nil {
 			value, ok = srcJson[key]
@@ -352,13 +357,13 @@ func CleanPatchSignedPkg(src, patch *PvrMap) error {
 
 	for key := range *patch {
 		for p, exp := range signedPatchExpresions {
-			if someValid(exp, key) {
+			if someValid(exp, key) && !strings.Contains(key, "_sigs/") {
 				packages[p] = true
 			}
 		}
 
-		for p, exp := range signedSrcExpresions {
-			if someValid(exp, key) && packages[p] && key != "#spec" {
+		for _, exp := range signedSrcExpresions {
+			if someValid(exp, key) && key != "#spec" {
 				delete(*patch, key)
 			}
 		}
