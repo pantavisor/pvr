@@ -1558,8 +1558,10 @@ func (p *Pvr) postRemoteJson(remotePvr pvrapi.PvrRemote, pvrMap PvrMap, envelope
 
 	if r, err := strconv.Atoi(rev); err == nil && r != 0 {
 		envJSON["rev"] = r
+		envJSON["revlocal"] = ""
 	} else {
 		envJSON["rev"] = -1
+		envJSON["revlocal"] = rev
 	}
 
 	if remotePvr.JsonKey != "" {

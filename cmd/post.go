@@ -113,6 +113,7 @@ func CommandPost() cli.Command {
 			cli.StringFlag{
 				Name:  "rev",
 				Usage: "set a name for the new revision",
+				Value: "",
 			},
 			cli.BoolFlag{
 				Name:  "force, f",
