@@ -697,13 +697,15 @@ func (p *Pvr) Commit(msg string, isCheckpoint bool) (err error) {
 
 	// copy all objects with atomic commit
 	for _, v := range status.NewFiles {
-		if strings.HasSuffix(v, ".json") {
+
+		if v == "#spec" || strings.HasSuffix(v, ".json") {
 			addInfo, ok := p.NewFiles[v]
 			if !ok || !addInfo.ForceObject {
 				fmt.Fprintln(os.Stderr, "Adding inline "+v)
 				continue
 			}
 		}
+
 		v = filepath.Join(p.Dir, v)
 		sha, err := FiletoSha(v)
 		if err != nil {
