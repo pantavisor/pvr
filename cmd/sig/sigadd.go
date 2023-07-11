@@ -94,7 +94,7 @@ func CommandSigAdd() cli.Command {
 				}
 			}
 
-			excludes = append(excludes, path.Join("_sigs", part+".json"))
+			excludes = append(excludes, path.Join("_sigs", name+".json"))
 
 			// in 'part' mode we support configs; in 'raw' we dont ....
 			if raw != name && !c.Bool("noconfig") {
