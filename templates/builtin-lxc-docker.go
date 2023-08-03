@@ -22,6 +22,7 @@ const (
 {{- if and (.Source.args.PV_RUNLEVEL | pvr_ifNull "__null__" | ne "data")
            (.Source.args.PV_STATUS_GOAL | pvr_ifNull "__null__" | ne "MOUNTED") -}}
 	{{ "" -}}
+lxc.tty.min = {{ .Source.args.LXC_TTY_MIN | pvr_ifNull "0" }}
 lxc.tty.max = {{ .Source.args.LXC_TTY_MAX | pvr_ifNull "8" }}
 lxc.pty.max = {{ .Source.args.LXC_PTY_MAX | pvr_ifNull "1024" }}
 {{- if .Source.args.PV_DEBUG_MODE }}
