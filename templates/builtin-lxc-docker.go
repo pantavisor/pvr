@@ -126,11 +126,11 @@ lxc.mount.entry = /proc/ host/proc none bind,rw,create=dir 0 0
 {{- if .Source.args.PV_SECURITY_WITH_STORAGE }}
 lxc.mount.entry = /storage storage none bind,rw,create=dir 0 0
 {{- end }}
-{{- if (not .Source.args.PV_RESOLV_CONF_DISABLE) }}
-lxc.mount.entry = /etc/resolv.conf {{ .Source.args.PV_RESOLV_CONF_PATH | pvr_ifNull "etc/resolv.conf" }} none bind,rw,create=file 0 0
-{{- end }}
 {{- if (not .Source.args.PV_RUN_TMPFS_DISABLE) }}
 lxc.mount.entry = tmpfs {{ .Source.args.PV_RUN_TMPFS_PATH | pvr_ifNull "run" }} tmpfs rw,nodev,relatime,create=dir,mode=755 0 0
+{{- end }}
+{{- if (not .Source.args.PV_RESOLV_CONF_DISABLE) }}
+lxc.mount.entry = /etc/resolv.conf {{ .Source.args.PV_RESOLV_CONF_PATH | pvr_ifNull "etc/resolv.conf" }} none bind,rw,create=file 0 0
 {{- end }}
 {{- $src := .Source -}}
 {{- range $key, $value := pvr_mergePersistentMaps .Docker.Volumes $src.persistence -}}
