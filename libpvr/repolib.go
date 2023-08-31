@@ -858,7 +858,7 @@ func (p *Pvr) initializeRemote(repoUrl *url.URL) (pvrapi.PvrRemote, error) {
 	pvrRemoteUrl.Path = path.Join(pvrRemoteUrl.Path, ".pvrremote")
 
 	response, err := p.Session.DoAuthCall(true, func(req *resty.Request) (response *resty.Response, err error) {
-		fmt.Fprintf(os.Stderr, "Getting remote repository info ... ")
+		fmt.Fprintf(os.Stdout, "Getting remote repository info ... ")
 		if response, err = req.Get(pvrRemoteUrl.String()); err != nil {
 			fmt.Fprintf(os.Stderr, "[ERROR "+err.Error()+"]\n")
 			return response, err
@@ -1238,7 +1238,7 @@ func (p *Pvr) postObjects(pvrRemote pvrapi.PvrRemote, force bool) error {
 
 	// we have no getUrl in device create and pubobjects case
 	if pvrRemote.JsonGetUrl != "" {
-		fmt.Fprintf(os.Stderr, "Synching baseline state with device")
+		fmt.Fprintf(os.Stdout, "Synching baseline state with device")
 
 		buf, err := p.getJSONBuf(pvrRemote)
 		if err != nil {
