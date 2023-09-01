@@ -863,7 +863,7 @@ func (p *Pvr) initializeRemote(repoUrl *url.URL) (pvrapi.PvrRemote, error) {
 			fmt.Fprintf(os.Stderr, "[ERROR "+err.Error()+"]\n")
 			return response, err
 		}
-		fmt.Fprintf(os.Stderr, "[OK]\n")
+		fmt.Fprintf(os.Stdout, "[OK]\n")
 		return response, err
 	})
 
@@ -1249,7 +1249,7 @@ func (p *Pvr) postObjects(pvrRemote pvrapi.PvrRemote, force bool) error {
 		if err != nil {
 			return errout(err)
 		}
-		fmt.Fprintf(os.Stderr, " [OK]\n")
+		fmt.Fprintf(os.Stdout, " [OK]\n")
 	}
 
 	baselineFilesAndObjects, err = listFilesAndObjectsFromJson(baselineState, []string{})
