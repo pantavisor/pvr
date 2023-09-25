@@ -1,5 +1,6 @@
 {
   "#spec": "pantavisor-service-system@1",
+  "_config/pv-avahi/etc/hostname": "2c8b08da5ce60398e1f19af0e5dccc744df274b826abe585eaba68c525434806",
   "_config/pvr-sdk/etc/pvr-sdk/config.json": {
     "httpd": {
       "listen": "0.0.0.0",
@@ -118,6 +119,58 @@
     }
   },
   "network-mapping.json": {},
+  "pv-avahi/lxc.container.conf": "03c7a009259477721f65c13202c206b96046a768f712829f6dde2fae5355f75b",
+  "pv-avahi/root.squashfs": "7f64ab9af93a3c408ba2d52bd1ea35fb8df2cc0f6a35405ba5b37236ffe5bf24",
+  "pv-avahi/root.squashfs.docker-digest": "5798c689e445f7d5132af907bdba082f0211c82be5dcceb4dfed3c5db31f2b64",
+  "pv-avahi/run.json": {
+    "#spec": "service-manifest-run@1",
+    "config": "lxc.container.conf",
+    "drivers": {
+      "manual": [],
+      "optional": [],
+      "required": []
+    },
+    "group": "platform",
+    "name": "pv-avahi",
+    "root-volume": "root.squashfs",
+    "storage": {
+      "lxc-overlay": {
+        "persistence": "boot"
+      }
+    },
+    "type": "lxc",
+    "volumes": []
+  },
+  "pv-avahi/src.json": {
+    "#spec": "service-manifest-src@1",
+    "args": {
+      "PV_GROUP": "platform"
+    },
+    "docker_config": {
+      "AttachStderr": false,
+      "AttachStdin": false,
+      "AttachStdout": false,
+      "Cmd": [
+        "/sbin/init"
+      ],
+      "Domainname": "",
+      "Env": [
+        "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+      ],
+      "Hostname": "",
+      "Image": "sha256:701f4bbc1d5b707fc7daabf637cb2fa12532d05ceea6be24f8bb15a55805843b",
+      "OpenStdin": false,
+      "StdinOnce": false,
+      "Tty": false,
+      "User": "",
+      "WorkingDir": ""
+    },
+    "docker_digest": "registry.gitlab.com/pantacor/pv-platforms/pv-avahi@sha256:895b2af2b5d407235f2b8c7c568532108a44946898694282340ef0315e2afb28",
+    "docker_name": "registry.gitlab.com/pantacor/pv-platforms/pv-avahi",
+    "docker_source": "remote,local",
+    "docker_tag": "arm32v6",
+    "template": "builtin-lxc-docker"
+  },
   "pvr-sdk/_dm/root.squashfs.json": {
     "data_device": "root.squashfs",
     "hash_device": "root.squashfs.hash",
