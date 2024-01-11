@@ -20,6 +20,8 @@ import (
 
 	jsonpatch "github.com/asac/json-patch"
 	cjson "github.com/gibson042/canonicaljson-go"
+	"github.com/highercomve/jsondiff"
+	"gitlab.com/pantacor/pvr/utils/pvjson"
 )
 
 func copyState(state map[string]interface{}) map[string]interface{} {
@@ -169,7 +171,7 @@ func PatchState(srcBuff, patchBuff []byte, srcFrags, patchFrag string, merge boo
 	// i should add the logic to search for _sigs in the patch, then look for same signatures
 	// in the src state, decode those signatures and delete everything in the include, exclude from
 	// src state, and after that execute the normal merge of states.
-	err = CleanPatchSignedPkg(&srcState, &patchState)
+	err = CleanPatchSignedPkg(&srcState, &patchState, nil)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -221,6 +223,28 @@ func PatchState(srcBuff, patchBuff []byte, srcFrags, patchFrag string, merge boo
 	return jsonMerged, patchState, err
 }
 
+func GetStatePatch(initialState, endState []byte) (*[]byte, error) {
+	var diffbytes []byte
+	diffJson := []interface{}{}
+	diff, err := jsondiff.CompareJSON(initialState, endState)
+	if err != nil {
+		return nil, err
+	}
+
+	if diff != nil {
+		diffbytes, err = cjson.Marshal(diff)
+		if err != nil {
+			return nil, err
+		}
+		err = pvjson.Unmarshal(diffbytes, &diffJson)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &diffbytes, err
+}
+
 func renameKeys(state map[string]interface{}, srcFrags, patchFrag string) (map[string]interface{}, error) {
 	pJSONMap := map[string]interface{}{}
 	srcPrefixes := strings.Split(srcFrags, ",")
@@ -234,15 +258,22 @@ func renameKeys(state map[string]interface{}, srcFrags, patchFrag string) (map[s
 	return pJSONMap, nil
 }
 
-func MergePatch(srcData []byte, patchData []byte) ([]byte, error) {
-	// newJson, err := jsonpatch.MergePatch(srcData, patchData)
-	// if err != nil {
-	// 	return nil, err
-	// }
+func MergePatch(srcData, target []byte) ([]byte, error) {
 	var srcState PvrMap
+	var targetState PvrMap
 	var patchState PvrMap
 
-	err := cjson.Unmarshal(srcData, &srcState)
+	patchData, err := jsonpatch.CreateMergePatch(srcData, target)
+	if err != nil {
+		return nil, err
+	}
+
+	err = cjson.Unmarshal(srcData, &srcState)
+	if err != nil {
+		return nil, err
+	}
+
+	err = cjson.Unmarshal(target, &targetState)
 	if err != nil {
 		return nil, err
 	}
@@ -252,22 +283,42 @@ func MergePatch(srcData []byte, patchData []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	err = CleanPatchSignedPkg(&srcState, &patchState)
+	err = CleanPatchSignedPkg(&srcState, &patchState, &targetState)
 	if err != nil {
 		return nil, err
 	}
 
-	srcCleaned, err := cjson.Marshal(&srcState)
+	srcData, err = cjson.Marshal(srcState)
 	if err != nil {
 		return nil, err
 	}
 
-	merged, err := jsonpatch.MergePatch(srcCleaned, patchData)
+	target, err = cjson.Marshal(targetState)
+	if err != nil {
+		return nil, err
+	}
+
+	statePatch, err := GetStatePatch(srcData, target)
+	if err != nil {
+		return nil, err
+	}
+
+	if statePatch == nil || len(*statePatch) == 0 {
+		return srcData, nil
+	}
+
+	patch, err := jsonpatch.DecodePatch(*statePatch)
+	if err != nil {
+		return nil, err
+	}
+
+	merged, err := patch.Apply(srcData)
 	if err != nil {
 		return nil, err
 	}
 
 	return merged, nil
+
 }
 
 func CleanRemovedSignatures(initialState, finalState *PvrMap) error {
@@ -309,7 +360,7 @@ func CleanRemovedSignatures(initialState, finalState *PvrMap) error {
 	return nil
 }
 
-func CleanPatchSignedPkg(src, patch *PvrMap) error {
+func CleanPatchSignedPkg(src, patch, target *PvrMap) error {
 	var err error
 	signedSrcExpresions := map[string][]*regexp.Regexp{}
 	signedPatchExpresions := map[string][]*regexp.Regexp{}

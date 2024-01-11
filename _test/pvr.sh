@@ -25,10 +25,12 @@ test_signature_removal() {
   $pvr import $dir/mocks/data/initial_state_01.tar.gz > /dev/null
   $pvr checkout > /dev/null
 
-  rm -rf _sigs/pv-avahi.json && $pvr add . > /dev/null 2>&1 && $pvr commit > /dev/null 2>&1
+  rm -rf _sigs/pv-avahi.json
+  $pvr add . > /dev/null 2>&1
+  $pvr commit > /dev/null 2>&1
 
   result="$(cat $dir/results/.pvr/json | jq -c)"
-  expected="$(cat $dir/expected/state_signature_removal.json | jq -c)"
+  expected="$(cat $dir/expected/test_signature_removal.json | jq -c)"
 
   assertEquals "$expected" "$result"
 }
@@ -123,6 +125,23 @@ test_deploy_unselecting_parts() {
 
   result="$(cat $dir/results/.pvr/json | jq -c)"
   expected="$(cat $dir/expected/test_deploy_unselecting_parts.json | jq -c)"
+
+  assertEquals "$expected" "$result"
+}
+
+test_adding_signature_to_existing_package() {
+  clean_results
+  cd $dir/results/
+
+  $pvr init
+  $pvr merge $dir/mocks/data/pvwebstatus.tar.gz#pvwebstatus > /dev/null 2>&1
+  $pvr checkout > /dev/null
+
+  $pvr sig add --noconfig --part pvwebstatus
+  $pvr add && $pvr commit
+  cd $dir
+  result="$(cat $dir/results/.pvr/json | jq -c)"
+  expected="$(cat $dir/expected/test_adding_signature_to_existing_package.json | jq -c)"
 
   assertEquals "$expected" "$result"
 }

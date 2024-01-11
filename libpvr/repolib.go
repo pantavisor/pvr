@@ -24,7 +24,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"net/http/httputil"
@@ -41,6 +40,7 @@ import (
 	"github.com/cavaliercoder/grab"
 	cjson "github.com/gibson042/canonicaljson-go"
 	"github.com/go-resty/resty"
+	"github.com/highercomve/jsondiff"
 	"gitlab.com/pantacor/pantahub-base/objects"
 	pvrapi "gitlab.com/pantacor/pvr/api"
 	"gitlab.com/pantacor/pvr/utils/pvjson"
@@ -50,6 +50,10 @@ import (
 
 const (
 	PvrCheckpointFilename = "checkpoint.json"
+)
+
+var (
+	rfc6901InverterReplacer = strings.NewReplacer("~0", "~", "~1", "/")
 )
 
 type PvrStatus struct {
@@ -529,6 +533,37 @@ func (p *Pvr) InitCustom(customInitJson string, objectsDir string) error {
 	return err
 }
 
+func (p *Pvr) JSONDiff() (*[]byte, error) {
+	workingJson, _, err := p.GetWorkingJson()
+
+	if err != nil {
+		return nil, err
+	}
+
+	cPristineJson, err := p.GetCPristineJson()
+
+	if err != nil {
+		return nil, err
+	}
+
+	diff, err := jsondiff.CompareJSON(cPristineJson, workingJson)
+	if err != nil {
+		return nil, err
+	}
+
+	pvrdiff := map[string]interface{}{}
+	for _, op := range diff {
+		pvrdiff[op.Name] = op.Value
+	}
+
+	diffbytes, err := cjson.Marshal(pvrdiff)
+	if err != nil {
+		return nil, err
+	}
+
+	return &diffbytes, nil
+}
+
 func (p *Pvr) Diff() (*[]byte, error) {
 	workingJson, _, err := p.GetWorkingJson()
 
@@ -564,35 +599,46 @@ func (p *Pvr) Status() (*PvrStatus, error) {
 		return nil, err
 	}
 
-	diff, err := jsonpatch.CreateMergePatch(cPristineJson, workingJson)
+	var diffbytes []byte
+	diffJson := []interface{}{}
+	diff, err := jsondiff.CompareJSON(cPristineJson, workingJson)
 	if err != nil {
 		return nil, err
 	}
 
-	rs.JsonDiff = &diff
-
-	// make json map out of diff
-	diffJson := map[string]interface{}{}
-	err = pvjson.Unmarshal(*rs.JsonDiff, &diffJson)
-	if err != nil {
-		return nil, err
+	if diff != nil {
+		diffbytes, err = cjson.Marshal(diff)
+		if err != nil {
+			return nil, err
+		}
+		err = pvjson.Unmarshal(diffbytes, &diffJson)
+		if err != nil {
+			return nil, err
+		}
 	}
+
+	rs.JsonDiff = &diffbytes
 
 	// run
-	for file := range diffJson {
-		val := diffJson[file]
+	for _, operation := range diff {
+		op := operation.Type
 
-		if val == nil {
-			rs.RemovedFiles = append(rs.RemovedFiles, file)
+		filePaths := strings.Split(operation.Path.String()[1:], "/")
+		path := rfc6901InverterReplacer.Replace(filePaths[0])
+
+		if op == "add" {
+			rs.NewFiles = append(rs.NewFiles, path)
 			continue
 		}
 
-		// if we have this key in pristine, then file was changed
-		if _, ok := p.PristineJsonMap[file]; ok {
-			rs.ChangedFiles = append(rs.ChangedFiles, file)
+		if op == "remove" {
+			rs.RemovedFiles = append(rs.RemovedFiles, path)
 			continue
-		} else {
-			rs.NewFiles = append(rs.NewFiles, file)
+		}
+
+		if op == "move" || op == "replace" || op == "copy" {
+			rs.ChangedFiles = append(rs.ChangedFiles, path)
+			continue
 		}
 	}
 
@@ -657,7 +703,6 @@ func (p *Pvr) Commit(msg string, isCheckpoint bool) (err error) {
 	}
 
 	status, err := p.Status()
-
 	if err != nil {
 		return err
 	}
@@ -741,9 +786,14 @@ func (p *Pvr) Commit(msg string, isCheckpoint bool) (err error) {
 		return err
 	}
 
-	newJson, err := MergePatch(p.PristineJson, *status.JsonDiff)
-	if err != nil {
-		return err
+	var newJson []byte
+	if *status.JsonDiff != nil {
+		newJson, err = MergePatch(p.PristineJson, wJson)
+		if err != nil {
+			return err
+		}
+	} else {
+		newJson = p.PristineJson
 	}
 
 	newJson, err = FormatJsonC(newJson)
@@ -1668,7 +1718,7 @@ func (p *Pvr) Post(uri string, envelope string, commitMsg string, rev string, fo
 
 	stateSha := responseMap["state-sha"].(string)
 	revLocalNumber := responseMap["rev"].(json.Number)
-	revLocal := fmt.Sprintf("%s", revLocalNumber)
+	revLocal := revLocalNumber.String()
 	code := "0"
 	errormsg := "Empty reply from server"
 	if revLocal == "-1" {
@@ -1970,7 +2020,7 @@ func (p *Pvr) GetRepoLocal(getPath string, merge bool, showFilenames bool, state
 	if updatePristineJson {
 		p.PristineJson = jsonMerged
 		p.PristineJsonMap = jsonMergedMap
-		err = ioutil.WriteFile(filepath.Join(p.Pvrdir, "json.new"), jsonMerged, 0644)
+		err = os.WriteFile(filepath.Join(p.Pvrdir, "json.new"), jsonMerged, 0644)
 		if err != nil {
 			return objectsCount, err
 		}
@@ -2297,7 +2347,7 @@ func (p *Pvr) GetRepoRemote(url *url.URL, merge bool, showFilenames bool, state 
 	if updatePristineJson {
 		p.PristineJson = jsonMerged
 		p.PristineJsonMap = jsonMergedMap
-		err = ioutil.WriteFile(filepath.Join(p.Pvrdir, "json.new"), jsonMerged, 0644)
+		err = os.WriteFile(filepath.Join(p.Pvrdir, "json.new"), jsonMerged, 0644)
 		if err != nil {
 			return objectsCount, err
 		}
@@ -2420,7 +2470,7 @@ func (p *Pvr) ResetWithState(state *PvrMap) error {
 func (p *Pvr) resetInternal(hardlink bool, canonicalJson bool, state *PvrMap) (err error) {
 	jsonMap := map[string]interface{}{}
 	if state == nil {
-		data, err := ioutil.ReadFile(filepath.Join(p.Pvrdir, "json"))
+		data, err := os.ReadFile(filepath.Join(p.Pvrdir, "json"))
 
 		if err != nil {
 			return err

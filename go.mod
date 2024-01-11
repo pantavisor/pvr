@@ -24,6 +24,7 @@ require (
 	github.com/go-resty/resty v1.12.0
 	github.com/gorilla/mux v1.7.4 // indirect
 	github.com/grandcat/zeroconf v1.0.0
+	github.com/highercomve/jsondiff v0.0.0-20230331184928-5ac4220227bb
 	github.com/huandu/xstrings v1.3.1 // indirect
 	github.com/justincampbell/bigduration v0.0.0-20160531141349-e45bf03c0666 // indirect
 	github.com/justincampbell/timeago v0.0.0-20160528003754-027f40306f1d

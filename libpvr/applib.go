@@ -158,7 +158,7 @@ func (p *Pvr) InstallApplication(app *AppData) (err error) {
 		return err
 	}
 
-	diff, err := p.Diff()
+	diff, err := p.JSONDiff()
 	if err != nil {
 		return err
 	}
