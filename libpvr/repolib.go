@@ -619,8 +619,17 @@ func (p *Pvr) Status() (*PvrStatus, error) {
 
 	rs.JsonDiff = &diffbytes
 
-	// run
+	diffGroup := map[string]jsondiff.Operation{}
+	// Group operation by file
 	for _, operation := range diff {
+		filePaths := strings.Split(operation.Path.String()[1:], "/")
+		path := rfc6901InverterReplacer.Replace(filePaths[0])
+
+		diffGroup[path] = operation
+	}
+
+	// run
+	for _, operation := range diffGroup {
 		op := operation.Type
 
 		filePaths := strings.Split(operation.Path.String()[1:], "/")
