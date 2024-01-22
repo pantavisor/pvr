@@ -26,7 +26,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/docker/distribution/manifest/schema2"
 	"github.com/genuinetools/reg/registry"
 	"github.com/genuinetools/reg/repoutils"
 	"github.com/opencontainers/go-digest"
@@ -137,7 +136,7 @@ func (pvr *Pvr) getDockerURL() string {
 	return fmt.Sprintf("%s:%s", pvrRegistry+"/"+pvrProject, pvr.Session.Configuration.DistributionTag)
 }
 
-func (pvr *Pvr) getDigetsDifference(username, password string) (string, string, *schema2.Manifest, error) {
+func (pvr *Pvr) getDigetsDifference(username, password string) (string, string, *Manifest, error) {
 	configDir := pvr.Session.configDir
 	dockerURL := pvr.getDockerURL()
 
@@ -151,7 +150,7 @@ func (pvr *Pvr) getDigetsDifference(username, password string) (string, string, 
 		return "", "", nil, err
 	}
 
-	manifestV2, err := pvr.GetDockerManifest(image, auth)
+	manifestV2, err := pvr.GetDockerManifest(image, auth, "", "")
 	if err != nil {
 		return "", "", nil, err
 	}
@@ -171,7 +170,7 @@ func (pvr *Pvr) getDigetsDifference(username, password string) (string, string, 
 	return currentDigest, previousDigest, manifestV2, nil
 }
 
-func (pvr *Pvr) downloadAdUpdateBinary(username, password, currentDigest string, manifestV2 *schema2.Manifest) (string, error) {
+func (pvr *Pvr) downloadAdUpdateBinary(username, password, currentDigest string, manifestV2 *Manifest) (string, error) {
 	configDir := pvr.Session.configDir
 	cachePath := filepath.Join(configDir, cacheFolder)
 	dockerURL := pvr.getDockerURL()
@@ -201,7 +200,7 @@ func (pvr *Pvr) downloadAdUpdateBinary(username, password, currentDigest string,
 	return temp, nil
 }
 
-func (pvr *Pvr) getDockerContent(dockerURL string, outputDir, username, password string, dockerManifest *schema2.Manifest) (string, string, error) {
+func (pvr *Pvr) getDockerContent(dockerURL string, outputDir, username, password string, dockerManifest *Manifest) (string, string, error) {
 	image, err := registry.ParseImage(dockerURL)
 	if err != nil {
 		return "", "", err

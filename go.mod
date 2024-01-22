@@ -63,3 +63,5 @@ exclude github.com/Sirupsen/logrus v1.1.0
 replace github.com/golang/lint v0.0.0-20190409202823-959b441ac422 => github.com/golang/lint v0.0.0-20190301231843-5614ed5bae6f
 
 replace github.com/go-jose/go-jose/v3 => github.com/asac/go-jose/v3 v3.0.0-20210726220436-d8aa79561ce4
+
+replace github.com/genuinetools/reg => github.com/pantacor/reg v0.0.0-20240122195051-0126d67d2189

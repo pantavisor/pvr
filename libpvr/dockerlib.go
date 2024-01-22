@@ -36,6 +36,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/docker/distribution"
+	"github.com/docker/distribution/manifest"
+	"github.com/docker/distribution/manifest/ocischema"
 	"github.com/docker/distribution/manifest/schema2"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
@@ -81,6 +84,20 @@ var (
 
 type DockerManifest map[string]interface{}
 
+type Manifest struct {
+	manifest.Versioned
+
+	// Config references the image configuration as a blob.
+	Config distribution.Descriptor `json:"config"`
+
+	// Layers lists descriptors for the layers referenced by the
+	// configuration.
+	Layers []distribution.Descriptor `json:"layers"`
+
+	// Annotations contains arbitrary metadata for the image manifest.
+	Annotations map[string]string `json:"annotations,omitempty"`
+}
+
 func (p *Pvr) GetDockerRegistry(image registry.Image, auth types.AuthConfig) (*registry.Registry, error) {
 	return registry.New(context.Background(), auth, registry.Opt{
 		Domain:   image.Domain,
@@ -92,18 +109,36 @@ func (p *Pvr) GetDockerRegistry(image registry.Image, auth types.AuthConfig) (*r
 	})
 }
 
-func (p *Pvr) GetDockerManifest(image registry.Image, auth types.AuthConfig) (*schema2.Manifest, error) {
+func (p *Pvr) GetDockerManifest(image registry.Image, auth types.AuthConfig, digest, version string) (*Manifest, error) {
 	r, err := p.GetDockerRegistry(image, auth)
 	if err != nil {
 		return nil, err
 	}
 
-	manifestV2, err := r.ManifestV2(context.Background(), image.Path, image.Reference())
+	if digest == "" {
+		digest = image.Reference()
+	}
+
+	if version == "" {
+		version = schema2.SchemaVersion.MediaType
+	}
+
+	fmt.Println("Getting manifest:", version)
+	manifest, err := GetManifest(r, version, image.Path, digest)
+	if err != nil && err.Error() == "recieved a different schema version than expected" {
+		if version == schema2.SchemaVersion.MediaType {
+			version = ocischema.SchemaVersion.MediaType
+		} else {
+			version = schema2.SchemaVersion.MediaType
+		}
+		fmt.Println("Getting manifest:", version)
+		manifest, err = GetManifest(r, version, image.Path, digest)
+	}
 	if err != nil {
 		return nil, ErrImageNotFound
 	}
 
-	return &manifestV2, nil
+	return manifest, nil
 }
 
 // GetDockerImageRepoDigest : Get Docker Image Repo Digest
@@ -119,13 +154,13 @@ func (p *Pvr) GetDockerImageRepoDigest(image registry.Image, auth types.AuthConf
 	return string(repoDigest), nil
 }
 
-func (p *Pvr) GetDockerConfig(manifestV2 *schema2.Manifest, image registry.Image, auth types.AuthConfig) (map[string]interface{}, error) {
+func (p *Pvr) GetDockerConfig(manifest *Manifest, image registry.Image, auth types.AuthConfig) (map[string]interface{}, error) {
 	r, err := p.GetDockerRegistry(image, auth)
 	if err != nil {
 		return nil, err
 	}
 
-	blobsURL := fmt.Sprintf("%s/v2/%s/blobs/%s", r.URL, image.Path, manifestV2.Config.Digest)
+	blobsURL := fmt.Sprintf("%s/v2/%s/blobs/%s", r.URL, image.Path, manifest.Config.Digest)
 
 	resp, err := http.Get(blobsURL)
 	if err != nil {
@@ -248,7 +283,7 @@ type DockerImage struct {
 	Exists         bool
 	DockerDigest   string
 	DockerConfig   map[string]interface{}
-	DockerManifest *schema2.Manifest
+	DockerManifest *Manifest
 	DockerRegistry *registry.Registry
 	ImagePath      string
 	DockerPlatform string
@@ -291,7 +326,7 @@ func (p *Pvr) FindDockerImage(app *AppData) (err error) {
 // LoadRemoteImage : To check whether Image Exist In Remote Docker Or Not
 func (p *Pvr) LoadRemoteImage(app *AppData) error {
 
-	var dockerManifest *schema2.Manifest
+	var dockerManifest *Manifest
 
 	app.RemoteImage = DockerImage{
 		Exists: false,
@@ -344,16 +379,18 @@ func (p *Pvr) LoadRemoteImage(app *AppData) error {
 				if v.Platform.Architecture == p[1] &&
 					(len(p) < 3 || p[2] == v.Platform.Variant) {
 					repoDigest = v.Digest.String()
+					app.ManifestType = v.MediaType
 					dockerPlatform = v1S
 					break
 				}
 			}
 			if repoDigest != "" {
-				dm, err := dockerRegistry.ManifestV2(context.Background(), image.Path, repoDigest)
-				dockerManifest = &dm
+				dm, err := p.GetDockerManifest(image, auth, repoDigest, app.ManifestType)
 				if err != nil {
 					return err
 				}
+				dockerManifest = dm
+
 				fmt.Fprintf(os.Stderr, "Found Manifest for platform %s\n",
 					dockerPlatform)
 
@@ -365,7 +402,7 @@ func (p *Pvr) LoadRemoteImage(app *AppData) error {
 	}
 
 	if dockerManifest == nil {
-		dockerManifest, err = p.GetDockerManifest(image, auth)
+		dockerManifest, err = p.GetDockerManifest(image, auth, "", app.ManifestType)
 		if err != nil {
 			manifestErr := ReportDockerManifestError(err, app.From)
 			if err.Error() == "image not found or you do not have access" {
@@ -424,6 +461,34 @@ func (p *Pvr) LoadRemoteImage(app *AppData) error {
 	app.RemoteImage.ImagePath = image.Path
 
 	return nil
+}
+
+func GetManifest(dockerReg *registry.Registry, version, path, digest string) (manifest *Manifest, err error) {
+	switch version {
+	case ocischema.SchemaVersion.MediaType:
+		r, err := dockerReg.OCIManifestV1(context.Background(), path, digest)
+		if err != nil {
+			return nil, err
+		}
+		manifest = &Manifest{
+			Versioned:   r.Versioned,
+			Config:      r.Config,
+			Layers:      r.Layers,
+			Annotations: r.Annotations,
+		}
+	default:
+		r, err := dockerReg.ManifestV2(context.Background(), path, digest)
+		if err != nil {
+			return nil, err
+		}
+		manifest = &Manifest{
+			Versioned: r.Versioned,
+			Config:    r.Config,
+			Layers:    r.Layers,
+		}
+	}
+
+	return manifest, err
 }
 
 // LoadLocalImage : To check whether Image Exist In Local Docker Or Not
@@ -488,6 +553,7 @@ type AppData struct {
 	SourceType      string
 	DoOverlay       bool
 	Base            string
+	ManifestType    string
 }
 
 func (p *Pvr) GenerateApplicationSquashFS(app *AppData, appManifest *Source) error {
