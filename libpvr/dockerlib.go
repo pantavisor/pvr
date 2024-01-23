@@ -125,7 +125,7 @@ func (p *Pvr) GetDockerManifest(image registry.Image, auth types.AuthConfig, dig
 
 	fmt.Println("Getting manifest:", version)
 	manifest, err := GetManifest(r, version, image.Path, digest)
-	if err != nil && err.Error() == "recieved a different schema version than expected" {
+	if err != nil && err.Error() == registry.ErrUnexpectedSchemaVersion.Error() {
 		if version == schema2.SchemaVersion.MediaType {
 			version = ocischema.SchemaVersion.MediaType
 		} else {
