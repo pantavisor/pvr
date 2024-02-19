@@ -1,0 +1,282 @@
+
+<a name="038"></a>
+## [038](https://gitlab.com/pantacor/pvr/compare/037...038) (2024-01-23)
+
+### Feature
+
+* docker lib add support to oci manifest
+* **app add:** add args-json to setup src.json args and config as parameters to set src.json config key
+* **cmd:** add version command with go build version
+* **repolib:** move merge state logic to library function
+* **self-upgrade:** self upgrade command always force update doesn't matter if installed_version have same digest
+* **statelib:** on patch/commit remove signed parts before add new ones
+* **steps:** move merge state logic to library function
+
+### Fix
+
+* pvr status show multiple changes for same device.
+* pvr post --rev not working for non int strings
+* **app add:** app add need to add the app config to the src.json as the key config not docker_config
+* **ci:** change gitlab ci variables
+* **ci:** push to tag branch
+* **ci:** push to tag branch
+* **cmd:** import dm as submodule
+* **diff:** update json-patch to get right diffing and status
+* **dockerlib:** use correct sha256 cache file when if cloning for local (removing the repository name)
+* **jsonpatch:** update json-patch library to support big integer on json values
+* **statelib:** remove glob and regex printing
+* **statelib:** mark package as signed when signed parts are present
+* **statelib:** use jsondiff and patch to merge two json instead of jsonpatch
+* **statelib:** convert ** into .* even when doesn't start with /
+* **statelib:** don't remove spec and signature content when adding new signature
+* **statelib:** normal merge should only remove and add again the frags in the patch json or the src removal frags
+* **test:** removing signature doesn't delete all the parts of package only the signature
+
+### Refactor
+
+* **cmd:** refactor commands structure to have submodules for subcommands
+
+
+<a name="037"></a>
+## [037](https://gitlab.com/pantacor/pvr/compare/036...037) (2023-02-20)
+
+### Fix
+
+* **repolib:** solve problem with the upload of files with size 0
+
+
+<a name="036"></a>
+## [036](https://gitlab.com/pantacor/pvr/compare/035...036) (2023-02-17)
+
+### Feat
+
+* **app update:** make posible to run RepoGet without merge it to the pristine state
+
+### Feature
+
+* **app:** add --base parameter to app update and app install
+* **cli:** create a patch from another app
+* **cli:** add cmd argument for patch updates
+* **lib:** add MkTreeDiff two create diff between two rootfs
+* **utils:** add json unmarshal helper to decode big int inside json
+
+### Fix
+
+* **app:** on pvr app update use the correct appManifest instead of the one inside the app object
+* **app update:** don't stop update flow when updatge a pv app without docker_name
+* **app update:** correct run.json template for --patch and --base features
+* **app update:** pvr app updates uses parts[0] from url instead of part
+* **dockerlib:** When adding an app search all the possible sources and ignore error until check all the sources
+* **lib:** pvr merge and pvr get weren't updating pristine
+* **manifest:** get manifest doesn't load default docker sources
+
+
+<a name="035"></a>
+## [035](https://gitlab.com/pantacor/pvr/compare/034...035) (2022-11-11)
+
+### Fix
+
+* GetWorkingJsonMap using json.Unmarshall without reference
+
+
+<a name="034"></a>
+## [034](https://gitlab.com/pantacor/pvr/compare/033...034) (2022-08-26)
+
+
+<a name="033"></a>
+## [033](https://gitlab.com/pantacor/pvr/compare/032...033) (2022-08-03)
+
+
+<a name="032"></a>
+## [032](https://gitlab.com/pantacor/pvr/compare/031...032) (2022-07-29)
+
+### Feat
+
+* **sign:** download certificates from gitlab if .pvr/pvs folder is empty
+
+### Fix
+
+* **debug:** use resty to upload objects in order to be able to trace those api calls
+* **repolib:** upload progress bar uses normal http client unless the resty debug is set
+* **signatures:** typo on download default signatures message
+
+### Refactor
+
+* **signature:** add function to load signatures from config folder
+
+
+<a name="031"></a>
+## [031](https://gitlab.com/pantacor/pvr/compare/030...031) (2022-03-15)
+
+
+<a name="030"></a>
+## [030](https://gitlab.com/pantacor/pvr/compare/029...030) (2022-03-03)
+
+
+<a name="029"></a>
+## [029](https://gitlab.com/pantacor/pvr/compare/028...029) (2022-01-20)
+
+### Refactor
+
+* **libpvr:** Solve all linter errors inside libpvr
+
+
+<a name="028"></a>
+## [028](https://gitlab.com/pantacor/pvr/compare/027...028) (2021-12-16)
+
+
+<a name="027"></a>
+## [027](https://gitlab.com/pantacor/pvr/compare/026...027) (2021-12-14)
+
+### Feature
+
+* **app:** Add support two new source type for applications in PVR (pvr, rootfs)
+
+
+<a name="026"></a>
+## [026](https://gitlab.com/pantacor/pvr/compare/025...026) (2021-11-02)
+
+
+<a name="025"></a>
+## [025](https://gitlab.com/pantacor/pvr/compare/024...025) (2021-08-24)
+
+
+<a name="024"></a>
+## [024](https://gitlab.com/pantacor/pvr/compare/023...024) (2021-08-23)
+
+
+<a name="023"></a>
+## [023](https://gitlab.com/pantacor/pvr/compare/022...023) (2021-07-29)
+
+
+<a name="022"></a>
+## [022](https://gitlab.com/pantacor/pvr/compare/021...022) (2021-07-29)
+
+
+<a name="021"></a>
+## [021](https://gitlab.com/pantacor/pvr/compare/020...021) (2021-07-15)
+
+
+<a name="020"></a>
+## [020](https://gitlab.com/pantacor/pvr/compare/019...020) (2021-07-02)
+
+
+<a name="019"></a>
+## [019](https://gitlab.com/pantacor/pvr/compare/018...019) (2021-06-11)
+
+### Feature
+
+* **auth:** Try always to do auth by using anonimous user, if doesn't work...
+
+
+<a name="018"></a>
+## [018](https://gitlab.com/pantacor/pvr/compare/017...018) (2021-05-12)
+
+
+<a name="017"></a>
+## [017](https://gitlab.com/pantacor/pvr/compare/016...017) (2021-03-05)
+
+
+<a name="016"></a>
+## [016](https://gitlab.com/pantacor/pvr/compare/015...016) (2021-01-15)
+
+
+<a name="015"></a>
+## [015](https://gitlab.com/pantacor/pvr/compare/014...015) (2021-01-12)
+
+
+<a name="014"></a>
+## [014](https://gitlab.com/pantacor/pvr/compare/013...014) (2020-11-13)
+
+
+<a name="013"></a>
+## [013](https://gitlab.com/pantacor/pvr/compare/012...013) (2020-09-02)
+
+
+<a name="012"></a>
+## [012](https://gitlab.com/pantacor/pvr/compare/011...012) (2020-06-15)
+
+
+<a name="011"></a>
+## [011](https://gitlab.com/pantacor/pvr/compare/010...011) (2020-06-08)
+
+### Fix
+
+* pvr device get command is not able to get other users public device details
+
+### Logs
+
+* add optional --rev parameter which limits logs to a given revision
+
+
+<a name="010"></a>
+## [010](https://gitlab.com/pantacor/pvr/compare/009...010) (2020-01-13)
+
+
+<a name="009"></a>
+## [009](https://gitlab.com/pantacor/pvr/compare/008...009) (2019-10-11)
+
+
+<a name="008"></a>
+## [008](https://gitlab.com/pantacor/pvr/compare/007...008) (2019-06-28)
+
+
+<a name="007"></a>
+## [007](https://gitlab.com/pantacor/pvr/compare/007-rc2...007) (2019-06-21)
+
+
+<a name="007-rc2"></a>
+## [007-rc2](https://gitlab.com/pantacor/pvr/compare/006...007-rc2) (2019-06-20)
+
+### Fix
+
+* Go routines receiving reference where downloading same layer always
+
+
+<a name="006"></a>
+## [006](https://gitlab.com/pantacor/pvr/compare/006-rc3...006) (2018-12-12)
+
+
+<a name="006-rc3"></a>
+## [006-rc3](https://gitlab.com/pantacor/pvr/compare/006-rc2...006-rc3) (2018-12-12)
+
+
+<a name="006-rc2"></a>
+## [006-rc2](https://gitlab.com/pantacor/pvr/compare/006-rc1...006-rc2) (2018-12-11)
+
+
+<a name="006-rc1"></a>
+## [006-rc1](https://gitlab.com/pantacor/pvr/compare/005...006-rc1) (2018-12-02)
+
+
+<a name="005"></a>
+## [005](https://gitlab.com/pantacor/pvr/compare/004...005) (2018-09-10)
+
+
+<a name="004"></a>
+## [004](https://gitlab.com/pantacor/pvr/compare/004-rc5...004) (2018-05-28)
+
+
+<a name="004-rc5"></a>
+## [004-rc5](https://gitlab.com/pantacor/pvr/compare/004-rc4...004-rc5) (2018-05-28)
+
+
+<a name="004-rc4"></a>
+## [004-rc4](https://gitlab.com/pantacor/pvr/compare/004-rc3...004-rc4) (2018-05-27)
+
+
+<a name="004-rc3"></a>
+## [004-rc3](https://gitlab.com/pantacor/pvr/compare/003...004-rc3) (2018-05-27)
+
+
+<a name="003"></a>
+## [003](https://gitlab.com/pantacor/pvr/compare/002...003) (2018-05-09)
+
+
+<a name="002"></a>
+## [002](https://gitlab.com/pantacor/pvr/compare/001...002) (2017-09-30)
+
+
+<a name="001"></a>
+## 001 (2017-06-19)
+
