@@ -1161,6 +1161,10 @@ value from $APP_NAME/src.json and generate the matching rootfs and ovr files.
   - `PV_ROLES`: [Roles](https://docs.pantahub.com/containers/#roles) assigned to the platform. Possible values: "mgmt" or empty.
   - `PV_SECURITY_WITH_STORAGE`: Enable/disable [security](https://docs.pantahub.com/storage/#integrity) with storage. Possible values: "yes" or "no".
   - `PV_STATUS_GOAL`: Desired [status goal](https://docs.pantahub.com/containers/#status-goal) for the platform. Possible values: "MOUNTED", "STARTED", or "READY".
+  - `PV_LXC_EXTRA_CONF`: Extra [LXC configuration](https://linuxcontainers.org/lxc/manpages/man5/lxc.container.conf.5.html) to be appended to lxc.container.conf.
+  - `PV_LXC_CAP_KEEP`: Specify the [capabilities](https://linuxcontainers.org/lxc/manpages/man5/lxc.container.conf.5.html) to be kept in the container.
+  - `PV_LXC_NAMESPACE_KEEP`: Specify the [namespaces](https://linuxcontainers.org/lxc/manpages/man5/lxc.container.conf.5.html) to be inherited from Pantavisor.
+  - `PVR_LXC_CGROUP_DEVICES_WHITE`: Allow list of [devices](https://linuxcontainers.org/lxc/manpages/man5/lxc.container.conf.5.html) for the container. See the device indexes to be used [here](https://www.kernel.org/doc/Documentation/admin-guide/devices.txt).
 
 ###### `docker_config`
 - Docker container configuration:
@@ -1186,6 +1190,7 @@ value from $APP_NAME/src.json and generate the matching rootfs and ovr files.
 - [Persistence](https://docs.pantahub.com/containers/#storage) settings for specific directories:
   - Each path can have the values: "permanent", "revision", or "boot".
   - Optional suffix: "@dm-versatile" to enable the [dm feature](More info: https://docs.pantahub.com/storage/#artifact-checksum)
+  - Optional prefix: "ovl" to set the dir as [overlay](https://docs.kernel.org/filesystems/overlayfs.html).
 
 ###### `template`
 - LXC configuration template used for creating the container.
@@ -1203,7 +1208,11 @@ Example of src.json:
             "mgmt"
         ],
         "PV_SECURITY_WITH_STORAGE": "yes",
-        "PV_STATUS_GOAL": "STARTED"
+        "PV_STATUS_GOAL": "STARTED",
+        "PVR_LXC_CGROUP_DEVICES_WHITE": [
+            "c 1:* rw",
+            "c 10:130 mrw"
+        ],
     },
     "docker_config": {
         "ArgsEscaped": true,
@@ -1229,11 +1238,11 @@ Example of src.json:
     "docker_tag": "arm32v6",
     "persistence": {
         "/var/dmcrypt/volume": "permanent@dm-versatile",
-                "/var/permanent": "permanent",
-                "/var/revision": "revision",
-                "/var/boot": "boot"
-    },
-    "template": "builtin-lxc-docker"
+        "/var/permanent": "permanent",
+        "/var/revision": "revision",
+        "/var/boot": "boot"
+   },
+   "template": "builtin-lxc-docker"
 }
 ```
 
