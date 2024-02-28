@@ -9,6 +9,7 @@ dir=$(sh -c "cd $(dirname $cmd); pwd")
 
 clean_results() {
   rm -rf $dir/results/* 2>/dev/null
+  rm -rf $dir/results/.pv 2>/dev/null
   rm -rf $dir/results/.pvr 2>/dev/null
 }
 
@@ -144,6 +145,45 @@ test_adding_signature_to_existing_package() {
   expected="$(cat $dir/expected/test_adding_signature_to_existing_package.json | jq -c)"
 
   assertEquals "$expected" "$result"
+}
+
+## Always generate a exported tar with the same sha256sum if the content is the same
+## make sure updated rootfs has the same sha256sum to been identified as same object
+test_reproducible_exports() {
+  clean_results
+  cd $dir/results/
+
+  mkdir device 
+  cd device 
+
+  $pvr init --objects .pvr/objects
+  $pvr merge $dir/mocks/data/pvwebstatus.tar.gz > /dev/null 2>&1
+  $pvr checkout > /dev/null
+
+  rm pvwebstatus/root.squashfs* && pvr app update pvwebstatus > /dev/null 2>&1
+
+  $pvr sig add --noconfig --part pvwebstatus
+  $pvr add && $pvr commit > /dev/null 2>&1 && $pvr export $dir/results/exported.1.tgz
+
+  cd $dir/results/
+
+  mkdir device2
+  cd device2
+
+  $pvr init --objects .pvr/objects
+  $pvr merge $dir/mocks/data/pvwebstatus.tar.gz > /dev/null 2>&1
+
+  $pvr checkout > /dev/null
+
+  rm pvwebstatus/root.squashfs* && pvr app update pvwebstatus > /dev/null 2>&1
+
+  $pvr sig add --noconfig --part pvwebstatus
+  $pvr add && $pvr commit > /dev/null 2>&1 && $pvr export $dir/results/exported.2.tgz
+
+  checksum1="$(sha256sum $dir/results/exported.1.tgz | awk '{print $1}')"
+  checksum2="$(sha256sum $dir/results/exported.2.tgz | awk '{print $1}')"
+
+  assertEquals "$checksum1" "$checksum2"
 }
 
 # Load shUnit2.

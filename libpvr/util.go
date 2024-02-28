@@ -257,7 +257,7 @@ func FiletoSha(path string) (string, error) {
 	}
 
 	buf := hasher.Sum(nil)
-	shaBal := hex.EncodeToString(buf[:])
+	shaBal := fmt.Sprintf("%x", buf)
 	return shaBal, nil
 }
 
@@ -1279,4 +1279,16 @@ func (tree *TreeDiff) MkOvl(ovlDir string) {
 			fmt.Println("ERROR: cp failed with: " + err.Error())
 		}
 	}
+}
+
+func SortObjects(objects map[string]string) []string {
+	values := make([]string, 0, len(objects))
+
+	for _, value := range objects {
+		values = append(values, value)
+	}
+
+	sort.Strings(values)
+
+	return values
 }

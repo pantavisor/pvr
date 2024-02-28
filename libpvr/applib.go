@@ -17,6 +17,7 @@
 package libpvr
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -633,19 +634,32 @@ func MakeSquash(rootfsPath string, app *AppData) error {
 	} else {
 		comp = strings.Split(app.Appmanifest.FormatOptions, " ")
 	}
-	comp = append(comp, "-root-mode", "0755")
+	comp = append(comp, "-reproducible", "-root-mode", "0755", "-mkfs-time", "1", "-all-time", "1")
 
 	args := []string{makeSquashfsPath, rootfsPath, tempSquashFile}
 	args = append(args, comp...)
 
 	fmt.Println("Generating squashfs file: " + strings.Join(args, " "))
 	makeSquashfs := exec.Command(args[0], args[1:]...)
+	var outb, errb bytes.Buffer
+
+	if IsDebugEnabled {
+		makeSquashfs.Stdout = &outb
+		makeSquashfs.Stderr = &errb
+	}
+
 	err = makeSquashfs.Run()
 	if err != nil {
 		return err
 	}
 
 	fmt.Println("Generating squashfs digest")
+	if IsDebugEnabled && len(outb.Bytes()) > 0 {
+		fmt.Println(outb.String())
+	}
+	if IsDebugEnabled && len(errb.Bytes()) > 0 {
+		fmt.Println(errb.String())
+	}
 
 	return os.Rename(tempSquashFile, squashFile)
 }

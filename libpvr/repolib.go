@@ -620,9 +620,20 @@ func (p *Pvr) Status() (*PvrStatus, error) {
 	rs.JsonDiff = &diffbytes
 
 	diffGroup := map[string]jsondiff.Operation{}
+
 	// Group operation by file
 	for _, operation := range diff {
-		filePaths := strings.Split(operation.Path.String()[1:], "/")
+		if operation.Type == "add" {
+			if v, ok := operation.Value.(map[string]interface{}); ok {
+				if _, ok := v["#spec"]; ok {
+					continue
+				}
+			}
+		}
+		filePaths := []string{""}
+		if len(operation.Path.String()) > 0 {
+			filePaths = strings.Split(operation.Path.String()[1:], "/")
+		}
 		path := rfc6901InverterReplacer.Replace(filePaths[0])
 
 		diffGroup[path] = operation
@@ -630,9 +641,18 @@ func (p *Pvr) Status() (*PvrStatus, error) {
 
 	// run
 	for _, operation := range diffGroup {
+		if operation.Type == "add" {
+			if v, ok := operation.Value.(map[string]interface{}); ok {
+				if _, ok := v["#spec"]; ok {
+					continue
+				}
+			}
+		}
 		op := operation.Type
-
-		filePaths := strings.Split(operation.Path.String()[1:], "/")
+		filePaths := []string{""}
+		if len(operation.Path.String()) > 0 {
+			filePaths = strings.Split(operation.Path.String()[1:], "/")
+		}
 		path := rfc6901InverterReplacer.Replace(filePaths[0])
 
 		if op == "add" {
@@ -2571,7 +2591,7 @@ func (p *Pvr) resetInternal(hardlink bool, canonicalJson bool, state *PvrMap) (e
 	return nil
 }
 
-func addToTar(writer *tar.Writer, archivePath, sourcePath string) error {
+func addToTar(writer *tar.Writer, archivePath, sourcePath string, modtime *time.Time) error {
 
 	stat, err := os.Stat(sourcePath)
 
@@ -2593,7 +2613,11 @@ func addToTar(writer *tar.Writer, archivePath, sourcePath string) error {
 	header.Name = archivePath
 	header.Size = stat.Size()
 	header.Mode = int64(stat.Mode())
-	header.ModTime = stat.ModTime()
+	if modtime == nil {
+		header.ModTime = stat.ModTime()
+	} else {
+		header.ModTime = *modtime
+	}
 
 	err = writer.WriteHeader(header)
 	if err != nil {
@@ -2689,7 +2713,8 @@ func (p *Pvr) Export(parts []string, dst string) error {
 		return err
 	}
 
-	if err := addToTar(tw, "json", jsonFile.Name()); err != nil {
+	defaultModTime := time.Unix(0, 0)
+	if err := addToTar(tw, "json", jsonFile.Name(), &defaultModTime); err != nil {
 		return err
 	}
 
@@ -2698,11 +2723,10 @@ func (p *Pvr) Export(parts []string, dst string) error {
 		return err
 	}
 
-	for _, v := range filesAndObjects {
+	for _, v := range SortObjects(filesAndObjects) {
 		apath := "objects/" + v
 		ipath := filepath.Join(p.Objdir, v)
-		err := addToTar(tw, apath, ipath)
-
+		err := addToTar(tw, apath, ipath, &defaultModTime)
 		if err != nil {
 			return err
 		}

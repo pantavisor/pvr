@@ -696,6 +696,7 @@ func (p *Pvr) GenerateApplicationSquashFS(app *AppData, appManifest *Source) err
 
 	extractPath := filepath.Join(tempdir, "rootfs")
 	MkdirAll(extractPath, 0777)
+
 	defer os.RemoveAll(extractPath)
 
 	tarPath, err := exec.LookPath(TAR_CMD)
