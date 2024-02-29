@@ -1,12 +1,13 @@
 
 <a name="038"></a>
-## [038](https://gitlab.com/pantacor/pvr/compare/037...038) (2024-01-23)
+## [038](https://gitlab.com/pantacor/pvr/compare/037...038) (2024-02-28)
 
 ### Feature
 
 * docker lib add support to oci manifest
 * **app add:** add args-json to setup src.json args and config as parameters to set src.json config key
 * **cmd:** add version command with go build version
+* **export:** make export builds reproducible by stardarize the timestamps and squashfs reproducibility
 * **repolib:** move merge state logic to library function
 * **self-upgrade:** self upgrade command always force update doesn't matter if installed_version have same digest
 * **statelib:** on patch/commit remove signed parts before add new ones
