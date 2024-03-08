@@ -1324,7 +1324,7 @@ func (p *Pvr) postObjects(pvrRemote pvrapi.PvrRemote, force bool) error {
 			return errout(err)
 		}
 
-		pvjson.Unmarshal(buf, &baselineState)
+		err = pvjson.Unmarshal(buf, &baselineState)
 		if err != nil {
 			return errout(err)
 		}
@@ -1986,7 +1986,7 @@ func (p *Pvr) GetRepoLocal(getPath string, merge bool, showFilenames bool, state
 		getPath := filepath.Join(repoPath, "objects", v.(string))
 
 		// config can overload objectsdir for remote repo; not abs and abs
-		if config != nil && config.ObjectsDir != "" {
+		if config.ObjectsDir != "" {
 			if !filepath.IsAbs(config.ObjectsDir) {
 				getPath = filepath.Join(repoPath, "..", config.ObjectsDir, v.(string))
 			} else {
