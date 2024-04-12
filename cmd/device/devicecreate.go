@@ -51,22 +51,25 @@ func CommandDeviceCreate() cli.Command {
 			}
 
 			baseURL := c.App.Metadata["PVR_BASEURL"].(string)
-			deviceNick := ""
-			userNick := ""
+			var repoInfo RepoInfo
 			loggedUserNick, _ := pvr.Session.GetWhoami()
 
 			if c.NArg() > 1 {
 				return errors.New("device create can have at most 1 argument. See --help")
 			} else if c.NArg() == 1 {
-				userNick, deviceNick = getUserDeviceNickFromRepo(c.Args()[0])
+				repoInfo = getRepoPathInfo(c.Args()[0])
 			}
 
-			if userNick != "" && userNick != loggedUserNick {
-				return errors.New("you can't create a device in " + userNick + " account, you are login as " + loggedUserNick)
+			if repoInfo.Host != "" {
+				baseURL = repoInfo.Host
+			}
+
+			if repoInfo.UserNick != "" && repoInfo.UserNick != loggedUserNick {
+				return errors.New("you can't create a device in " + repoInfo.UserNick + " account, you are login as " + loggedUserNick)
 			}
 
 			// Create device
-			deviceResponse, err := session.CreateDevice(baseURL, deviceNick)
+			deviceResponse, err := session.CreateDevice(baseURL, repoInfo.DeviceNick)
 			if err != nil {
 				return cli.NewExitError(err, 2)
 			}
@@ -115,28 +118,36 @@ func CommandDeviceCreate() cli.Command {
 	return cmd
 }
 
-func getUserDeviceNickFromRepo(repoPath string) (userNick, deviceNick string) {
+type RepoInfo struct {
+	UserNick   string
+	DeviceNick string
+	Host       string
+}
+
+func getRepoPathInfo(repoPath string) (repoInfo RepoInfo) {
 	if !libpvr.IsValidUrl(repoPath) {
 		pathParts := strings.Split(repoPath, "/")
 		if len(pathParts) >= 2 {
-			userNick = pathParts[0]
-			deviceNick = pathParts[1]
+			repoInfo.UserNick = pathParts[0]
+			repoInfo.DeviceNick = pathParts[1]
 		} else {
-			deviceNick = pathParts[0]
+			repoInfo.DeviceNick = pathParts[0]
 		}
 
-		return userNick, deviceNick
+		return repoInfo
 	}
 
 	uri, err := url.Parse(repoPath)
 	if err != nil {
-		return "", ""
+		return repoInfo
 	}
 	pathParts := strings.Split(uri.Path, "/")
-	if len(pathParts) >= 2 {
-		userNick = pathParts[0]
-		deviceNick = pathParts[1]
+	if len(pathParts) >= 3 {
+		repoInfo.UserNick = pathParts[1]
+		repoInfo.DeviceNick = pathParts[2]
 	}
 
-	return userNick, deviceNick
+	host := strings.ReplaceAll(uri.Host, "pvr", "api")
+	repoInfo.Host = fmt.Sprintf("%s://%s", uri.Scheme, host)
+	return repoInfo
 }
