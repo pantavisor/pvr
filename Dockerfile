@@ -8,7 +8,7 @@ RUN apk add jq && \
 
 RUN ./run_test.sh
 
-FROM golang:1.20.3-alpine as src
+FROM golang:1.21.5-alpine as src
 
 ENV GO111MODULES=on
 
