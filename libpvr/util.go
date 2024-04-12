@@ -1,5 +1,5 @@
 //
-// Copyright 2017-2023  Pantacor Ltd.
+// Copyright 2017-2024  Pantacor Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -48,6 +48,12 @@ import (
 	"github.com/Masterminds/sprig"
 	"github.com/go-resty/resty"
 )
+
+type ApiError struct {
+	Cod   int    `json:"cod"`
+	Error string `json:"error"`
+	Msg   string `json:"msg"`
+}
 
 // Variable set in main() to enable/disable debug
 var IsDebugEnabled bool
@@ -493,11 +499,17 @@ func (s *Session) CreateDevice(baseURL string, deviceNick string) (
 	if response.StatusCode() == http.StatusOK {
 		return response, nil
 	}
+
 	//Logging error response
-	err = LogPrettyJSON(response.Body())
+	errorData, err := LogPrettyJSON(response.Body())
 	if err != nil {
 		return response, err
 	}
+
+	if errorData.Msg != "" {
+		return response, errors.New(errorData.Msg)
+	}
+
 	return response, errors.New("error creating device")
 }
 
@@ -528,7 +540,7 @@ func LoginDevice(
 		return responseData["token"].(string), nil
 	}
 	//Logging error response
-	err = LogPrettyJSON(response.Body())
+	_, err = LogPrettyJSON(response.Body())
 	if err != nil {
 		return "", err
 	}
@@ -552,7 +564,7 @@ func CreateTrail(baseURL string,
 		return response, nil
 	}
 	//Logging error response
-	err = LogPrettyJSON(response.Body())
+	_, err = LogPrettyJSON(response.Body())
 	if err != nil {
 		return response, err
 	}
@@ -560,19 +572,27 @@ func CreateTrail(baseURL string,
 }
 
 // LogPrettyJSON : Pretty print Json content
-func LogPrettyJSON(content []byte) error {
-	var data interface{}
-	err := pvjson.Unmarshal(content, &data)
-	if err != nil {
-		return err
+func LogPrettyJSON(content []byte) (ApiError, error) {
+	var apiError ApiError
+	var logData interface{}
+
+	// parse api error
+	if err := pvjson.Unmarshal(content, &apiError); err != nil {
+		fmt.Println(err)
 	}
-	b, err := json.MarshalIndent(data, "", "    ")
+
+	// log anything
+	err := pvjson.Unmarshal(content, &logData)
 	if err != nil {
-		return err
+		return apiError, err
 	}
-	fmt.Print(string(b))
-	fmt.Print("\n")
-	return nil
+	b, err := json.MarshalIndent(logData, "", "    ")
+	if err != nil {
+		return apiError, err
+	}
+
+	fmt.Printf("%s\n", b)
+	return apiError, nil
 }
 
 // SetTempFilesInterrupHandler : Set Temp Files Interrup Handler
@@ -621,7 +641,7 @@ func (s *Session) GetUserProfiles(baseURL string,
 		return response, nil
 	}
 	//Logging error response
-	err = LogPrettyJSON(response.Body())
+	_, err = LogPrettyJSON(response.Body())
 	if err != nil {
 		return response, err
 	}
@@ -651,7 +671,7 @@ func (s *Session) GetDevices(baseURL string,
 		return response, nil
 	}
 	//Logging error response
-	err = LogPrettyJSON(response.Body())
+	_, err = LogPrettyJSON(response.Body())
 	if err != nil {
 		return response, err
 	}
@@ -681,7 +701,7 @@ func (s *Session) GetDevice(baseURL string,
 		return response, nil
 	}
 	//Logging error response
-	err = LogPrettyJSON(response.Body())
+	_, err = LogPrettyJSON(response.Body())
 	if err != nil {
 		return response, err
 	}
@@ -738,7 +758,7 @@ func (s *Session) UpdateDevice(
 		return response, nil
 	}
 	//Logging error response
-	err = LogPrettyJSON(response.Body())
+	_, err = LogPrettyJSON(response.Body())
 	if err != nil {
 		return response, err
 	}
@@ -760,7 +780,7 @@ func (s *Session) GetAuthStatus(baseURL string) (
 		return response, nil
 	}
 	//Logging error response
-	err = LogPrettyJSON(response.Body())
+	_, err = LogPrettyJSON(response.Body())
 	if err != nil {
 		return response, err
 	}

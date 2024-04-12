@@ -1,5 +1,5 @@
 //
-// Copyright 2017-2023  Pantacor Ltd.
+// Copyright 2017-2024  Pantacor Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,7 +19,9 @@ package device
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
+	"strings"
 
 	"gitlab.com/pantacor/pvr/libpvr"
 	"gitlab.com/pantacor/pvr/utils/pvjson"
@@ -50,30 +52,44 @@ func CommandDeviceCreate() cli.Command {
 
 			baseURL := c.App.Metadata["PVR_BASEURL"].(string)
 			deviceNick := ""
+			userNick := ""
+			loggedUserNick, _ := pvr.Session.GetWhoami()
 
 			if c.NArg() > 1 {
-				return errors.New("Device create can have at most 1 argument. See --help")
+				return errors.New("device create can have at most 1 argument. See --help")
 			} else if c.NArg() == 1 {
-				deviceNick = c.Args()[0]
+				userNick, deviceNick = getUserDeviceNickFromRepo(c.Args()[0])
 			}
-			state, err := libpvr.StructToMap(pvr.PristineJsonMap)
-			if err != nil {
-				return cli.NewExitError(err, 2)
+
+			if userNick != "" && userNick != loggedUserNick {
+				return errors.New("you can't create a device in " + userNick + " account, you are login as " + loggedUserNick)
 			}
-			err = pvr.PutObjects(baseURL+"/objects/", true)
-			if err != nil {
-				return cli.NewExitError(err, 3)
-			}
+
 			// Create device
 			deviceResponse, err := session.CreateDevice(baseURL, deviceNick)
 			if err != nil {
 				return cli.NewExitError(err, 2)
 			}
+
 			responseData := map[string]interface{}{}
 			err = pvjson.Unmarshal(deviceResponse.Body(), &responseData)
 			if err != nil {
 				return cli.NewExitError(err, 2)
 			}
+
+			state, err := libpvr.StructToMap(pvr.PristineJsonMap)
+			if err != nil {
+				return cli.NewExitError(err, 2)
+			}
+
+			fmt.Println("Device created!")
+			fmt.Println("Starting uploading state and objects")
+
+			err = pvr.PutObjects(baseURL+"/objects/", true)
+			if err != nil {
+				return cli.NewExitError(err, 3)
+			}
+
 			// Login device
 			dToken, err := libpvr.LoginDevice(
 				baseURL,
@@ -83,16 +99,44 @@ func CommandDeviceCreate() cli.Command {
 			if err != nil {
 				return cli.NewExitError(err, 2)
 			}
+
 			//Create trail
 			_, err = libpvr.CreateTrail(baseURL, dToken, state)
 			if err != nil {
 				return cli.NewExitError(err, 2)
 			}
 			libpvr.LogPrettyJSON(deviceResponse.Body())
+
 			fmt.Println("Device Created Successfully")
 			return nil
 		},
 	}
 
 	return cmd
+}
+
+func getUserDeviceNickFromRepo(repoPath string) (userNick, deviceNick string) {
+	if !libpvr.IsValidUrl(repoPath) {
+		pathParts := strings.Split(repoPath, "/")
+		if len(pathParts) >= 2 {
+			userNick = pathParts[0]
+			deviceNick = pathParts[1]
+		} else {
+			deviceNick = pathParts[0]
+		}
+
+		return userNick, deviceNick
+	}
+
+	uri, err := url.Parse(repoPath)
+	if err != nil {
+		return "", ""
+	}
+	pathParts := strings.Split(uri.Path, "/")
+	if len(pathParts) >= 2 {
+		userNick = pathParts[0]
+		deviceNick = pathParts[1]
+	}
+
+	return userNick, deviceNick
 }

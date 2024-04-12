@@ -52,7 +52,7 @@ func CommandLogin() cli.Command {
 
 			if response != nil {
 				fmt.Println("Response of GET " + APIURL)
-				err = libpvr.LogPrettyJSON(response.Body())
+				_, err = libpvr.LogPrettyJSON(response.Body())
 				if err != nil {
 					return cli.NewExitError(err, 2)
 				}

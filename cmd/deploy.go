@@ -1,5 +1,5 @@
 //
-// Copyright 2017-2023  Pantacor Ltd.
+// Copyright 2017-2024  Pantacor Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -40,7 +40,6 @@ func CommandDeploy() cli.Command {
 			}
 
 			session, err := libpvr.NewSession(c.App)
-
 			if err != nil {
 				return cli.NewExitError(err, 4)
 			}
@@ -54,7 +53,7 @@ func CommandDeploy() cli.Command {
 			} else if c.NArg() == 1 {
 				// if we are in a pvr working copy dir, lets remember that to find default
 				// repo in case user didnt provide any in args
-				sourcePvr, _ := libpvr.NewPvr(session, wd)
+				sourcePvr, err := libpvr.NewPvr(session, wd)
 				if err != nil {
 					return cli.NewExitError("Deploy to have a repository as second argument or be run from inside a local pvr working copy. See --help.", 102)
 				}
@@ -131,7 +130,7 @@ func CommandDeploy() cli.Command {
 
 			fmt.Println("... deploying hardlinks ...")
 
-			deployPvr.ResetWithHardlink()
+			err = deployPvr.ResetWithHardlink()
 			if err != nil {
 				return cli.NewExitError(err, 8)
 			}

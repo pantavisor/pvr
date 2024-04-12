@@ -342,8 +342,33 @@ func newDefaultAuthConfig(filePath string) *PvrAuthConfig {
 	}
 }
 
+func (s *Session) GetWhoami() (nick string, err error) {
+	pvrAuthConfig := s.auth
+	for k := range pvrAuthConfig.Tokens {
+		splits := strings.Split(k, " ")
+		if len(splits) == 0 {
+			continue
+		}
+		authEndPoint := splits[0]
+		response, err := s.DoAuthCall(true, func(req *resty.Request) (*resty.Response, error) {
+			return req.Get(authEndPoint + "/auth_status")
+		})
+		if err != nil {
+			return nick, err
+		}
+		responseBody := map[string]interface{}{}
+		err = pvjson.Unmarshal(response.Body(), &responseBody)
+		if err != nil {
+			return nick, err
+		}
+		nick = responseBody["nick"].(string)
+	}
+
+	return nick, err
+}
+
 // Whoami : List all loggedin nick names
-func (s *Session) Whoami() error {
+func (s *Session) Whoami() (err error) {
 	pvrAuthConfig := s.auth
 	for k := range pvrAuthConfig.Tokens {
 		splits := strings.Split(k, " ")
@@ -364,5 +389,6 @@ func (s *Session) Whoami() error {
 		}
 		fmt.Fprint(os.Stderr, responseBody["nick"].(string)+"("+responseBody["prn"].(string)+") at "+authEndPoint+"\n")
 	}
+
 	return nil
 }
