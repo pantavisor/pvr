@@ -770,7 +770,7 @@ func (p *Pvr) GenerateApplicationSquashFS(app *AppData, appManifest *Source) err
 	}
 
 	app.Appmanifest = appManifest
-	err = MakeSquash(extractPath, app)
+	err = p.MakeSquash(extractPath, app)
 	if err != nil {
 		return err
 	}

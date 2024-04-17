@@ -648,7 +648,18 @@ func ReportDockerManifestError(err error, image string) error {
 	)
 }
 
-func MakeSquash(rootfsPath string, app *AppData) error {
+func (p *Pvr) MakeSquash(rootfsPath string, app *AppData) error {
+
+	err := p.CheckIfIsRunningAsRoot()
+	if err == ErrNeedBeRoot {
+		err = p.RunAsRoot()
+		if err != nil {
+			return err
+		}
+	} else if err != nil {
+		return err
+	}
+
 	makeSquashfsPath, err := exec.LookPath(MAKE_SQUASHFS_CMD)
 	if err != nil {
 		return err

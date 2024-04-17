@@ -272,7 +272,17 @@ func InstallDockerApp(p *Pvr, app *AppData, appManifest *Source) error {
 		return err
 	}
 
-	fmt.Println("Generating " + app.SquashFile)
+	fmt.Println("Generating Docker Squashfs " + app.SquashFile)
+
+	err = p.CheckIfIsRunningAsRoot()
+	if err == ErrNeedBeRoot {
+		err = p.RunAsRoot()
+		if err != nil {
+			return err
+		}
+	} else if err != nil {
+		return err
+	}
 
 	return p.GenerateApplicationSquashFS(app, appManifest)
 }

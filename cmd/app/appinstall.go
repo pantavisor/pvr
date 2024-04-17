@@ -57,16 +57,6 @@ func CommandAppInstall() cli.Command {
 				return cli.NewExitError(err, 2)
 			}
 
-			err = pvr.CheckIfIsRunningAsRoot()
-			if err == libpvr.ErrNeedBeRoot {
-				err = pvr.RunAsRoot()
-				if err != nil {
-					return cli.NewExitError(err, 3)
-				}
-			} else if err != nil {
-				return cli.NewExitError(err, 3)
-			}
-
 			appname := c.Args().Get(0)
 			username := c.String("username")
 			password := c.String("password")

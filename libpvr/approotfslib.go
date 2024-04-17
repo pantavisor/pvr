@@ -63,7 +63,7 @@ func UpdateRootFSApp(p *Pvr, app *AppData, appManifest *Source) error {
 
 	app.DestinationPath = appPath
 
-	if err = MakeSquash(fromPath, app); err != nil {
+	if err = p.MakeSquash(fromPath, app); err != nil {
 		return err
 	}
 
@@ -169,7 +169,7 @@ func AddRootFsApp(p *Pvr, app *AppData) error {
 	app.Appmanifest = &src
 	app.DestinationPath = appPath
 
-	if err = MakeSquash(from, app); err != nil {
+	if err = p.MakeSquash(from, app); err != nil {
 		return err
 	}
 
