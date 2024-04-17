@@ -275,6 +275,9 @@ func (p *Pvr) isRunningAsRoot() bool {
 }
 
 func (p *Pvr) CheckIfIsRunningAsRoot() error {
+	if os.Getenv("PVR_NOFAKEROOT") != "" {
+		return nil
+	}
 	if !p.isRunningAsRoot() {
 		return ErrNeedBeRoot
 	}
