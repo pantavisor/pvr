@@ -697,8 +697,7 @@ func (p *Pvr) GenerateApplicationSquashFS(app *AppData, appManifest *Source) err
 
 	extractPath := filepath.Join(tempdir, "rootfs")
 	MkdirAll(extractPath, 0777)
-
-	defer os.RemoveAll(extractPath)
+	defer RemoveAll(extractPath)
 
 	tarPath, err := exec.LookPath(TAR_CMD)
 	if err != nil {
@@ -746,7 +745,7 @@ func (p *Pvr) GenerateApplicationSquashFS(app *AppData, appManifest *Source) err
 		if err != nil {
 			return err
 		}
-		defer os.RemoveAll(basePath)
+		defer RemoveAll(basePath)
 		ovlPath, err := os.MkdirTemp("", "ovl-*")
 		if err != nil {
 			return err
@@ -764,7 +763,7 @@ func (p *Pvr) GenerateApplicationSquashFS(app *AppData, appManifest *Source) err
 		}
 		treeDiff := MkTreeDiff(basePath, extractPath)
 		treeDiff.MkOvl(ovlPath)
-		defer os.RemoveAll(ovlPath)
+		defer RemoveAll(ovlPath)
 		extractPath = ovlPath
 	} else if app.SquashFile != SQUASH_FILE {
 		return errors.New("Unsupported SquashFile: " + app.SquashFile + ". Supported: " + SQUASH_FILE + ", " + SQUASH_OVL_FILE)

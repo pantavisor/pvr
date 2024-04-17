@@ -632,7 +632,7 @@ func (p *Pvr) RemoveApplication(appname string) error {
 	if _, err := os.Stat(appPath); err != nil {
 		return errors.New("App '" + appname + "' doesn't exist")
 	}
-	err := os.RemoveAll(appPath)
+	err := RemoveAll(appPath)
 	if err != nil {
 		return err
 	}
