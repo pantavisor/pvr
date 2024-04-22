@@ -233,7 +233,7 @@ func (p *Pvr) UpdateApplication(app AppData) error {
 }
 
 // AddApplication : Add application from several types of sources
-func (p *Pvr) AddApplication(app *AppData) (err error) {
+func (p *Pvr) AddApplication(app *AppData, addonly bool) (err error) {
 	if app.SquashFile == "" {
 		app.SquashFile = SQUASH_FILE
 	}
@@ -254,6 +254,10 @@ func (p *Pvr) AddApplication(app *AppData) (err error) {
 
 	if err != nil {
 		return err
+	}
+
+	if addonly {
+		return nil
 	}
 
 	return p.InstallApplication(app)

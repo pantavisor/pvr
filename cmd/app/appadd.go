@@ -161,7 +161,7 @@ func CommandAppAdd() cli.Command {
 				app.Base = strings.Trim(c.String("base"), "/")
 			}
 
-			err = pvr.AddApplication(app)
+			err = pvr.AddApplication(app, c.Bool("add-only"))
 			if err != nil {
 				return cli.NewExitError(err, 3)
 			}
@@ -258,6 +258,11 @@ func CommandAppAdd() cli.Command {
 			Name:   "format-options,o",
 			Usage:  "Format Options for Target FS (e.g. \"-comp gzip\")",
 			EnvVar: "PVR_FORMAT_OPTIONS",
+		},
+		cli.BoolFlag{
+			Name:   "add-only,ao",
+			Usage:  "Only add the src.json but don't install",
+			EnvVar: "PVR_APP_ADD_ONLY",
 		},
 	}
 
