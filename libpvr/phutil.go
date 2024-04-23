@@ -17,6 +17,7 @@
 package libpvr
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -45,6 +46,9 @@ const (
 
 	// PhLogsEpCursor constant defines path to /logs/cursor
 	PhLogsEpCursor = PhLogsEp + "cursor"
+
+	// PhDeviceTokens constant defines path to /devices/tokens
+	PhDeviceTokens = "/devices/tokens"
 )
 
 // ShowOrOpenRegisterLink show or open the user the registration link
@@ -141,6 +145,118 @@ type PantahubDevice struct {
 	StateSha         string    `json:"state-sha"`
 	Status           string    `json:"status"`
 	StatusMsg        string    `json:"status-msg"`
+}
+
+type PantahubDevicesJoinToken struct {
+	ID              string                 `json:"id"`
+	Prn             string                 `json:"prn"`
+	Nick            string                 `json:"nick"`
+	Owner           string                 `json:"owner"`
+	Token           string                 `json:"token,omitempty"`
+	TokenSha        []byte                 `json:"token-sha,omitempty"`
+	DefaultUserMeta map[string]interface{} `json:"default-user-meta"`
+	Disabled        bool                   `json:"disabled"`
+	TimeCreated     time.Time              `json:"time-created"`
+	TimeModified    time.Time              `json:"time-modified"`
+}
+
+func (p *Session) TokenCreate(baseurl string, usermeta map[string]interface{}) (*PantahubDevicesJoinToken, error) {
+	res, err := p.DoAuthCall(false, func(req *resty.Request) (*resty.Response, error) {
+		burl, err := url.Parse(baseurl)
+		if err != nil {
+			return nil, errors.New("Cannot parse baseurl '" + baseurl + "': " + err.Error())
+		}
+
+		dtUrl, err := url.Parse(PhDeviceTokens)
+		if err != nil {
+			return nil, errors.New("Cannot parse PhDeviceTokensUrl '" + dtUrl.String() + "': " + err.Error())
+		}
+
+		fullURL := burl.ResolveReference(dtUrl)
+
+		token := PantahubDevicesJoinToken{
+			DefaultUserMeta: usermeta,
+		}
+		body, err := json.Marshal(token)
+		if err != nil {
+			return nil, err
+		}
+
+		req.Body = body
+		return req.Post(fullURL.String())
+	})
+
+	if err != nil {
+		return nil, errors.New("ERROR: authenticated call to " + baseurl + " failed with: " + err.Error())
+	}
+
+	body := res.Body()
+	var resultSet *PantahubDevicesJoinToken
+	err = pvjson.Unmarshal(body, &resultSet)
+	if err != nil {
+		return nil, errors.New("ERROR: cannot decode result of authenticated call to " + baseurl + ": " + err.Error())
+	}
+
+	return resultSet, nil
+}
+
+func (p *Session) TokenDisable(baseurl string, id string) (*PantahubDevicesJoinToken, error) {
+	_, err := p.DoAuthCall(false, func(req *resty.Request) (*resty.Response, error) {
+		burl, err := url.Parse(baseurl)
+		if err != nil {
+			return nil, errors.New("Cannot parse baseurl '" + baseurl + "': " + err.Error())
+		}
+
+		dtUrl, err := url.Parse(PhDeviceTokens + "/" + id)
+		if err != nil {
+			return nil, errors.New("Cannot parse PhDeviceTokensUrl '" + dtUrl.String() + "': " + err.Error())
+		}
+
+		fullURL := burl.ResolveReference(dtUrl)
+
+		return req.Delete(fullURL.String())
+	})
+
+	if err != nil {
+		return nil, errors.New("ERROR: authenticated call to " + baseurl + " failed with: " + err.Error())
+	}
+
+	resultSet := &PantahubDevicesJoinToken{
+		ID:       id,
+		Disabled: true,
+	}
+
+	return resultSet, nil
+}
+
+func (p *Session) TokenLs(baseurl string) ([]PantahubDevicesJoinToken, error) {
+	res, err := p.DoAuthCall(false, func(req *resty.Request) (*resty.Response, error) {
+		burl, err := url.Parse(baseurl)
+		if err != nil {
+			return nil, errors.New("Cannot parse baseurl '" + baseurl + "': " + err.Error())
+		}
+
+		dtUrl, err := url.Parse(PhDeviceTokens)
+		if err != nil {
+			return nil, errors.New("Cannot parse PhDeviceTokensUrl '" + dtUrl.String() + "': " + err.Error())
+		}
+
+		fullURL := burl.ResolveReference(dtUrl)
+		return req.Get(fullURL.String())
+	})
+
+	if err != nil {
+		return nil, errors.New("ERROR: authenticated call to " + baseurl + " failed with: " + err.Error())
+	}
+
+	var resultSet []PantahubDevicesJoinToken
+	err = pvjson.Unmarshal(res.Body(), &resultSet)
+
+	if err != nil {
+		return nil, errors.New("ERROR: cannot decode result of authenticated call to " + baseurl + ": " + err.Error())
+	}
+
+	return resultSet, nil
 }
 
 func (p *Session) DoPs(baseurl string) ([]PantahubDevice, error) {

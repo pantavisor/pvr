@@ -46,7 +46,6 @@ func CommandPs() cli.Command {
 			}
 
 			devices, err := session.DoPs(c.App.Metadata["PVR_BASEURL"].(string))
-
 			if err != nil {
 				return cli.NewExitError("Error getting device list: "+err.Error(), 4)
 			}
