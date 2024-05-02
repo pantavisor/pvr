@@ -1851,12 +1851,12 @@ func (p *Pvr) GetStateJson(uri string) (
 			if err != nil {
 				return
 			}
-			defer os.RemoveAll(repoPath)
 
 			err = p.UnpackRepo(uri, repoPath, []string{})
 			if err != nil {
 				return
 			}
+			RemoveAll(repoPath)
 		}
 
 		localJsonPath := filepath.Join(repoPath, "json")
@@ -1958,10 +1958,10 @@ func (p *Pvr) GetRepoLocal(getPath string, merge bool, showFilenames bool, state
 		if err != nil {
 			return objectsCount, err
 		}
-		defer os.RemoveAll(repoPath)
 
 		err = p.UnpackRepo(repoUri.Path, repoPath, []string{})
 		if err != nil {
+			RemoveAll(repoPath)
 			return objectsCount, err
 		}
 	}
@@ -1971,16 +1971,19 @@ func (p *Pvr) GetRepoLocal(getPath string, merge bool, showFilenames bool, state
 
 	_, err = os.Stat(jsonRepo)
 	if err != nil {
+		RemoveAll(repoPath)
 		return objectsCount, err
 	}
 
 	jsonData, err := os.ReadFile(jsonRepo)
 	if err != nil {
+		RemoveAll(repoPath)
 		return objectsCount, err
 	}
 
 	err = pvjson.Unmarshal(jsonData, &jsonMap)
 	if err != nil {
+		RemoveAll(repoPath)
 		return objectsCount, errors.New("JSON Unmarshal (json.new):" + err.Error())
 	}
 
@@ -1995,6 +1998,7 @@ func (p *Pvr) GetRepoLocal(getPath string, merge bool, showFilenames bool, state
 	if configData != nil {
 		err = pvjson.Unmarshal(configData, config)
 		if err != nil {
+			RemoveAll(repoPath)
 			return objectsCount, errors.New("JSON Unmarshal (config.new):" + err.Error())
 		}
 	}
@@ -2016,11 +2020,11 @@ func (p *Pvr) GetRepoLocal(getPath string, merge bool, showFilenames bool, state
 				getPath = filepath.Join(config.ObjectsDir, v.(string))
 			}
 		}
-
 		objPathNew := filepath.Join(p.Objdir, v.(string)+".new")
 		objPath := filepath.Join(p.Objdir, v.(string))
 		fileExists, err := IsFileExists(objPath)
 		if err != nil {
+			RemoveAll(repoPath)
 			return objectsCount, err
 		}
 
@@ -2044,16 +2048,19 @@ func (p *Pvr) GetRepoLocal(getPath string, merge bool, showFilenames bool, state
 
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "ERROR : "+err.Error())
+			RemoveAll(repoPath)
 			return objectsCount, err
 		}
 		err = RenameFile(objPathNew, objPath)
 		if err != nil {
+			RemoveAll(repoPath)
 			return objectsCount, err
 		}
 		objectsCount++
 	}
 
 	if err != nil {
+		RemoveAll(repoPath)
 		return objectsCount, err
 	}
 
@@ -2066,6 +2073,7 @@ func (p *Pvr) GetRepoLocal(getPath string, merge bool, showFilenames bool, state
 		state,
 	)
 	if err != nil {
+		RemoveAll(repoPath)
 		return objectsCount, err
 	}
 	if updatePristineJson {
@@ -2483,7 +2491,7 @@ func (p *Pvr) Cleanup() error {
 	}
 
 	for _, v := range status.UntrackedFiles {
-		err = os.RemoveAll(path.Join(p.Dir, v))
+		err = RemoveAll(path.Join(p.Dir, v))
 		if err != nil {
 			break
 		}
