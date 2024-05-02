@@ -683,7 +683,7 @@ func (p *Pvr) JwsVerifyPvs(keyPath string, caCerts string, pvsPath string, inclu
 		// if we had x5c and chain could be validated we use just that cert
 		if err == nil {
 			pubKeys = append(pubKeys, pemcerts[0][0].PublicKey)
-		} else if err != nil && err.Error() == "go-jose/go-jose: no x5c header present in message" {
+		} else if err.Error() == "go-jose/go-jose: no x5c header present in message" {
 			// we manuall iterate the system pool if x5c is not there....
 			err = nil
 			for _, derCandidate := range certPool.certsRaw {
