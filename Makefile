@@ -43,7 +43,7 @@ endif
 
 BUILD_DIR = build/$(BUILD_TYPE)
 
-SUPPORTED_PLATFORMS = linux-amd64 linux-arm linux-arm64 windows-386 windows-amd64 darwin-amd64 darwin-arm64
+SUPPORTED_PLATFORMS = linux-amd64 linux-arm-6 linux-arm64-8 windows-386 windows-amd64 darwin-amd64 darwin-arm64
 
 all: clean build
 
@@ -55,9 +55,11 @@ build:
 build-%:
 	$(eval GOOSARCH := $*)
 	$(eval GOOS := $(firstword $(subst -, ,$(GOOSARCH))))
-	$(eval GOARCH := $(lastword $(subst -, ,$(GOOSARCH))))
-	@echo "building for $(GOOSARCH)"
-	$(shell export GOOS=$(GOOS); export GOARCH=$(GOARCH); $(GOBUILD) $(GCFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/$(GOOS)/$(GOARCH)/$(BINARY_NAME) -v .;)
+	$(eval GOARCH := $(word 2,$(subst -, ,$(GOOSARCH))))
+	$(eval GOARM := $(word 3,$(subst -, ,$(GOOSARCH))))
+	@echo ""
+	@echo "building for $(GOOSARCH) with GOOS=$(GOOS) and GOARCH=$(GOARCH) and GOARM=$(GOARM)"
+	$(shell export GOOS=$(GOOS); export GOARCH=$(GOARCH); export GOARM=$(GOARM); $(GOBUILD) $(GCFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/$(GOOS)/$(GOARCH)/$(BINARY_NAME) -v .;)
 	@if [ "$(OPTIMIZE)" = "1" ]; then make optimize-$(GOOSARCH); fi
 
 # Optimize the binary for all platforms
@@ -73,7 +75,6 @@ optimize-%:
 
 # Clean target
 clean:
-	$(GOCLEAN)
 	rm -rf build/
 
 # Test target
