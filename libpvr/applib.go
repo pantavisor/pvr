@@ -593,14 +593,31 @@ func (p *Pvr) GetApplicationInfo(appname string) error {
 
 // RemoveApplication : Remove Application
 func (p *Pvr) RemoveApplication(appname string) error {
+	// Remove signature from pristine json
+	if p.PristineJson != nil {
+		deletedParts, err := DeleteSignatureFromState(p.PristineJsonMap, []string{"_sigs/" + appname + ".json"})
+		if err != nil {
+			return err
+		}
+
+		for _, part := range deletedParts {
+			os.Remove(filepath.Join(p.Dir, part))
+		}
+	}
+
 	appPath := filepath.Join(p.Dir, appname)
+	sigPath := filepath.Join(p.Dir, "_sigs/"+appname+".json")
 	if _, err := os.Stat(appPath); err != nil {
 		return errors.New("App '" + appname + "' doesn't exist")
+	}
+	if _, err := os.Stat(sigPath); err == nil {
+		os.Remove(sigPath)
 	}
 	err := os.RemoveAll(appPath)
 	if err != nil {
 		return err
 	}
+
 	return nil
 }
 

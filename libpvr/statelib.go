@@ -19,6 +19,7 @@ import (
 	"strings"
 
 	jsonpatch "github.com/asac/json-patch"
+	"github.com/bmatcuk/doublestar"
 	cjson "github.com/gibson042/canonicaljson-go"
 	"github.com/highercomve/jsondiff"
 	"gitlab.com/pantacor/pvr/utils/pvjson"
@@ -245,6 +246,92 @@ func GetStatePatch(initialState, endState []byte) (*[]byte, error) {
 	return &diffbytes, err
 }
 
+// DeleteSignatureFromState deletes a signature from the initial state based on the deleted signature.
+//
+// Parameters:
+// - initialState: The initial state containing the signatures.
+// - deletedSignature: The signature to be deleted from the state.
+// Return type: error
+func DeleteSignatureFromState(initialState PvrMap, deletedSignatures []string) ([]string, error) {
+
+	signedParts := make(map[string]map[string]bool)
+	for sigPath := range initialState {
+		if !strings.HasPrefix(sigPath, "_sigs/") {
+			continue
+		}
+
+		sigMap := map[string]interface{}{}
+		sigBytes, err := base64.StdEncoding.DecodeString(initialState[sigPath].(map[string]interface{})["protected"].(string))
+		if err != nil {
+			return nil, err
+		}
+		err = cjson.Unmarshal(sigBytes, &sigMap)
+		if err != nil {
+			return nil, err
+		}
+
+		includeArr := sigMap["pvs"].(map[string]interface{})["include"].([]interface{})
+
+		for path := range initialState {
+			for _, includeGlob := range includeArr {
+				glob, ok := includeGlob.(string)
+				if !ok {
+					continue
+				}
+
+				if match, err := doublestar.Match(glob, path); err == nil && match {
+					if _, ok := signedParts[path]; !ok {
+						signedParts[path] = map[string]bool{}
+					}
+					signedParts[path][sigPath] = true
+				}
+			}
+		}
+	}
+
+	deletedParts := []string{}
+
+	for _, deletedSignature := range deletedSignatures {
+
+		delSigProtected, err := base64.StdEncoding.DecodeString(initialState[deletedSignature].(map[string]interface{})["protected"].(string))
+		if err != nil {
+			return nil, err
+		}
+
+		delSigMap := map[string]interface{}{}
+		err = cjson.Unmarshal(delSigProtected, &delSigMap)
+		if err != nil {
+			return nil, err
+		}
+
+		partsOfSignature := []interface{}{}
+		if val, ok := delSigMap["pvs"].(map[string]interface{})["include"]; ok {
+			partsOfSignature = append(partsOfSignature, val.([]interface{})...)
+		}
+
+		if val, ok := delSigMap["pvs"].(map[string]interface{})["exclude"]; ok {
+			partsOfSignature = append(partsOfSignature, val.([]interface{})...)
+		}
+
+		for path := range initialState {
+			for _, part := range partsOfSignature {
+				p, ok := part.(string)
+				if !ok {
+					continue
+				}
+
+				delete(signedParts[path], deletedSignature)
+				if match, err := doublestar.Match(p, path); err == nil && match && len(signedParts[path]) == 0 {
+					delete(initialState, path)
+					deletedParts = append(deletedParts, path)
+				}
+			}
+		}
+	}
+
+	return deletedParts, nil
+}
+
 func renameKeys(state map[string]interface{}, srcFrags, patchFrag string) (map[string]interface{}, error) {
 	pJSONMap := map[string]interface{}{}
 	srcPrefixes := strings.Split(srcFrags, ",")
@@ -321,6 +408,14 @@ func MergePatch(srcData, target []byte) ([]byte, error) {
 
 }
 
+// CleanRemovedSignatures cleans the removed signatures in the initial state by comparing it with the final state.
+//
+// Parameters:
+// - initialState: A pointer to the initial state PvrMap.
+// - finalState: A pointer to the final state PvrMap.
+//
+// Returns:
+// - error: An error if any occurred during the cleaning process.
 func CleanRemovedSignatures(initialState, finalState *PvrMap) error {
 	var err error
 	signedExpresions := []*regexp.Regexp{}
@@ -360,6 +455,17 @@ func CleanRemovedSignatures(initialState, finalState *PvrMap) error {
 	return nil
 }
 
+// CleanPatchSignedPkg cleans the patched signed package by removing unnecessary
+// keys and expressions. It takes in the source, patch, and target PvrMaps as
+// parameters and returns an error if any.
+//
+// Parameters:
+// - src: The source PvrMap.
+// - patch: The patch PvrMap.
+// - target: The target PvrMap.
+//
+// Returns:
+// - error: An error if any occurred during the cleaning process.
 func CleanPatchSignedPkg(src, patch, target *PvrMap) error {
 	var err error
 	signedSrcExpresions := map[string][]*regexp.Regexp{}
