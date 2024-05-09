@@ -26,7 +26,7 @@ GOBUILD = $(GOCMD) build
 GOCLEAN = $(GOCMD) clean
 GOTEST = $(GOCMD) test
 GOGET = $(GOCMD) get
-BINARY_NAME = pvwificonnect
+BINARY_NAME = pvr
 DEBUG ?= 0
 OPTIMIZE ?= 1
 CGO = CGO_ENABLED=0
