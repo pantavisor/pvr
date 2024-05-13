@@ -601,18 +601,19 @@ func (p *Pvr) RemoveApplication(appname string) error {
 			return err
 		}
 
+		sigPath := filepath.Join(p.Dir, sigKey)
+		if _, err := os.Stat(sigPath); err == nil {
+			os.Remove(sigPath)
+		}
+
 		for _, part := range deletedParts {
 			os.Remove(filepath.Join(p.Dir, part))
 		}
 	}
 
 	appPath := filepath.Join(p.Dir, appname)
-	sigPath := filepath.Join(p.Dir, "_sigs/"+appname+".json")
 	if _, err := os.Stat(appPath); err != nil {
 		return errors.New("App '" + appname + "' doesn't exist")
-	}
-	if _, err := os.Stat(sigPath); err == nil {
-		os.Remove(sigPath)
 	}
 	err := os.RemoveAll(appPath)
 	if err != nil {
