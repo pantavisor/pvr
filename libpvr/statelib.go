@@ -517,12 +517,23 @@ func DeleteSignatureFromState(state PvrMap, stateBuf []byte, delSigKey string, d
 		signedParts = getSigsOfState(state, stateBuf)
 	}
 
-	sigSummary, err := getSigSummary(stateBuf, state, delSigValue)
-	if err != nil {
+	_, okSpec := delSigValue["#spec"]
+	_, signature := delSigValue["signature"]
+	var sigSummary *JwsVerifySummary
+	var err error
+
+	// if the spec doesn't exist but the signature does
+	// we need to get the summary from the signature from the state
+	// Because is an update in the signature
+	if !okSpec && signature {
 		sigSummary, err = getSigSummary(stateBuf, state, state[delSigKey].(map[string]interface{}))
-		if err != nil {
-			return nil, err
-		}
+	} else {
+		sigSummary, err = getSigSummary(stateBuf, state, delSigValue)
+	}
+
+	// If any the getSigSummary return an error
+	if err != nil {
+		return nil, err
 	}
 
 	partsOfSignature := append(sigSummary.Protected, sigSummary.Excluded...)
