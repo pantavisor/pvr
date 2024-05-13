@@ -15,11 +15,12 @@ package libpvr
 
 import (
 	"encoding/base64"
+	"encoding/json"
+	"fmt"
 	"regexp"
 	"strings"
 
 	jsonpatch "github.com/asac/json-patch"
-	"github.com/bmatcuk/doublestar"
 	cjson "github.com/gibson042/canonicaljson-go"
 	"github.com/highercomve/jsondiff"
 	"gitlab.com/pantacor/pvr/utils/pvjson"
@@ -246,92 +247,6 @@ func GetStatePatch(initialState, endState []byte) (*[]byte, error) {
 	return &diffbytes, err
 }
 
-// DeleteSignatureFromState deletes a signature from the initial state based on the deleted signature.
-//
-// Parameters:
-// - initialState: The initial state containing the signatures.
-// - deletedSignature: The signature to be deleted from the state.
-// Return type: error
-func DeleteSignatureFromState(initialState PvrMap, deletedSignatures []string) ([]string, error) {
-
-	signedParts := make(map[string]map[string]bool)
-	for sigPath := range initialState {
-		if !strings.HasPrefix(sigPath, "_sigs/") {
-			continue
-		}
-
-		sigMap := map[string]interface{}{}
-		sigBytes, err := base64.StdEncoding.DecodeString(initialState[sigPath].(map[string]interface{})["protected"].(string))
-		if err != nil {
-			return nil, err
-		}
-		err = cjson.Unmarshal(sigBytes, &sigMap)
-		if err != nil {
-			return nil, err
-		}
-
-		includeArr := sigMap["pvs"].(map[string]interface{})["include"].([]interface{})
-
-		for path := range initialState {
-			for _, includeGlob := range includeArr {
-				glob, ok := includeGlob.(string)
-				if !ok {
-					continue
-				}
-
-				if match, err := doublestar.Match(glob, path); err == nil && match {
-					if _, ok := signedParts[path]; !ok {
-						signedParts[path] = map[string]bool{}
-					}
-					signedParts[path][sigPath] = true
-				}
-			}
-		}
-	}
-
-	deletedParts := []string{}
-
-	for _, deletedSignature := range deletedSignatures {
-
-		delSigProtected, err := base64.StdEncoding.DecodeString(initialState[deletedSignature].(map[string]interface{})["protected"].(string))
-		if err != nil {
-			return nil, err
-		}
-
-		delSigMap := map[string]interface{}{}
-		err = cjson.Unmarshal(delSigProtected, &delSigMap)
-		if err != nil {
-			return nil, err
-		}
-
-		partsOfSignature := []interface{}{}
-		if val, ok := delSigMap["pvs"].(map[string]interface{})["include"]; ok {
-			partsOfSignature = append(partsOfSignature, val.([]interface{})...)
-		}
-
-		if val, ok := delSigMap["pvs"].(map[string]interface{})["exclude"]; ok {
-			partsOfSignature = append(partsOfSignature, val.([]interface{})...)
-		}
-
-		for path := range initialState {
-			for _, part := range partsOfSignature {
-				p, ok := part.(string)
-				if !ok {
-					continue
-				}
-
-				delete(signedParts[path], deletedSignature)
-				if match, err := doublestar.Match(p, path); err == nil && match && len(signedParts[path]) == 0 {
-					delete(initialState, path)
-					deletedParts = append(deletedParts, path)
-				}
-			}
-		}
-	}
-
-	return deletedParts, nil
-}
-
 func renameKeys(state map[string]interface{}, srcFrags, patchFrag string) (map[string]interface{}, error) {
 	pJSONMap := map[string]interface{}{}
 	srcPrefixes := strings.Split(srcFrags, ",")
@@ -416,12 +331,12 @@ func MergePatch(srcData, target []byte) ([]byte, error) {
 //
 // Returns:
 // - error: An error if any occurred during the cleaning process.
-func CleanRemovedSignatures(initialState, finalState *PvrMap) error {
-	var err error
-	signedExpresions := []*regexp.Regexp{}
+func CleanRemovedSignatures(initialState, finalState *PvrMap, initialStateBuf []byte) (err error) {
+	deleted := []string{}
 	fState := *finalState
+	signedParts := getSigsOfState(*initialState, initialStateBuf)
 
-	for key, value := range *initialState {
+	for key := range *initialState {
 		if !strings.HasPrefix(key, "_sigs/") || key == "#spec" {
 			continue
 		}
@@ -430,26 +345,16 @@ func CleanRemovedSignatures(initialState, finalState *PvrMap) error {
 			continue
 		}
 
-		signedExpresions, err = appendToSignedExpression(signedExpresions, key, value)
+		signature := (*initialState)[key].(map[string]interface{})
+		deleted, err = DeleteSignatureFromState(*initialState, initialStateBuf, key, signature, signedParts)
 		if err != nil {
 			return err
 		}
 	}
 
-	if len(signedExpresions) == 0 {
-		return nil
-	}
-
-	for key := range *initialState {
-		if someValid(signedExpresions, key) && key != "#spec" {
-			delete(*initialState, key)
-		}
-	}
-
-	for key := range *finalState {
-		if someValid(signedExpresions, key) && key != "#spec" {
-			delete(*finalState, key)
-		}
+	for _, key := range deleted {
+		delete(*initialState, key)
+		delete(*finalState, key)
 	}
 
 	return nil
@@ -466,72 +371,32 @@ func CleanRemovedSignatures(initialState, finalState *PvrMap) error {
 //
 // Returns:
 // - error: An error if any occurred during the cleaning process.
-func CleanPatchSignedPkg(src, patch, target *PvrMap) error {
-	var err error
-	signedSrcExpresions := map[string][]*regexp.Regexp{}
-	signedPatchExpresions := map[string][]*regexp.Regexp{}
-	srcJson := *src
-	packages := map[string]bool{}
-	ok := false
+func CleanPatchSignedPkg(src, patch, target *PvrMap) (err error) {
+	deleted := []string{}
+	srcBuf, err := json.Marshal(*src)
+	if err != nil {
+		return err
+	}
 
+	srcSigParts := getSigsOfState(*src, srcBuf)
 	for key, value := range *patch {
 		if !strings.HasPrefix(key, "_sigs/") || key == "#spec" {
 			continue
 		}
 
-		packageName := strings.ReplaceAll(strings.ReplaceAll(key, "_sigs/", ""), ".json", "")
-
-		packages[packageName] = false
-		if _, ok := signedSrcExpresions[packageName]; !ok {
-			signedSrcExpresions[packageName] = []*regexp.Regexp{}
-		}
-
-		if _, ok := signedPatchExpresions[packageName]; !ok {
-			signedPatchExpresions[packageName] = []*regexp.Regexp{}
-		}
-
 		if value == nil {
-			value, ok = srcJson[key]
-			if !ok {
-				continue
-			}
-
-			signedSrcExpresions[packageName], err = appendToSignedExpression(signedPatchExpresions[packageName], key, value)
-			if err != nil {
-				return err
-			}
+			delete(*src, key)
+			continue
 		}
 
-		signedPatchExpresions[packageName], err = appendToSignedExpression(signedSrcExpresions[packageName], key, value)
+		deleted, err = DeleteSignatureFromState(*src, srcBuf, key, value.(map[string]interface{}), srcSigParts)
 		if err != nil {
 			return err
 		}
 	}
 
-	if len(signedSrcExpresions) == 0 && len(signedPatchExpresions) == 0 {
-		return nil
-	}
-
-	for key := range *patch {
-		for p, exp := range signedPatchExpresions {
-			if someValid(exp, key) && !strings.Contains(key, "_sigs/") {
-				packages[p] = true
-			}
-		}
-
-		for _, exp := range signedSrcExpresions {
-			if someValid(exp, key) && key != "#spec" {
-				delete(*patch, key)
-			}
-		}
-	}
-
-	for key := range *src {
-		for p, exp := range signedPatchExpresions {
-			if someValid(exp, key) && packages[p] && key != "#spec" {
-				delete(*src, key)
-			}
-		}
+	for _, del := range deleted {
+		delete(*src, del)
 	}
 
 	return nil
@@ -600,4 +465,76 @@ func convertGlobToRegex(element string) (*regexp.Regexp, error) {
 	)
 
 	return regexp.Compile("^" + regexS)
+}
+
+type SignedParts map[string]map[string]bool
+
+// getSigsOfState retrieves the signed parts of the state based on the provided PVR map and state buffer.
+//
+// Parameters:
+// - state: the PVR state map.
+// - stateBuf: the state buffer.
+// Return type: SignedParts.
+func getSigsOfState(state PvrMap, stateBuf []byte) SignedParts {
+	signedParts := make(map[string]map[string]bool)
+	for sigKey := range state {
+		if !strings.HasPrefix(sigKey, "_sigs/") {
+			continue
+		}
+
+		summary, err := getSigSummary(stateBuf, state, state[sigKey].(map[string]interface{}))
+		if err != nil {
+			fmt.Printf("%s\n", err)
+			continue
+		}
+
+		for _, part := range summary.Protected {
+			if _, ok := signedParts[part]; !ok {
+				signedParts[part] = make(map[string]bool)
+			}
+			signedParts[part][sigKey] = true
+		}
+	}
+
+	return signedParts
+}
+
+// DeleteSignatureFromState deletes a signature and signed files from the state and updates the signed parts accordingly.
+//
+// Parameters:
+// - state: the PVR state map.
+// - stateBuf: the state buffer.
+// - deletedSignature: the signature to be deleted.
+// - signedParts: the signed parts mapping.
+// Returns a slice of deleted parts and an error.
+func DeleteSignatureFromState(state PvrMap, stateBuf []byte, delSigKey string, delSigValue map[string]interface{}, signedParts SignedParts) ([]string, error) {
+	if delSigValue == nil {
+		return nil, nil
+	}
+
+	deletedParts := []string{}
+	if signedParts == nil {
+		signedParts = getSigsOfState(state, stateBuf)
+	}
+
+	sigSummary, err := getSigSummary(stateBuf, state, delSigValue)
+	if err != nil {
+		sigSummary, err = getSigSummary(stateBuf, state, state[delSigKey].(map[string]interface{}))
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	partsOfSignature := append(sigSummary.Protected, sigSummary.Excluded...)
+	for path := range state {
+		for _, part := range partsOfSignature {
+			delete(signedParts[path], delSigKey)
+			if part == path && len(signedParts[path]) == 0 {
+				delete(state, path)
+				deletedParts = append(deletedParts, path)
+			}
+		}
+	}
+
+	return deletedParts, nil
 }

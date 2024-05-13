@@ -117,20 +117,22 @@ func DownloadSigningCert(url, path string) error {
 	return nil
 }
 
-func selectPayload(buf []byte, match *PvsMatch) (*PvsPartSelection, error) {
-	var bufMap map[string]interface{}
-	selection := PvsPartSelection{}
-
-	selection.Selected = map[string]interface{}{}
-	selection.NotSelected = map[string]interface{}{}
-	selection.NotSeen = map[string]interface{}{}
-
-	err := pvjson.Unmarshal(buf, &bufMap)
-	if err != nil {
-		return nil, err
+func selectPayload(stateBuf []byte, match *PvsMatch, stateMap PvrMap) (*PvsPartSelection, error) {
+	selection := PvsPartSelection{
+		Selected:    map[string]interface{}{},
+		NotSelected: map[string]interface{}{},
+		NotSeen:     map[string]interface{}{},
 	}
 
-	for k, v := range bufMap {
+	if stateMap == nil {
+		stateMap = map[string]interface{}{}
+		err := pvjson.Unmarshal(stateBuf, &stateMap)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	for k, v := range stateMap {
 		var found interface{}
 		key := ""
 		var excludedMatch bool
@@ -178,7 +180,7 @@ func selectPayload(buf []byte, match *PvsMatch) (*PvsPartSelection, error) {
 
 func selectPayloadBuf(buf []byte, match *PvsMatch) ([]byte, error) {
 
-	selection, err := selectPayload(buf, match)
+	selection, err := selectPayload(buf, match, nil)
 
 	if err != nil {
 		return nil, err
@@ -658,7 +660,7 @@ func (p *Pvr) JwsVerifyPvs(keyPath string, caCerts string, pvsPath string, inclu
 		return nil, err
 	}
 
-	selection, err := selectPayload(buf, match)
+	selection, err := selectPayload(buf, match, nil)
 
 	if err != nil {
 		return nil, err
@@ -762,4 +764,68 @@ func (p *Pvr) JwsVerifyPvs(keyPath string, caCerts string, pvsPath string, inclu
 	summary.FullJSONWebSigs = append(summary.FullJSONWebSigs, fullSig)
 
 	return &summary, nil
+}
+
+func getSigMatch(signature PvrMap) (*PvsMatch, error) {
+	if _, ok := signature["#spec"]; !ok {
+		return nil, errors.New("ERROR: pvs signature does not have a #spec element")
+	}
+
+	if signature["#spec"].(string) != "pvs@2" {
+		return nil, errors.New("ERROR: pvs signature must be of #spec pvs@2")
+	}
+
+	buf, err := pvjson.Marshal(signature)
+	if err != nil {
+		return nil, err
+	}
+
+	sig, err := gojose.ParseSigned(string(buf))
+	if err != nil {
+		return nil, err
+	}
+
+	header := sig.Signatures[0].Protected
+	pvsHeader := header.ExtraHeaders[gojose.HeaderKey("pvs")]
+
+	jsonBuf, err := json.Marshal(pvsHeader)
+	if err != nil {
+		return nil, err
+	}
+
+	var match *PvsMatch
+	err = pvjson.Unmarshal(jsonBuf, &match)
+	if err != nil {
+		return nil, err
+	}
+	return match, nil
+}
+
+func getSigSummary(stateBuf []byte, stateMap PvrMap, signature PvrMap) (*JwsVerifySummary, error) {
+	match, err := getSigMatch(signature)
+	if err != nil {
+		return nil, err
+	}
+	selection, err := selectPayload(stateBuf, match, stateMap)
+	if err != nil {
+		return nil, err
+	}
+
+	summary := &JwsVerifySummary{
+		Protected: []string{},
+		Excluded:  []string{},
+		NotSeen:   []string{},
+	}
+
+	for k := range selection.Selected {
+		summary.Protected = append(summary.Protected, k)
+	}
+	for k := range selection.NotSelected {
+		summary.Excluded = append(summary.Excluded, k)
+	}
+	for k := range selection.NotSeen {
+		summary.NotSeen = append(summary.NotSeen, k)
+	}
+
+	return summary, nil
 }

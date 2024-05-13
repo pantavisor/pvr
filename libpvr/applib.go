@@ -21,7 +21,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net/url"
 	"os"
 	"os/exec"
@@ -543,7 +542,7 @@ func (p *Pvr) ListApplications() error {
 
 // ListApplications : List Applications
 func (p *Pvr) GetApplications() ([]AppData, error) {
-	files, err := ioutil.ReadDir(p.Dir)
+	files, err := os.ReadDir(p.Dir)
 	if err != nil {
 		return nil, err
 	}
@@ -595,7 +594,9 @@ func (p *Pvr) GetApplicationInfo(appname string) error {
 func (p *Pvr) RemoveApplication(appname string) error {
 	// Remove signature from pristine json
 	if p.PristineJson != nil {
-		deletedParts, err := DeleteSignatureFromState(p.PristineJsonMap, []string{"_sigs/" + appname + ".json"})
+		sigKey := "_sigs/" + appname + ".json"
+		sigValue := p.PristineJsonMap[sigKey].(map[string]interface{})
+		deletedParts, err := DeleteSignatureFromState(p.PristineJsonMap, p.PristineJson, sigKey, sigValue, nil)
 		if err != nil {
 			return err
 		}
