@@ -1,0 +1,17 @@
+#!/bin/sh
+
+set -e
+
+cmd=$0
+dir=$(sh -c "cd $(dirname $cmd); pwd")
+
+[ -d $dir/results ] || mkdir -p $dir/results
+
+pvr="$dir/pvr"
+
+clean_results() {
+  rm -rf $dir/results/* 2>/dev/null
+  rm -rf $dir/results/.pv 2>/dev/null
+  rm -rf $dir/results/.pvr 2>/dev/null
+}
+

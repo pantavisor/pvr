@@ -1,37 +1,7 @@
 #!/bin/sh
 
 set -e
-
-cmd=$0
-dir=$(sh -c "cd $(dirname $cmd); pwd")
-
-[ -d $dir/results ] || mkdir -p $dir/results
-
-clean_results() {
-  rm -rf $dir/results/* 2>/dev/null
-  rm -rf $dir/results/.pv 2>/dev/null
-  rm -rf $dir/results/.pvr 2>/dev/null
-}
-
-pvr="$dir/pvr"
-
-## Remove the pv-avahi signature, this should remove the whole pv-avahi package
-test_signature_removal() {
-  clean_results 
-  cd $dir/results/
-
-  $pvr init
-  $pvr import $dir/mocks/data/initial_state_01.tar.gz > /dev/null
-  $pvr checkout > /dev/null 2>&1
-
-  rm -rf _sigs/pv-avahi.json
-  $pvr add && $pvr commit # > /dev/null 2>&1
-
-  result="$(cat $dir/results/.pvr/json | jq -c)"
-  expected="$(cat $dir/expected/test_signature_removal.json | jq -c)"
-
-  assertEquals "$expected" "$result"
-}
+. $(dirname $0)/helpers
 
 ## Update pvr-sdk with a new package that doesn't have been _dm
 ## but because is signed the state should remove first the _dm folder and the 
@@ -49,6 +19,24 @@ test_package_update_with_less_files() {
 
   result="$(cat $dir/results/.pvr/json | jq -c)"
   expected="$(cat $dir/expected/test_package_update_with_less_files.json | jq -c)"
+
+  assertEquals "$expected" "$result"
+}
+
+## Remove the pv-avahi signature, this should remove the whole pv-avahi package
+test_signature_removal() {
+  clean_results 
+  cd $dir/results/
+
+  $pvr init
+  $pvr import $dir/mocks/data/initial_state_01.tar.gz > /dev/null
+  $pvr checkout > /dev/null 2>&1
+
+  rm -rf _sigs/pv-avahi.json
+  $pvr add && $pvr commit > /dev/null 2>&1
+
+  result="$(cat $dir/results/.pvr/json | jq -c)"
+  expected="$(cat $dir/expected/test_signature_removal.json | jq -c)"
 
   assertEquals "$expected" "$result"
 }
@@ -242,4 +230,4 @@ test_remove_part_already_signed() {
 }
 
 # Load shUnit2.
-. $dir/lib/shunit2
+. _test/lib/shunit2
