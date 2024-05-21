@@ -261,11 +261,11 @@ func (session *Session) IsUserLoggedIn(baseURL string) (bool, error) {
 type GetAccesstokenMethod int8
 
 const (
-	InteractiveMethod       GetAccesstokenMethod = 1
+	CachedAccessTokenMethod GetAccesstokenMethod = 1
 	RefreshTokenMethod      GetAccesstokenMethod = 2
-	AnonTokenMethod         GetAccesstokenMethod = 3
-	UserPassMethod          GetAccesstokenMethod = 4
-	CachedAccessTokenMethod GetAccesstokenMethod = 5
+	UserPassMethod          GetAccesstokenMethod = 3
+	AnonTokenMethod         GetAccesstokenMethod = 4
+	InteractiveMethod       GetAccesstokenMethod = 5
 )
 
 func (p *PvrAuthConfig) getNewAccessToken(authHeader string, method GetAccesstokenMethod) (string, error) {

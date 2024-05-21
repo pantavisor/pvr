@@ -141,6 +141,9 @@ func (s *Session) DoAuthCall(withAnonToken, interactiveOnly bool, fn WrappableRe
 		}
 	}
 
+	// Add one last retry with the last method, if it exists
+	retryMethods = append(retryMethods, GetAccesstokenMethod(-1))
+
 	for _, method := range retryMethods {
 		var newAuthHeader string
 
