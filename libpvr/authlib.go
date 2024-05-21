@@ -44,9 +44,11 @@ type PvrAuthTokens struct {
 }
 
 type PvrAuthConfig struct {
-	Spec   string                   `json:"spec"`
-	Tokens map[string]PvrAuthTokens `json:"tokens"`
-	path   string
+	Spec     string                   `json:"spec"`
+	Tokens   map[string]PvrAuthTokens `json:"tokens"`
+	User     string                   `json:"-"`
+	Password string                   `json:"-"`
+	path     string
 }
 
 func LoadConfig(filePath string) (*PvrAuthConfig, error) {
@@ -92,10 +94,10 @@ func (p *PvrAuthConfig) DoRefresh(authEp, token string) (string, string, error) 
 	if token == "" {
 		return "", "", errors.New("doRefresh: no token provided")
 	}
+
 	if authEp == "" {
 		return "", "", errors.New("doAuthenticate: no authentication endpoint provided")
 	}
-
 	response, err := resty.R().SetBody(m).
 		SetAuthToken(token).
 		Get(authEp + "/login")
@@ -165,11 +167,13 @@ func (p *PvrAuthConfig) Save() error {
 }
 
 func doAuthenticate(authEp, username, password, scopes string) (string, string, error) {
-
 	m := map[string]string{
 		"username": username,
 		"password": password,
-		"scope":    scopes,
+	}
+
+	if scopes != "" {
+		m["scopes"] = scopes
 	}
 
 	if username == "" {
@@ -253,7 +257,18 @@ func (session *Session) IsUserLoggedIn(baseURL string) (bool, error) {
 	}
 	return false, nil
 }
-func (p *PvrAuthConfig) getNewAccessToken(authHeader string, tryRefresh, withAnon bool) (string, error) {
+
+type GetAccesstokenMethod int8
+
+const (
+	InteractiveMethod       GetAccesstokenMethod = 1
+	RefreshTokenMethod      GetAccesstokenMethod = 2
+	AnonTokenMethod         GetAccesstokenMethod = 3
+	UserPassMethod          GetAccesstokenMethod = 4
+	CachedAccessTokenMethod GetAccesstokenMethod = 5
+)
+
+func (p *PvrAuthConfig) getNewAccessToken(authHeader string, method GetAccesstokenMethod) (string, error) {
 
 	authType, opts := getWwwAuthenticateInfo(authHeader)
 	if authType != "JWT" && authType != "Bearer" {
@@ -261,7 +276,7 @@ func (p *PvrAuthConfig) getNewAccessToken(authHeader string, tryRefresh, withAno
 	}
 	realm := opts["realm"]
 	authEpString := opts["ph-aeps"]
-	_, requestFailed := opts["error"]
+	// _, requestFailed := opts["error"]
 	authEps := strings.Split(authEpString, ",")
 
 	if len(authEps) == 0 {
@@ -276,11 +291,11 @@ func (p *PvrAuthConfig) getNewAccessToken(authHeader string, tryRefresh, withAno
 	}
 
 	s.AccessToken = ""
+	var err error
 
-	// if we have a refresh token
-	if s.RefreshToken != "" && tryRefresh && !requestFailed {
+	switch method {
+	case RefreshTokenMethod:
 		accessToken, refreshToken, err := p.DoRefresh(authEp, s.RefreshToken)
-
 		if err != nil {
 			return "", err
 		}
@@ -293,32 +308,52 @@ func (p *PvrAuthConfig) getNewAccessToken(authHeader string, tryRefresh, withAno
 		if accessToken != "" {
 			return accessToken, nil
 		}
-	}
+	case UserPassMethod:
+		accessToken, refreshToken, err := doAuthenticate(authEp, p.User, p.Password, "")
+		if err != nil {
+			return "", err
+		}
+		s.RefreshToken = refreshToken
+		s.AccessToken = accessToken
+		p.Tokens[authEp+" realm="+realm] = s
+		p.Save()
 
-	var err error
-	// get fresh user/pass auth
-	for i := 0; i < 3; i++ {
-		var accessToken, refreshToken, username, password, scopes string
-		if !requestFailed && withAnon {
-			username = "prn:pantahub.com:auth:/anon"
-			password = "prn:pantahub.com:auth:/anon"
-			scopes = "devices.readonly objects.readonly trails.readonly"
-		} else {
-			username, password = readCredentials(authEp + " (realm=" + realm + ")")
-			if username == "REGISTER" {
-				email, username, password := readRegistration(authEp + " (realm=" + realm + ")")
-				err = ShowOrOpenRegisterLink(authEp, email, username, password)
-				if err != nil {
-					log.Fatal("error registering with PH: " + err.Error())
-					os.Exit(122)
-				}
+		if accessToken != "" {
+			return accessToken, nil
+		}
+
+	case AnonTokenMethod:
+		username := "prn:pantahub.com:auth:/anon"
+		password := "prn:pantahub.com:auth:/anon"
+		scopes := "devices.readonly objects.readonly trails.readonly"
+
+		accessToken, refreshToken, err := doAuthenticate(authEp, username, password, scopes)
+		if err != nil {
+			return "", err
+		}
+
+		if accessToken != "" {
+			s.AccessToken = accessToken
+			s.RefreshToken = refreshToken
+			p.Tokens[authEp+" realm="+realm] = s
+			p.Save()
+
+			return accessToken, nil
+		}
+	default:
+		username, password := readCredentials(authEp + " (realm=" + realm + ")")
+		if username == "REGISTER" {
+			email, username, password := readRegistration(authEp + " (realm=" + realm + ")")
+			err = ShowOrOpenRegisterLink(authEp, email, username, password)
+			if err != nil {
+				log.Fatal("error registering with PH: " + err.Error())
+				os.Exit(122)
 			}
 		}
 
-		accessToken, refreshToken, err = doAuthenticate(authEp, username, password, scopes)
+		accessToken, refreshToken, err := doAuthenticate(authEp, username, password, "")
 		if err != nil {
-			requestFailed = true
-			continue
+			return "", err
 		}
 
 		if accessToken != "" {
@@ -331,7 +366,7 @@ func (p *PvrAuthConfig) getNewAccessToken(authHeader string, tryRefresh, withAno
 		}
 	}
 
-	return "", err
+	return "", errors.New("unable to get access token")
 }
 
 func newDefaultAuthConfig(filePath string) *PvrAuthConfig {
@@ -350,7 +385,7 @@ func (s *Session) GetWhoami() (nick string, err error) {
 			continue
 		}
 		authEndPoint := splits[0]
-		response, err := s.DoAuthCall(true, func(req *resty.Request) (*resty.Response, error) {
+		response, err := s.DoAuthCall(true, false, func(req *resty.Request) (*resty.Response, error) {
 			return req.Get(authEndPoint + "/auth_status")
 		})
 		if err != nil {
@@ -360,6 +395,9 @@ func (s *Session) GetWhoami() (nick string, err error) {
 		err = pvjson.Unmarshal(response.Body(), &responseBody)
 		if err != nil {
 			return nick, err
+		}
+		if responseBody["nick"] == nil {
+			continue
 		}
 		nick = responseBody["nick"].(string)
 	}
@@ -376,7 +414,7 @@ func (s *Session) Whoami() (err error) {
 			continue
 		}
 		authEndPoint := splits[0]
-		response, err := s.DoAuthCall(true, func(req *resty.Request) (*resty.Response, error) {
+		response, err := s.DoAuthCall(true, false, func(req *resty.Request) (*resty.Response, error) {
 			return req.Get(authEndPoint + "/auth_status")
 		})
 		if err != nil {

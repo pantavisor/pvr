@@ -31,10 +31,16 @@ func CommandLogin() cli.Command {
 		ArgsUsage:   "[auth-endpoint]",
 		Usage:       "pvr login https://api.pantahub.com/auth/auth_status",
 		Description: "Login to pantahub with your username & password with an optional end point",
+		Flags: []cli.Flag{
+			cli.BoolFlag{
+				Name:  "interactive, -i",
+				Usage: "Login using only interactive mode",
+			},
+		},
 		Action: func(c *cli.Context) error {
 			APIURL := ""
 			if c.NArg() > 1 {
-				return errors.New("post can have at most 1 argument. See --help.")
+				return errors.New("post can have at most 1 argument. See --help")
 			} else if c.NArg() == 0 {
 				APIURL = c.App.Metadata["PVR_BASEURL"].(string) + "/auth/auth_status"
 			} else {
@@ -45,7 +51,8 @@ func CommandLogin() cli.Command {
 			if err != nil {
 				return cli.NewExitError(err, 4)
 			}
-			response, err := session.Login(APIURL, false)
+
+			response, err := session.Login(APIURL, c.Bool("interactive"))
 			if err != nil {
 				return cli.NewExitError(err, 4)
 			}

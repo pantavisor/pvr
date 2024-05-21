@@ -483,7 +483,7 @@ func (s *Session) CreateDevice(baseURL string, deviceNick string) (
 	if err != nil {
 		return nil, err
 	}
-	response, err := s.DoAuthCall(false, func(req *resty.Request) (*resty.Response, error) {
+	response, err := s.DoAuthCall(false, false, func(req *resty.Request) (*resty.Response, error) {
 		body := map[string]interface{}{}
 		if deviceNick != "" {
 			body["nick"] = deviceNick
@@ -630,7 +630,7 @@ func (s *Session) GetUserProfiles(baseURL string,
 	*resty.Response,
 	error,
 ) {
-	response, err := s.DoAuthCall(true, func(req *resty.Request) (*resty.Response, error) {
+	response, err := s.DoAuthCall(true, false, func(req *resty.Request) (*resty.Response, error) {
 		response, err := req.Get(baseURL + "/profiles/?nick=^" + userNick)
 		return response, err
 	})
@@ -656,7 +656,7 @@ func (s *Session) GetDevices(baseURL string,
 	*resty.Response,
 	error,
 ) {
-	response, err := s.DoAuthCall(true, func(req *resty.Request) (*resty.Response, error) {
+	response, err := s.DoAuthCall(true, false, func(req *resty.Request) (*resty.Response, error) {
 		ownerNickParam := ""
 		if ownerNick != "" {
 			ownerNickParam = "&owner-nick=" + ownerNick
@@ -686,7 +686,7 @@ func (s *Session) GetDevice(baseURL string,
 	*resty.Response,
 	error,
 ) {
-	response, err := s.DoAuthCall(true, func(req *resty.Request) (*resty.Response, error) {
+	response, err := s.DoAuthCall(true, false, func(req *resty.Request) (*resty.Response, error) {
 
 		if ownerNick != "" {
 			req.SetQueryParam("owner-nick", ownerNick)
@@ -748,7 +748,7 @@ func (s *Session) UpdateDevice(
 	*resty.Response,
 	error,
 ) {
-	response, err := s.DoAuthCall(false, func(req *resty.Request) (*resty.Response, error) {
+	response, err := s.DoAuthCall(false, false, func(req *resty.Request) (*resty.Response, error) {
 		return req.SetBody(data).Patch(baseURL + "/devices/" + deviceNick + "/" + updateField)
 	})
 	if err != nil {
@@ -770,7 +770,7 @@ func (s *Session) GetAuthStatus(baseURL string) (
 	*resty.Response,
 	error,
 ) {
-	response, err := s.DoAuthCall(true, func(req *resty.Request) (*resty.Response, error) {
+	response, err := s.DoAuthCall(true, false, func(req *resty.Request) (*resty.Response, error) {
 		return req.Get(baseURL + "/auth/auth_status")
 	})
 	if err != nil {

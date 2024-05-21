@@ -27,6 +27,7 @@ import (
 	"path/filepath"
 	"syscall"
 
+	"github.com/bgentry/go-netrc/netrc"
 	"github.com/go-resty/resty"
 	"github.com/urfave/cli"
 	"gitlab.com/pantacor/pvr/cmd"
@@ -37,8 +38,43 @@ import (
 	"gitlab.com/pantacor/pvr/libpvr"
 )
 
-func main() {
+// ReadUserPasswdFromNetrc reads username and password from the .netrc file
+// located in the current directory or $HOME/.netrc
+func ReadUserPasswdFromNetrc(host string) (string, string, error) {
+	path := ".netrc"
+	_, err := os.Stat(path)
+	if err != nil {
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return "", "", err
+		}
+		path = filepath.Join(homeDir, ".netrc")
+		_, err = os.Stat(path)
+		if err != nil {
+			return "", "", err
+		}
+	}
 
+	f, err := os.Open(path)
+	if err != nil {
+		return "", "", err
+	}
+	defer f.Close()
+
+	file, err := netrc.Parse(f)
+	if err != nil {
+		return "", "", err
+	}
+
+	machine := file.FindMachine(host)
+	if machine == nil {
+		return "", "", errors.New("no matching machine found in .netrc")
+	}
+
+	return machine.Login, machine.Password, nil
+}
+
+func main() {
 	cliApp := cli.NewApp()
 	cliApp.EnableBashCompletion = true
 	cliApp.Name = "pvr"
@@ -58,6 +94,16 @@ func main() {
 		home = usr.HomeDir
 	}
 	cliApp.Flags = []cli.Flag{
+		cli.StringFlag{
+			Name:   "user, u",
+			Usage:  "Use `PVR_USERNAME` for authentication and authorization with core services",
+			EnvVar: "PVR_USERNAME",
+		},
+		cli.StringFlag{
+			Name:   "password, p",
+			Usage:  "Use `PVR_PASSWORD` for authentication and authorization with core services",
+			EnvVar: "PVR_PASSWORD",
+		},
 		cli.StringFlag{
 			Name:   "access-token, a",
 			Usage:  "Use `ACCESS_TOKEN` for authorization with core services",
@@ -160,6 +206,17 @@ func main() {
 				return errors.New("ERROR: http-proxy not a valid url")
 			}
 			transport.Proxy = http.ProxyURL(u)
+		}
+
+		user, pass, err := ReadUserPasswdFromNetrc(baseURL.Host) // ignore error
+		if user != "" && pass != "" {
+			c.App.Metadata["PVR_USERNAME"] = user
+			c.App.Metadata["PVR_PASSWORD"] = pass
+		}
+
+		if c.GlobalString("user") != "" && c.GlobalString("password") != "" {
+			c.App.Metadata["PVR_USERNAME"] = c.GlobalString("user")
+			c.App.Metadata["PVR_PASSWORD"] = c.GlobalString("password")
 		}
 
 		resty.SetTransport(transport)

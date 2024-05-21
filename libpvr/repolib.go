@@ -936,7 +936,7 @@ func (p *Pvr) initializeRemote(repoUrl *url.URL) (pvrapi.PvrRemote, error) {
 	pvrRemoteUrl := repoUrl
 	pvrRemoteUrl.Path = path.Join(pvrRemoteUrl.Path, ".pvrremote")
 
-	response, err := p.Session.DoAuthCall(true, func(req *resty.Request) (response *resty.Response, err error) {
+	response, err := p.Session.DoAuthCall(true, false, func(req *resty.Request) (response *resty.Response, err error) {
 		fmt.Fprintf(os.Stdout, "Getting remote repository info ... ")
 		if response, err = req.Get(pvrRemoteUrl.String()); err != nil {
 			fmt.Fprintf(os.Stderr, "[ERROR "+err.Error()+"]\n")
@@ -1090,6 +1090,7 @@ func readRegistration(targetPrompt string) (string, string, string) {
 
 func getWwwAuthenticateInfo(header string) (string, map[string]string) {
 	parts := strings.SplitN(header, " ", 2)
+
 	authType := strings.TrimSpace(parts[0])
 	parts = strings.Split(parts[1], ", ")
 	opts := make(map[string]string)
@@ -1119,7 +1120,7 @@ func (p *Pvr) DoClaim(deviceEp, challenge string) error {
 	uV.Set("challenge", challenge)
 	u.RawQuery = uV.Encode()
 
-	response, err := p.Session.DoAuthCall(false, func(req *resty.Request) (*resty.Response, error) {
+	response, err := p.Session.DoAuthCall(false, false, func(req *resty.Request) (*resty.Response, error) {
 		return req.Put(u.String())
 	})
 
@@ -1378,7 +1379,7 @@ func (p *Pvr) postObjects(pvrRemote pvrapi.PvrRemote, force bool) error {
 
 		fmt.Fprintf(os.Stderr, "Posting object info for: "+k+" ... ")
 
-		response, err := p.Session.DoAuthCall(false, func(req *resty.Request) (*resty.Response, error) {
+		response, err := p.Session.DoAuthCall(false, false, func(req *resty.Request) (*resty.Response, error) {
 			res, err := req.SetBody(remoteObject).Post(uri)
 
 			if err != nil {
@@ -1505,7 +1506,7 @@ func (p *Pvr) PutRemote(repoPath *url.URL, force bool) error {
 		return err
 	}
 
-	response, err := p.Session.DoAuthCall(false, func(req *resty.Request) (*resty.Response, error) {
+	response, err := p.Session.DoAuthCall(false, false, func(req *resty.Request) (*resty.Response, error) {
 		return req.SetBody(body).Put(uri)
 	})
 
@@ -1662,7 +1663,7 @@ func (p *Pvr) postRemoteJson(remotePvr pvrapi.PvrRemote, pvrMap PvrMap, envelope
 		fmt.Fprintf(os.Stderr, "Posting JSON: %s\n", string(data))
 	}
 
-	response, err := p.Session.DoAuthCall(false, func(req *resty.Request) (*resty.Response, error) {
+	response, err := p.Session.DoAuthCall(false, false, func(req *resty.Request) (*resty.Response, error) {
 		return req.SetBody(data).SetContentLength(true).Post(remotePvr.PostUrl)
 	})
 
@@ -2063,7 +2064,7 @@ func (p *Pvr) GetRepoLocal(getPath string, merge bool, showFilenames bool, state
 
 func (p *Pvr) getJSONBuf(pvrRemote pvrapi.PvrRemote) ([]byte, error) {
 
-	response, err := p.Session.DoAuthCall(true, func(req *resty.Request) (*resty.Response, error) {
+	response, err := p.Session.DoAuthCall(true, false, func(req *resty.Request) (*resty.Response, error) {
 		return req.Get(pvrRemote.JsonGetUrl)
 	})
 
@@ -2078,7 +2079,7 @@ func (p *Pvr) getJSONBuf(pvrRemote pvrapi.PvrRemote) ([]byte, error) {
 
 func (p *Pvr) getURLBuf(url string) ([]byte, error) {
 
-	response, err := p.Session.DoAuthCall(true, func(req *resty.Request) (*resty.Response, error) {
+	response, err := p.Session.DoAuthCall(true, false, func(req *resty.Request) (*resty.Response, error) {
 		return req.Get(url)
 	})
 
@@ -2274,7 +2275,7 @@ func (p *Pvr) getObjects(showFilenames bool, pvrRemote pvrapi.PvrRemote, jsonMap
 
 		fmt.Fprintf(os.Stderr, "[OK]\n")
 
-		if response, err = p.Session.DoAuthCall(true, func(req *resty.Request) (*resty.Response, error) {
+		if response, err = p.Session.DoAuthCall(true, false, func(req *resty.Request) (*resty.Response, error) {
 			return req.Get(uri)
 		}); err != nil {
 			fmt.Fprintf(os.Stderr, "[ERROR "+err.Error()+"]\n")
