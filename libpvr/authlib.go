@@ -340,7 +340,7 @@ func (p *PvrAuthConfig) getNewAccessToken(authHeader string, method GetAccesstok
 
 			return accessToken, nil
 		}
-	default:
+	case InteractiveMethod:
 		username, password := readCredentials(authEp + " (realm=" + realm + ")")
 		if username == "REGISTER" {
 			email, username, password := readRegistration(authEp + " (realm=" + realm + ")")
@@ -364,6 +364,8 @@ func (p *PvrAuthConfig) getNewAccessToken(authHeader string, method GetAccesstok
 
 			return accessToken, nil
 		}
+	default:
+		return "", fmt.Errorf("unable to get access token, method %d not supported", method)
 	}
 
 	return "", errors.New("unable to get access token")
