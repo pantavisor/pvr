@@ -34,6 +34,7 @@ import (
 	"gitlab.com/pantacor/pvr/cmd/app"
 	"gitlab.com/pantacor/pvr/cmd/device"
 	"gitlab.com/pantacor/pvr/cmd/dm"
+	"gitlab.com/pantacor/pvr/cmd/fakeroot"
 	"gitlab.com/pantacor/pvr/cmd/sig"
 	"gitlab.com/pantacor/pvr/libpvr"
 )
@@ -208,7 +209,7 @@ func main() {
 			transport.Proxy = http.ProxyURL(u)
 		}
 
-		user, pass, err := ReadUserPasswdFromNetrc(baseURL.Host) // ignore error
+		user, pass, _ := ReadUserPasswdFromNetrc(baseURL.Host) // ignore error
 		if user != "" && pass != "" {
 			c.App.Metadata["PVR_USERNAME"] = user
 			c.App.Metadata["PVR_PASSWORD"] = pass
@@ -264,6 +265,7 @@ func main() {
 		device.CommandDevice(),
 		app.CommandApp(),
 		sig.CommandSig(),
+		fakeroot.CommandFakeroot(),
 	}
 
 	err := cliApp.Run(os.Args)
