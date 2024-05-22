@@ -7,6 +7,7 @@
 # make build-linux-amd64  # compile linux amd64 binary
 # make build-linux-arm  # compile linux arm binary
 # make build-linux-arm64  # compile linux arm64 binary
+# make build-linux-riscv64  # compile linux arm64 binary
 # make build-windows-386  # compile windows 386 binary
 # make build-windows-amd64  # compile windows amd64 binary
 # make build-darwin-amd64  # compile darwin amd64 binary
@@ -17,16 +18,15 @@
 # make optimize-linux-arm64  # optimize linux arm64 binary
 # make optimize-windows-386  # optimize windows 386 binary
 # make optimize-windows-amd64  # optimize windows amd64 binary
-# make optimize-darwin-amd64  # optimize darwin amd64 binary
-# make optimize-darwin-arm64  # optimize darwin arm64 binary
 .PHONY = all clean build build-% optimize optimize-%
+
+BINARY_NAME = pvr
 
 GOCMD = go
 GOBUILD = $(GOCMD) build
 GOCLEAN = $(GOCMD) clean
 GOTEST = $(GOCMD) test
 GOGET = $(GOCMD) get
-BINARY_NAME = pvr
 DEBUG ?= 0
 OPTIMIZE ?= 1
 CGO = CGO_ENABLED=0
@@ -42,7 +42,7 @@ else
     LDFLAGS = -ldflags="-s -w -extldflags=-static"
 endif
 
-BUILD_DIR ?= build/$(BUILD_TYPE)
+BUILD_DIR ?= build
 export BUILD_DIR
 
 
@@ -61,12 +61,13 @@ build-%:
 	$(eval GOOS := $(firstword $(subst -, ,$(GOOSARCH))))
 	$(eval GOARCH := $(word 2,$(subst -, ,$(GOOSARCH))))
 	$(eval GOARM := $(word 3,$(subst -, ,$(GOOSARCH))))
+	$(eval PKG_NAME := $(if $(filter-out windows,$(GOOS)), $(BINARY_NAME), $(BINARY_NAME).exe))
 	@echo ""
 	@echo "building for $(GOOSARCH) with GOOS=$(GOOS) and GOARCH=$(GOARCH) and GOARM=$(GOARM)"
 	@if [ -z "$(OUTPUT_DIR)" ]; then \
-		$(CGO) $(GOBUILD) -o $(BUILD_DIR)/$(GOOS)/$(GOARCH)/$(GOARM)/$(BINARY_NAME) $(GCFLAGS) $(LDFLAGS) -v .; \
+		$(CGO) $(GOBUILD) -o $(BUILD_DIR)/$(GOOS)_$(GOARCH)$(GOARM)/$(PKG_NAME) $(GCFLAGS) $(LDFLAGS) -v .; \
 	else \
-		$(CGO) $(GOBUILD) -o $(OUTPUT_DIR)/$(BINARY_NAME) $(GCFLAGS) $(LDFLAGS) -v .; \
+		$(CGO) $(GOBUILD) -o $(OUTPUT_DIR)/$(PKG_NAME) $(GCFLAGS) $(LDFLAGS) -v .; \
 	fi
 	@if [ "$(OPTIMIZE)" == "1" ]; then make optimize-$(GOOSARCH); fi
 
@@ -80,14 +81,15 @@ optimize-%:
 	$(eval GOOS := $(firstword $(subst -, ,$(GOOSARCH))))
 	$(eval GOARCH := $(word 2,$(subst -, ,$(GOOSARCH))))
 	$(eval GOARM := $(word 3,$(subst -, ,$(GOOSARCH))))
+	$(eval PKG_NAME := $(if $(filter-out windows,$(GOOS)), $(BINARY_NAME), $(BINARY_NAME).exe))
 	@echo "optimizing for $(GOOSARCH) with GOOS=$(GOOS) and GOARCH=$(GOARCH) and GOARM=$(GOARM)"
 	@if [ -z "$(OUTPUT_DIR)" ]; then \
 		if [[ " $(SUPPORT_OPTIMIZATION) " =~ " $(GOOSARCH) " ]]; then \
-			upx $(BUILD_DIR)/$(GOOS)/$(GOARCH)/$(GOARM)/$(BINARY_NAME); \
+			upx $(BUILD_DIR)/$(GOOS)_$(GOARCH)$(GOARM)/$(PKG_NAME); \
 		fi \
 	else \
 		if [[ " $(SUPPORT_OPTIMIZATION) " =~ " $(GOOSARCH) " ]]; then \
-			upx $(OUTPUT_DIR)/$(BINARY_NAME); \
+			upx $(OUTPUT_DIR)/$(PKG_NAME); \
 		fi \
 	fi
 
