@@ -33,7 +33,7 @@ func CommandLogin() cli.Command {
 		Description: "Login to pantahub with your username & password with an optional end point",
 		Flags: []cli.Flag{
 			cli.BoolFlag{
-				Name:  "interactive, -i",
+				Name:  "interactive, i",
 				Usage: "Login using only interactive mode",
 			},
 		},
