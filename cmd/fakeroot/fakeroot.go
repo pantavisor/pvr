@@ -1,3 +1,6 @@
+//go:build darwin || windows
+// +build darwin windows
+
 // Copyright 2017-2024  Pantacor Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");

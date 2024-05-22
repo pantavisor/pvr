@@ -97,12 +97,12 @@ func main() {
 	cliApp.Flags = []cli.Flag{
 		cli.StringFlag{
 			Name:   "user, u",
-			Usage:  "Use `PVR_USERNAME` for authentication and authorization with core services",
+			Usage:  "Username used for authentication with core services",
 			EnvVar: "PVR_USERNAME",
 		},
 		cli.StringFlag{
 			Name:   "password, p",
-			Usage:  "Use `PVR_PASSWORD` for authentication and authorization with core services",
+			Usage:  "Password used for authentication with core services",
 			EnvVar: "PVR_PASSWORD",
 		},
 		cli.StringFlag{
