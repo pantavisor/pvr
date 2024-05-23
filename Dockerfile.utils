@@ -6,3 +6,5 @@ COPY --from=pvr /go/bin/linux_amd64/pvr /usr/local/bin/pvr
 
 RUN apk update && apk add --no-cache jq make git curl && rm -rf /var/cache/apk/*
 
+RUN pvr sig download
+
