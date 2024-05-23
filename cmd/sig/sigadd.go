@@ -115,6 +115,7 @@ func CommandSigAdd() cli.Command {
 					c.App.Metadata["PVS_CERTS_URL"].(string),
 					pvr.Session.GetConfigDir(),
 					libpvr.SigKeyFilename,
+					false,
 				)
 				if err != nil {
 					return cli.NewExitError(err, 127)
@@ -127,6 +128,7 @@ func CommandSigAdd() cli.Command {
 					c.App.Metadata["PVS_CERTS_URL"].(string),
 					pvr.Session.GetConfigDir(),
 					libpvr.SigX5cFilename,
+					false,
 				)
 				if err != nil {
 					return cli.NewExitError(err, 127)

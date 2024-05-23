@@ -6,4 +6,5 @@ COPY . .
 RUN apk add jq && \
 	rm -rf /var/cache/apk/*
 
+RUN go build -o _test/pvr . && _test/pvr sig download
 RUN ./run_test.sh

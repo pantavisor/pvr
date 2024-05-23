@@ -34,6 +34,7 @@ func CommandSig() cli.Command {
 			CommandSigAdd(),
 			CommandSigUpdate(),
 			CommandSigLs(),
+			CommandSigDownload(),
 		},
 		Flags: []cli.Flag{
 			cli.StringFlag{

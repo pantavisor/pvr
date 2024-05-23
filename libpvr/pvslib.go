@@ -66,10 +66,10 @@ const (
 	SigCacertFilename = "cacerts.default.pem"
 )
 
-func GetFromConfigPvs(url, configPath, name string) (string, error) {
+func GetFromConfigPvs(url, configPath, name string, force bool) (string, error) {
 	cert := path.Join(configPath, "pvs", name)
-	if _, err := os.Stat(cert); errors.Is(err, os.ErrNotExist) {
-		err := DownloadSigningCertWithConfirmation(url, configPath)
+	if _, err := os.Stat(cert); errors.Is(err, os.ErrNotExist) || force {
+		err := DownloadSigningCertWithConfirmation(url, configPath, force)
 		if err != nil {
 			return "", err
 		}
@@ -79,16 +79,18 @@ func GetFromConfigPvs(url, configPath, name string) (string, error) {
 }
 
 // DownloadSigningCertWithConfirmation ask for confirmation to download signing certs
-func DownloadSigningCertWithConfirmation(url, path string) error {
-	question := fmt.Sprintf(
-		"%s %s\n%s",
-		"Do you want to download the default",
-		"developer keys that can be validated by pantavisor official developer builds? [yes/no]",
-		"(NOTE: this should be used only for development proposes because they are not secret)",
-	)
-	c := AskForConfirmation(question)
-	if !c {
-		return nil
+func DownloadSigningCertWithConfirmation(url, path string, force bool) error {
+	if !force {
+		question := fmt.Sprintf(
+			"%s %s\n%s",
+			"Do you want to download the default",
+			"developer keys that can be validated by pantavisor official developer builds? [yes/no]",
+			"(NOTE: this should be used only for development proposes because they are not secret)",
+		)
+		c := AskForConfirmation(question)
+		if !c {
+			return nil
+		}
 	}
 
 	fmt.Printf("Downloading certs from: \n%s\n", url)
