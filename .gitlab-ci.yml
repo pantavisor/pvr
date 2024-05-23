@@ -1,6 +1,7 @@
 image: docker:stable
 
 stages:
+  - test
   - build
   - deploy
 
@@ -17,6 +18,14 @@ before_script:
   - apk add zip
   - docker run --rm -v $PWD:/src -w /src golang:alpine sh -c "apk update && apk add git && go mod download && go mod vendor"
   - tar -cvzf "vendor.tar.gz" ./vendor/
+
+run-test:
+  stage: test
+  script:
+    - docker pull $CONTAINER_IMAGE-test:latest || true
+    - docker build -f .Dockerfile.test --cache-from $CONTAINER_IMAGE-test:latest --tag $CONTAINER_IMAGE-test:$CI_COMMIT_SHORT_SHA --tag $CONTAINER_IMAGE-test:latest .
+    - docker push $CONTAINER_IMAGE-test:$CI_COMMIT_SHORT_SHA
+    - docker push $CONTAINER_IMAGE-test:latest
 
 build-tags:
   stage: build

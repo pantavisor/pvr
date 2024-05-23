@@ -1,13 +1,3 @@
-FROM golang:1.21.5-alpine
-
-WORKDIR /app
-COPY . .
-
-RUN apk add jq && \
-	rm -rf /var/cache/apk/*
-
-RUN ./run_test.sh
-
 FROM golang:1.21.5-alpine as src
 
 ENV GO111MODULES=on
