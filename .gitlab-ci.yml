@@ -125,7 +125,7 @@ build-utils:
   stage: deploy
   script:
     - docker pull $CONTAINER_IMAGE:$CI_COMMIT_REF_SLUG-$CI_COMMIT_SHORT_SHA || true
-    - docker build --cache-from $CONTAINER_IMAGE-utils:$CI_COMMIT_REF_SLUG-$CI_COMMIT_SHORT_SHA --tag $CONTAINER_IMAGE-utils:$CI_COMMIT_REF_SLUG --tag $CONTAINER_IMAGE-utils:$CI_COMMIT_REF_SLUG-$CI_COMMIT_SHORT_SHA .
+    - docker build -f .Dockerfile.utils --cache-from $CONTAINER_IMAGE-utils:$CI_COMMIT_REF_SLUG-$CI_COMMIT_SHORT_SHA --tag $CONTAINER_IMAGE-utils:$CI_COMMIT_REF_SLUG --tag $CONTAINER_IMAGE-utils:$CI_COMMIT_REF_SLUG-$CI_COMMIT_SHORT_SHA .
     - docker push $CONTAINER_IMAGE-utils:$CI_COMMIT_REF_SLUG
     - docker push $CONTAINER_IMAGE-utils:$CI_COMMIT_REF_SLUG-$CI_COMMIT_SHORT_SHA
   only:
