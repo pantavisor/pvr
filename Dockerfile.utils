@@ -4,7 +4,7 @@ FROM alpine:3.18
 
 COPY --from=pvr /pkg/bin/linux_amd64/pvr /usr/local/bin/pvr
 
-RUN apk update && apk add --no-cache jq make git curl && rm -rf /var/cache/apk/*
+RUN apk update && apk add --no-cache jq make git curl squashfs-tools fakeroot && rm -rf /var/cache/apk/*
 
 RUN pvr sig download
 
