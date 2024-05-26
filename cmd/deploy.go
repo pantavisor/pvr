@@ -152,6 +152,10 @@ func CommandDeploy() cli.Command {
 				Name:  "nomerge, n",
 				Usage: "Replace full target state (by default we try a merge)",
 			},
+			cli.StringFlag{
+				Name:  "objects, o",
+				Usage: "Directory to store objects in. Defaults to ~/.pvr/objects",
+			},
 		},
 	}
 }
