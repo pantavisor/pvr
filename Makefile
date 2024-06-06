@@ -27,7 +27,7 @@ GOBUILD = $(GOCMD) build
 GOCLEAN = $(GOCMD) clean
 GOTEST = $(GOCMD) test
 GOGET = $(GOCMD) get
-DEBUG ?= 0
+DEBUG ?= 1
 OPTIMIZE ?= 1
 CGO = CGO_ENABLED=0
 export DEBUG OPTIMIZE
