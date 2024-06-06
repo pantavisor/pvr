@@ -503,14 +503,35 @@ func (p *Pvr) InitCustom(customInitJson string, objectsDir string) error {
 
 	// allow overwrite and remember abs path in config
 	if objectsDir != "" {
-		p.Objdir, err = filepath.Abs(objectsDir)
-
+		dir, err := filepath.Abs(p.Dir)
 		if err != nil {
 			return errors.New("Unexpected Error 1: " + err.Error())
 		}
 
-		p.Pvrconfig.ObjectsDir = p.Objdir
-		p.SaveConfig()
+		objAbs, err := filepath.Abs(filepath.Join(dir, objectsDir))
+		if err != nil {
+			return errors.New("Unexpected Error 1: " + err.Error())
+		}
+
+		relativePath, err := filepath.Rel(dir, objAbs)
+		if err != nil {
+			return errors.New("Unexpected Error 1: " + err.Error())
+		}
+
+		// check if objectsDir is in pvrdir
+		if filepath.Join(relativePath, "/") == filepath.Join(objectsDir, "/") {
+			p.Objdir = objectsDir
+			p.Pvrconfig.ObjectsDir = objectsDir
+			p.SaveConfig()
+		} else {
+			p.Objdir, err = filepath.Abs(objectsDir)
+			if err != nil {
+				return errors.New("Unexpected Error 1: " + err.Error())
+			}
+
+			p.Pvrconfig.ObjectsDir = p.Objdir
+			p.SaveConfig()
+		}
 	}
 
 	err = os.MkdirAll(p.Objdir, 0755)
@@ -1998,7 +2019,6 @@ func (p *Pvr) GetRepoLocal(getPath string, merge bool, showFilenames bool, state
 		objPathNew := filepath.Join(p.Objdir, v.(string)+".new")
 		objPath := filepath.Join(p.Objdir, v.(string))
 		fileExists, err := IsFileExists(objPath)
-
 		if err != nil {
 			return objectsCount, err
 		}
