@@ -143,7 +143,6 @@ func (s *Session) DoAuthCall(withAnonToken, interactiveOnly bool, fn WrappableRe
 
 	// Add one last retry with the last method, if it exists
 	retryMethods = append(retryMethods, GetAccesstokenMethod(-1))
-
 	for _, method := range retryMethods {
 		var newAuthHeader string
 
@@ -204,7 +203,9 @@ func (s *Session) DoAuthCall(withAnonToken, interactiveOnly bool, fn WrappableRe
 	// now that we would have a refreshed bearer, lets go again
 	if bearer != "" {
 		s.GetApp().Metadata["PVR_AUTH"] = bearer
-	} else {
+	}
+
+	if bearer == "" && err != nil {
 		fmt.Fprintln(os.Stderr, "** ACCESS DENIED: user cannot access repository. **")
 	}
 
