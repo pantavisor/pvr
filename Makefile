@@ -27,8 +27,10 @@ GOBUILD = $(GOCMD) build
 GOCLEAN = $(GOCMD) clean
 GOTEST = $(GOCMD) test
 GOGET = $(GOCMD) get
+UPXMODE ?=
 DEBUG ?= 1
 OPTIMIZE ?= 1
+PRODUCTION ?= 0
 CGO = CGO_ENABLED=0
 export DEBUG OPTIMIZE
 
@@ -65,9 +67,9 @@ build-%:
 	@echo ""
 	@echo "building for $(GOOSARCH) with GOOS=$(GOOS) and GOARCH=$(GOARCH) and GOARM=$(GOARM)"
 	@if [ -z "$(OUTPUT_DIR)" ]; then \
-		GOOS=$(GOOS) GOARCH=$(GOARCH) GOARM=$(GOARM) $(CGO) $(GOBUILD) -o $(BUILD_DIR)/$(GOOS)_$(GOARCH)$(GOARM)/$(PKG_NAME) $(GCFLAGS) $(LDFLAGS) -v .; \
+		GOOS=$(GOOS) GOARCH=$(GOARCH) GOARM=$(GOARM) $(CGO) $(GOBUILD) -o $(BUILD_DIR)/$(GOOS)_$(GOARCH)$(GOARM)/$(PKG_NAME) $(GCFLAGS) $(LDFLAGS) -trimpath -v .; \
 	else \
-		GOOS=$(GOOS) GOARCH=$(GOARCH) GOARM=$(GOARM) $(CGO) $(GOBUILD) -o $(OUTPUT_DIR)/$(PKG_NAME) $(GCFLAGS) $(LDFLAGS) -v .; \
+		GOOS=$(GOOS) GOARCH=$(GOARCH) GOARM=$(GOARM) $(CGO) $(GOBUILD) -o $(OUTPUT_DIR)/$(PKG_NAME) $(GCFLAGS) $(LDFLAGS) -trimpath -v .; \
 	fi
 	@if [ "$(OPTIMIZE)" == "1" ]; then make optimize-$(GOOSARCH); fi
 
@@ -85,11 +87,11 @@ optimize-%:
 	@echo "optimizing for $(GOOSARCH) with GOOS=$(GOOS) and GOARCH=$(GOARCH) and GOARM=$(GOARM)"
 	@if [ -z "$(OUTPUT_DIR)" ]; then \
 		if [[ " $(SUPPORT_OPTIMIZATION) " =~ " $(GOOSARCH) " ]]; then \
-			upx $(BUILD_DIR)/$(GOOS)_$(GOARCH)$(GOARM)/$(PKG_NAME); \
+			upx $(UPXMODE) $(BUILD_DIR)/$(GOOS)_$(GOARCH)$(GOARM)/$(PKG_NAME); \
 		fi \
 	else \
 		if [[ " $(SUPPORT_OPTIMIZATION) " =~ " $(GOOSARCH) " ]]; then \
-			upx $(OUTPUT_DIR)/$(PKG_NAME); \
+			upx $(UPXMODE) $(OUTPUT_DIR)/$(PKG_NAME); \
 		fi \
 	fi
 
@@ -99,7 +101,7 @@ clean:
 
 # Test target
 test:
-	$(GOTEST) -v ./... && ./run_test.sh
+	$(GOTEST) -trimpath -v ./... && ./run_test.sh
 
 # Get dependencies
 deps:
