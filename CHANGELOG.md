@@ -1,12 +1,45 @@
 
-<a name="038"></a>
-## [038](https://gitlab.com/pantacor/pvr/compare/037...038) (2024-02-28)
+<a name="039"></a>
+## [039](https://gitlab.com/pantacor/pvr/compare/038...039) (2024-06-07)
 
 ### Feature
 
+* add objects relative to pvr.InitCustom for pvr init and pvr deploy
+* make pvr binaries smaller with debugger include
+* add makefile to create binaries for debug and release, test and optimize with upx
+* add fakeroot as subcommand it will use user namespaces on linux and fakeroot binary on darwin and windows
+* device token managment
+* **app:** app remove will try to remove all the signed files of the app when delete the application
+* **auth:** add support to user password via arguments and .netrc
+* **sig:** add download command to download from URL using default URL
+* **statelib:** delete app will check if files are already signed by another signature
+* **testing:** add support to run specific test inside the _test/pvr.sh
+
+### Fix
+
+* makefile expose the goos goarch and goarm variables
+* **auth:** login shortcut for interactive
+* **auth:** getNewAccessToken methods need to be explicit
+* **makefile:** remove go clean because deletes the _test folder
+
+### Refactor
+
+* -u and -p arguments mesages
+* **app rm:** remove signature file after getting all the files to be deleted
+* **auth:** Retry method numbers
+* **statelib:** make clear why it should get signature from state
+
+
+<a name="038"></a>
+## [038](https://gitlab.com/pantacor/pvr/compare/037...038) (2024-04-29)
+
+### Feature
+
+* app add --add-only this will add the container without installing it
 * docker lib add support to oci manifest
 * **app add:** add args-json to setup src.json args and config as parameters to set src.json config key
 * **cmd:** add version command with go build version
+* **device:** device creation return error if device exists and support pvr repo url
 * **export:** make export builds reproducible by stardarize the timestamps and squashfs reproducibility
 * **repolib:** move merge state logic to library function
 * **self-upgrade:** self upgrade command always force update doesn't matter if installed_version have same digest
@@ -15,22 +48,25 @@
 
 ### Fix
 
+* use golang 1.21.5 to run test and build pvr
 * pvr status show multiple changes for same device.
 * pvr post --rev not working for non int strings
 * **app add:** app add need to add the app config to the src.json as the key config not docker_config
+* **ci:** push to tag branch
 * **ci:** change gitlab ci variables
 * **ci:** push to tag branch
-* **ci:** push to tag branch
 * **cmd:** import dm as submodule
+* **device:** device create with repo path, read correct usernick and devicenick
 * **diff:** update json-patch to get right diffing and status
 * **dockerlib:** use correct sha256 cache file when if cloning for local (removing the repository name)
 * **jsonpatch:** update json-patch library to support big integer on json values
-* **statelib:** remove glob and regex printing
+* **repolib:** solve problem with the upload of files with size 0
+* **statelib:** don't remove spec and signature content when adding new signature
 * **statelib:** mark package as signed when signed parts are present
 * **statelib:** use jsondiff and patch to merge two json instead of jsonpatch
-* **statelib:** convert ** into .* even when doesn't start with /
-* **statelib:** don't remove spec and signature content when adding new signature
+* **statelib:** remove glob and regex printing
 * **statelib:** normal merge should only remove and add again the frags in the patch json or the src removal frags
+* **statelib:** convert ** into .* even when doesn't start with /
 * **test:** removing signature doesn't delete all the parts of package only the signature
 
 ### Refactor
@@ -280,4 +316,3 @@
 
 <a name="001"></a>
 ## 001 (2017-06-19)
-
