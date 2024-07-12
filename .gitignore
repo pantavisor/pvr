@@ -4,3 +4,4 @@ build
 testdata/*.json
 .pvr
 _test/results
+vendor
