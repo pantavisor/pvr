@@ -1,5 +1,5 @@
-//go:build darwin || windows
-// +build darwin windows
+//go:build darwin || windows || !go1.21 || !experimental
+// +build darwin windows !go1.21 !experimental
 
 // Copyright 2017-2024  Pantacor Ltd.
 //

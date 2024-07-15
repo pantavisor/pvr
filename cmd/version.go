@@ -18,7 +18,7 @@ package cmd
 
 import (
 	"fmt"
-	"runtime/debug"
+	"runtime"
 	"strings"
 
 	"github.com/urfave/cli"
@@ -31,12 +31,7 @@ func CommandVersion() cli.Command {
 		Description: "Get pvr version",
 		Action: func(c *cli.Context) error {
 			fmt.Println(c.App.Version)
-			bi, ok := debug.ReadBuildInfo()
-			if !ok {
-				return nil
-			}
-
-			fmt.Printf("  go version: %s\n", strings.ReplaceAll(bi.GoVersion, "go", ""))
+			fmt.Printf("  go version: %s\n", strings.ReplaceAll(runtime.Version(), "go", ""))
 
 			return nil
 		},
