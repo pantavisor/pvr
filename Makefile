@@ -26,7 +26,7 @@ GOCMD = go
 GOBUILD = $(GOCMD) build
 GOCLEAN = $(GOCMD) clean
 GOTEST = $(GOCMD) test
-GOGET = $(GOCMD) get
+GOGET = $(GOCMD) mod vendor
 UPXMODE ?=
 DEBUG ?= 1
 OPTIMIZE ?= 1
@@ -105,5 +105,5 @@ test:
 
 # Get dependencies
 deps:
-	$(GOGET) -d ./...
+	go mod download && go mod vendor
 
