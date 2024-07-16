@@ -2,8 +2,6 @@ module gitlab.com/pantacor/pvr
 
 go 1.21
 
-toolchain go1.22.3
-
 require (
 	github.com/ChannelMeter/iso8601duration v0.0.0-20150204201828-8da3af7a2a61
 	github.com/Masterminds/sprig v2.22.0+incompatible
