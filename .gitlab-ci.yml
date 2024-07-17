@@ -15,7 +15,7 @@ variables:
 before_script:
   - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN registry.gitlab.com
   - apk update
-  - apk add zip
+  - apk add --no-cache zip curl tar file
 
 run-test:
   stage: test
@@ -139,4 +139,45 @@ build-utils:
     - docker push $CONTAINER_IMAGE:utils-$CI_COMMIT_REF_SLUG
     - docker push $CONTAINER_IMAGE:utils-$CI_COMMIT_REF_SLUG-$CI_COMMIT_SHORT_SHA
   only:
+    - develop
+
+package-deploy:
+  stage: deploy
+  script: |
+    set -ex
+    tar -czvf src.tar.gz --exclude=vendor Makefile main.go go.mod go.sum $(find . -name '*.go' -type f -printf '%P ')
+    docker pull $CONTAINER_IMAGE:stable || true || true
+    tempdir=`mktemp -d`
+    docker run --rm $CONTAINER_IMAGE:stable | tar -C $tempdir -x
+    tar -cvzf pvr.linux.amd64.tar.gz -C $tempdir/bin/linux_amd64 pvr
+    tar -cvzf pvr.linux.arm.tar.gz -C $tempdir/bin/linux_arm pvr
+    tar -cvzf pvr.linux.arm64.tar.gz -C $tempdir/bin/linux_arm64 pvr
+    tar -cvzf pvr.darwin.amd64.tar.gz -C $tempdir/bin/darwin_amd64 pvr
+    tar -cvzf pvr.darwin.arm64.tar.gz -C $tempdir/bin/darwin_arm64 pvr
+    echo CWD `pwd`
+    sh -c "cd $tempdir/bin/windows_386/; zip pvr.windows.x32.zip pvr.exe"
+    cp $tempdir/bin/windows_386/pvr.windows.x32.zip .
+    sh -c "cd $tempdir/bin/windows_amd64/; zip pvr.windows.x64.zip pvr.exe"
+    cp $tempdir/bin/windows_amd64/pvr.windows.x64.zip .
+    cp $tempdir/pvr-vendor.tar.gz .
+    PACKAGE_NAME="pvr"
+    for file in $(find . -maxdepth 1 -type f -name "*.tar.gz" -o -name "*.zip"); do
+      filename=$(basename $file)
+      ARCH=$(echo $filename | cut -d '.' -f 2,3)
+      extension=$(echo $filename | cut -d '.' -f 4,5)
+      if [ "$filename" == "pvr-vendor.tar.gz" ]; then
+        ARCH="vendor"
+        extension="tar.gz"
+      fi
+      if [ "$filename" == "src.tar.gz" ]; then
+        ARCH="src"
+        extension="tar.gz"
+      fi
+      VERSION_SHORT=${CI_COMMIT_TAG:-$CI_COMMIT_REF_SLUG}
+      VERSION_LONG="$VERSION_SHORT-$CI_COMMIT_SHORT_SHA"
+      curl --header "JOB-TOKEN: $CI_JOB_TOKEN" --upload-file $file "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/${PACKAGE_NAME}/${VERSION_LONG}/${PACKAGE_NAME}.${VERSION_LONG}.${ARCH}.${extension}"
+      curl --header "JOB-TOKEN: $CI_JOB_TOKEN" --upload-file $file "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/${PACKAGE_NAME}/${VERSION_SHORT}/${PACKAGE_NAME}.${VERSION_SHORT}.${ARCH}.${extension}"
+    done
+  only:
+    - tags
     - develop
