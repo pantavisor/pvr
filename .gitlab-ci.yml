@@ -15,7 +15,7 @@ variables:
 before_script:
   - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN registry.gitlab.com
   - apk update
-  - apk add --no-cache zip curl tar file
+  - apk add --no-cache zip curl tar findutils
 
 run-test:
   stage: test
