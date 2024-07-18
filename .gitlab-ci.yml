@@ -145,7 +145,11 @@ package-deploy:
   stage: deploy
   script: |
     set -ex
-    tar -czvf src.tar.gz --exclude=vendor Makefile main.go go.mod go.sum $(find . -name '*.go' -type f -printf '%P ')
+    PACKAGE_NAME="pvr"
+    VERSION_SHORT=${CI_COMMIT_TAG:-$CI_COMMIT_REF_SLUG}
+    VERSION_LONG="$VERSION_SHORT-$CI_COMMIT_SHORT_SHA"
+    ROOT_FOLDER="pvr-$VERSION_SHORT"
+    tar -czvf src.tar.gz --exclude vendor -C . go.mod go.sum Makefile $(find . -name '*.go' -type f -printf '%P ') --transform "s,^,${ROOT_FOLDER}/,"
     docker pull $CONTAINER_IMAGE:stable || true || true
     tempdir=`mktemp -d`
     docker run --rm $CONTAINER_IMAGE:stable | tar -C $tempdir -x
@@ -160,7 +164,6 @@ package-deploy:
     sh -c "cd $tempdir/bin/windows_amd64/; zip pvr.windows.x64.zip pvr.exe"
     cp $tempdir/bin/windows_amd64/pvr.windows.x64.zip .
     cp $tempdir/pvr-vendor.tar.gz .
-    PACKAGE_NAME="pvr"
     for file in $(find . -maxdepth 1 -type f -name "*.tar.gz" -o -name "*.zip"); do
       filename=$(basename $file)
       ARCH=$(echo $filename | cut -d '.' -f 2,3)
@@ -173,8 +176,6 @@ package-deploy:
         ARCH="src"
         extension="tar.gz"
       fi
-      VERSION_SHORT=${CI_COMMIT_TAG:-$CI_COMMIT_REF_SLUG}
-      VERSION_LONG="$VERSION_SHORT-$CI_COMMIT_SHORT_SHA"
       curl --header "JOB-TOKEN: $CI_JOB_TOKEN" --upload-file $file "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/${PACKAGE_NAME}/${VERSION_LONG}/${PACKAGE_NAME}.${VERSION_LONG}.${ARCH}.${extension}"
       curl --header "JOB-TOKEN: $CI_JOB_TOKEN" --upload-file $file "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/${PACKAGE_NAME}/${VERSION_SHORT}/${PACKAGE_NAME}.${VERSION_SHORT}.${ARCH}.${extension}"
     done
