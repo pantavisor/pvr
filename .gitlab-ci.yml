@@ -102,7 +102,7 @@ build:
     - docker build --build-arg DOCKERTAG=$CI_COMMIT_REF_SLUG-$CI_COMMIT_SHORT_SHA --cache-from $CONTAINER_IMAGE:utils-$CI_COMMIT_REF_SLUG-$CI_COMMIT_SHORT_SHA --tag $CONTAINER_IMAGE:utils-$CI_COMMIT_REF_SLUG --tag $CONTAINER_IMAGE:utils-$CI_COMMIT_REF_SLUG-$CI_COMMIT_SHORT_SHA .
     - docker push $CONTAINER_IMAGE:$CI_COMMIT_REF_SLUG
     - docker push $CONTAINER_IMAGE:$CI_COMMIT_REF_SLUG-$CI_COMMIT_SHORT_SHA
-
+    - docker push $CONTAINER_IMAGE:$CI_COMMIT_SHORT_SHA
     - tempdir=`mktemp -d`
     - docker run --rm $CONTAINER_IMAGE:$CI_COMMIT_REF_SLUG-$CI_COMMIT_SHORT_SHA | tar -C $tempdir -x
     - tar -cvzf pvr.linux.amd64.tar.gz -C $tempdir/bin/linux_amd64 pvr
