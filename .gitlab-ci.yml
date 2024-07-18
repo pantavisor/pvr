@@ -150,9 +150,9 @@ package-deploy:
     VERSION_LONG="$VERSION_SHORT-$CI_COMMIT_SHORT_SHA"
     ROOT_FOLDER="pvr-$VERSION_SHORT"
     tar -czvf src.tar.gz --exclude vendor -C . go.mod go.sum Makefile $(find . -name '*.go' -type f -printf '%P ') --transform "s,^,${ROOT_FOLDER}/,"
-    docker pull $CONTAINER_IMAGE:stable || true || true
+    docker pull $CONTAINER_IMAGE:CI_COMMIT_SHORT_SHA || true || true
     tempdir=`mktemp -d`
-    docker run --rm $CONTAINER_IMAGE:stable | tar -C $tempdir -x
+    docker run --rm $CONTAINER_IMAGE:CI_COMMIT_SHORT_SHA | tar -C $tempdir -x
     tar -cvzf pvr.linux.amd64.tar.gz -C $tempdir/bin/linux_amd64 pvr
     tar -cvzf pvr.linux.arm.tar.gz -C $tempdir/bin/linux_arm pvr
     tar -cvzf pvr.linux.arm64.tar.gz -C $tempdir/bin/linux_arm64 pvr
