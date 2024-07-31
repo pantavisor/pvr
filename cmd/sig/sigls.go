@@ -21,70 +21,11 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"sort"
 	"strings"
 
 	"github.com/urfave/cli"
 	"gitlab.com/pantacor/pvr/libpvr"
 )
-
-func uniqueSlice(stringSlice []string) []string {
-	var unique []string
-	var stack *string
-	for _, v := range stringSlice {
-		// if we have nothing on stack, we will add this one
-		if stack == nil {
-			goto append
-		}
-		// if the stack element is the same; we skip
-		if v == *stack {
-			continue
-		}
-
-	append:
-		// here we move forward
-		v1 := v
-		stack = &v1
-		unique = append(unique, v)
-	}
-
-	return unique
-}
-
-func mergeSummary(dest *libpvr.JwsVerifySummary, merge ...libpvr.JwsVerifySummary) {
-	for _, m := range merge {
-		dest.Excluded = append(dest.Excluded, m.Excluded...)
-		dest.Protected = append(dest.Protected, m.Protected...)
-		dest.NotSeen = append(dest.NotSeen, m.NotSeen...)
-		dest.FullJSONWebSigs = append(dest.FullJSONWebSigs, m.FullJSONWebSigs...)
-	}
-	sort.Strings(dest.Excluded)
-	sort.Strings(dest.NotSeen)
-	sort.Strings(dest.Protected)
-	dest.Protected = uniqueSlice(dest.Protected)
-	excluded := uniqueSlice(dest.Excluded)
-	dest.Excluded = nil
-	for _, v := range excluded {
-		i := sort.SearchStrings(dest.Protected, v)
-		if i < len(dest.Protected) && dest.Protected[i] == v {
-			continue
-		}
-		dest.Excluded = append(dest.Excluded, v)
-	}
-	notseen := uniqueSlice(dest.NotSeen)
-	dest.NotSeen = nil
-	for _, v := range notseen {
-		i := sort.SearchStrings(dest.Protected, v)
-		if i < len(dest.Protected) && dest.Protected[i] == v {
-			continue
-		}
-		i = sort.SearchStrings(dest.Excluded, v)
-		if i < len(dest.Excluded) && dest.Excluded[i] == v {
-			continue
-		}
-		dest.NotSeen = append(dest.NotSeen, v)
-	}
-}
 
 func CommandSigLs() cli.Command {
 	return cli.Command{
@@ -179,7 +120,7 @@ func CommandSigLs() cli.Command {
 				verifySummary = append(verifySummary, *w)
 			}
 
-			mergeSummary(&resultSummary, verifySummary...)
+			libpvr.MergeSummary(&resultSummary, verifySummary...)
 
 			if !c.Bool("with-sigs") {
 				resultSummary.FullJSONWebSigs = nil

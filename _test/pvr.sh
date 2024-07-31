@@ -49,13 +49,14 @@ test_package_parts_selection() {
   $pvr import $dir/mocks/data/initial_state_02.tar.gz > /dev/null
   $pvr checkout > /dev/null 2>&1
 
-  $pvr merge $dir/mocks/data/initial_state_01.tar.gz#pvr-sdk,_sigs/pvr-sdk.json > /dev/null 2>&1
+  $pvr merge $dir/mocks/data/initial_state_01.tar.gz#_sigs/pvr-sdk.json > /dev/null 2>&1
   $pvr checkout > /dev/null 2>&1
 
-  result="$(cat $dir/results/.pvr/json | jq -c)"
-  expected="$(cat $dir/expected/test_package_parts_selection.json | jq -c)"
+  cat $dir/results/.pvr/json | jq > /tmp/result.json
+  cat $dir/expected/test_package_parts_selection.json | jq > /tmp/expected.json
 
-  assertEquals "$expected" "$result"
+  result=$(diff /tmp/result.json /tmp/expected.json)
+  assertEquals "" "$result"
 }
 
 test_package_parts_selection_removal() {

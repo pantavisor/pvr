@@ -67,6 +67,29 @@ func AddFragsToState(srcState, patchState map[string]interface{}, frags string) 
 	return pJSONMap
 }
 
+func ExpandFragmentsWithSignedParts(src PvrMap, fragments string) (string, error) {
+	result := strings.Split(fragments, ",")
+	srcBuf, err := json.Marshal(src)
+	if err != nil {
+		return "", err
+	}
+
+	for _, frag := range strings.Split(fragments, ",") {
+		if !strings.HasPrefix(frag, "_sigs/") {
+			continue
+		}
+
+		summary, err := getSigSummary(srcBuf, src, src[frag].(map[string]interface{}))
+		if err != nil {
+			return "", err
+		}
+		result = append(result, summary.Excluded...)
+		result = append(result, summary.Protected...)
+	}
+
+	return strings.Join(result, ","), nil
+}
+
 func FilterByFrags(state map[string]interface{}, frags string) (map[string]interface{}, error) {
 	pJSONMap := copyState(state)
 
