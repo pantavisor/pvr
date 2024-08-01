@@ -721,12 +721,15 @@ func (p *Pvr) MakeSquash(rootfsPath string, app *AppData) error {
 func GetPersistence(app *AppData) (map[string]string, error) {
 	persistence := map[string]string{}
 	for _, volume := range app.Volumes {
-		split := strings.Split(volume, ":")
+		split := strings.SplitN(volume, ":", 3)
 		if len(split) < 2 {
 			return nil, ErrInvalidVolumeFormat
 		}
-
-		persistence[split[0]] = split[1]
+		if len(split) == 3 {
+			persistence[split[0] + ":" + split[1]] = split[2]
+		} else {
+			persistence[split[0]] = split[1]
+		}
 	}
 
 	return persistence, nil
