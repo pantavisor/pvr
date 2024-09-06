@@ -1059,6 +1059,20 @@ func readChallenge(targetPrompt string) string {
 	return strings.TrimRight(challenge, "\n")
 }
 
+func readConfirmation(targetPrompt string) bool {
+	reader := bufio.NewReader(os.Stdin)
+
+	fmt.Fprint(os.Stderr, "The device "+targetPrompt+" will be deleted. Do you want to continue(y/N)? ")
+	confirm, _ := reader.ReadString('\n')
+	c := strings.TrimRight(confirm, "\n")
+
+	if c == "y" || c == "Y" {
+		return true
+	}
+
+	return false
+}
+
 func readCredentials(targetPrompt string) (string, string) {
 	reader := bufio.NewReader(os.Stdin)
 
@@ -1164,6 +1178,41 @@ func (p *Pvr) DoClaim(deviceEp, challenge string) error {
 
 	if response.StatusCode() != http.StatusOK {
 		return fmt.Errorf("claiming device failed (code=%d): %s", response.StatusCode(), response.Body())
+	}
+
+	return nil
+}
+
+func (p *Pvr) DoDelete(deviceEp string, confirm bool) error {
+
+	u, err := url.Parse(deviceEp)
+
+	if err != nil {
+		return errors.New("Parsing device URL failed with err=" + err.Error())
+	}
+
+	if confirm == false {
+		confirm = readConfirmation(deviceEp)
+	}
+
+	if confirm == false {
+		fmt.Fprintln(os.Stdout, "Exiting without further action")
+		return nil
+	}
+
+	uV := u.Query()
+	u.RawQuery = uV.Encode()
+
+	response, err := p.Session.DoAuthCall(false, false, func(req *resty.Request) (*resty.Response, error) {
+		return req.Delete(u.String())
+	})
+
+	if err != nil {
+		return errors.New("Deleting device failed with err=" + err.Error())
+	}
+
+	if response.StatusCode() != http.StatusOK {
+		return fmt.Errorf("Deleting device failed (code=%d): %s", response.StatusCode(), response.Body())
 	}
 
 	return nil
