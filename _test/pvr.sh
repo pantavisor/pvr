@@ -4,8 +4,8 @@ set -e
 . $(dirname $0)/helpers
 
 ## Update pvr-sdk with a new package that doesn't have been _dm
-## but because is signed the state should remove first the _dm folder and the 
-## root.hash file. 
+## but because is signed the state should remove first the _dm folder and the
+## root.hash file.
 test_package_update_with_less_files() {
   clean_results
   cd $dir/results/
@@ -16,6 +16,7 @@ test_package_update_with_less_files() {
 
   $pvr merge $dir/mocks/data/pvr-sdk_no_dm.tar.gz > /dev/null 2>&1
   $pvr checkout > /dev/null 2>&1
+  $pvr commit
 
   result="$(cat $dir/results/.pvr/json | jq -c)"
   expected="$(cat $dir/expected/test_package_update_with_less_files.json | jq -c)"
@@ -23,9 +24,31 @@ test_package_update_with_less_files() {
   assertEquals "$expected" "$result"
 }
 
+test_pvr_support_big_numbers() {
+  clean_results
+  cd $dir/mocks/data/big_number/
+  tar c json | gzip >/tmp/big_numbers.tar.gz
+
+  cd $dir/results/
+
+  $pvr init
+  $pvr import /tmp/big_numbers.tar.gz > /dev/null
+  $pvr checkout > /dev/null 2>&1
+
+  result="$(cat $dir/results/.pvr/json | jq -c)"
+  expected="$(cat $dir/expected/test_big_numbers.json | jq -c)"
+
+  assertEquals "$expected" "$result"
+
+  $pvr export /tmp/exported_big_numbers.tgz
+  cd /tmp/
+  tar xzvf exported_big_numbers.tgz > /dev/null
+  assertEquals "$expected" "$(cat json)"
+}
+
 ## Remove the pv-avahi signature, this should remove the whole pv-avahi package
 test_signature_removal() {
-  clean_results 
+  clean_results
   cd $dir/results/
 
   $pvr init
@@ -139,8 +162,8 @@ test_reproducible_exports() {
   clean_results
   cd $dir/results/
 
-  mkdir device 
-  cd device 
+  mkdir device
+  cd device
 
   $pvr init --objects .pvr/objects
   $pvr merge $dir/mocks/data/pvwebstatus.tar.gz > /dev/null 2>&1
@@ -177,8 +200,8 @@ test_remove_app_with_signature() {
 
   cd $dir/results/
 
-  mkdir device 
-  cd device 
+  mkdir device
+  cd device
 
   $pvr init --objects .pvr/objects
   $pvr get $dir/mocks/data/pvwebstatus.tar.gz > /dev/null 2>&1
@@ -188,14 +211,14 @@ test_remove_app_with_signature() {
   $pvr sig add --noconfig --part pvwebstatus
   $pvr add && $pvr commit > /dev/null 2>&1
   $pvr sig ls > /dev/null 2>&1
-  
+
   $pvr app rm pvwebstatus > /dev/null 2>&1
   $pvr add && $pvr commit > /dev/null 2>&1
 
   result="$($pvr json | jq)"
   expected="$(cat $dir/expected/test_remove_app_with_signature.json | jq)"
 
-  assertEquals "$expected" "$result" 
+  assertEquals "$expected" "$result"
 }
 
 test_remove_part_already_signed() {
@@ -203,8 +226,8 @@ test_remove_part_already_signed() {
 
   cd $dir/results/
 
-  mkdir device 
-  cd device 
+  mkdir device
+  cd device
 
   $pvr init --objects .pvr/objects
   $pvr get $dir/mocks/data/package_config_a.tgz > /dev/null 2>&1
@@ -217,7 +240,7 @@ test_remove_part_already_signed() {
 
   # $pvr json | jq  > /tmp/result.json
   # cat $dir/expected/test_remove_part_already_signed_step1.json | jq > /tmp/expected.json
-  
+
   # diff /tmp/result.json /tmp/expected.json
 
   $pvr app rm nginx > /dev/null 2>&1
@@ -227,7 +250,7 @@ test_remove_part_already_signed() {
   result="$($pvr json | jq)"
   expected="$(cat $dir/expected/test_remove_part_already_signed_step2.json | jq)"
 
-  assertEquals "$expected" "$result" 
+  assertEquals "$expected" "$result"
 }
 
 # Load shUnit2.
