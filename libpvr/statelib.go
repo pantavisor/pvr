@@ -549,7 +549,7 @@ func DeleteSignatureFromState(state PvrMap, stateBuf []byte, delSigKey string, d
 	// if the spec doesn't exist but the signature does
 	// we need to get the summary from the signature from the state
 	// Because is an update in the signature
-	if okSpec && signature && !strings.Contains(delSigKey, "_sigs/") {
+	if okSpec && signature && !existsPrevSig {
 		sigSummary, err = getSigSummary(stateBuf, state, delSigValue)
 	}
 
