@@ -150,10 +150,12 @@ test_adding_signature_to_existing_package() {
   $pvr sig add --noconfig --part pvwebstatus
   $pvr add && $pvr commit
   cd $dir
-  result="$(cat $dir/results/.pvr/json | jq -c)"
-  expected="$(cat $dir/expected/test_adding_signature_to_existing_package.json | jq -c)"
 
-  assertEquals "$expected" "$result"
+  cat $dir/results/.pvr/json | jq > /tmp/result.json
+  cat $dir/expected/test_adding_signature_to_existing_package.json | jq > /tmp/expected.json
+
+  diffing=$(diff /tmp/result.json /tmp/expected.json)
+  assertEquals "" "$diffing"
 }
 
 ## Always generate a exported tar with the same sha256sum if the content is the same
@@ -251,6 +253,34 @@ test_remove_part_already_signed() {
   expected="$(cat $dir/expected/test_remove_part_already_signed_step2.json | jq)"
 
   assertEquals "$expected" "$result"
+}
+
+test_update_signature_remove_garbage() {
+  clean_results
+
+  cd $dir/mocks/data/removing_previous_sign_a
+  pvr export /tmp/removing_previous_sign_a.tgz
+
+  cd $dir/mocks/data/removing_previous_sign_b
+  pvr export /tmp/removing_previous_sign_b.tgz
+
+  cd $dir/results/
+  mkdir device
+  cd device
+
+  $pvr init --objects .pvr/objects
+
+  $pvr get /tmp/removing_previous_sign_a.tgz > /dev/null 2>&1
+  $pvr checkout > /dev/null 2>&1
+
+  $pvr get /tmp/removing_previous_sign_b.tgz > /dev/null 2>&1
+  $pvr checkout > /dev/null 2>&1
+
+  $pvr json | jq > /tmp/result.json
+  cat $dir/expected/test_pdate_signature_remove_gc.json | jq > /tmp/expected.json
+
+  diffing=$(diff /tmp/result.json /tmp/expected.json)
+  assertEquals "" "$diffing"
 }
 
 # Load shUnit2.

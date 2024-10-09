@@ -809,6 +809,7 @@ func getSigSummary(stateBuf []byte, stateMap PvrMap, signature PvrMap) (*JwsVeri
 	if err != nil {
 		return nil, err
 	}
+
 	selection, err := selectPayload(stateBuf, match, stateMap)
 	if err != nil {
 		return nil, err

@@ -57,13 +57,11 @@ func (p *Pvr) RemoteCopy(pvrSrc string, pvrDest string, merge bool,
 	}
 
 	srcRemote, err := p.initializeRemote(srcURL)
-
 	if err != nil {
 		return err
 	}
 
 	destRemote, err := p.initializeRemote(destURL)
-
 	if err != nil {
 		return err
 	}
@@ -78,7 +76,9 @@ func (p *Pvr) RemoteCopy(pvrSrc string, pvrDest string, merge bool,
 		return err
 	}
 
-	_, dest, err := PatchState(srcJsonBuf, destJsonBuf, srcURL.Fragment, destURL.Fragment, merge, nil)
+	// For the PatchState always the result json should be the first parameter and the second the patch
+	// in the remote case the destJsonBuf is the one that will receive the patch from the srcJsonBuf
+	_, dest, err := PatchState(destJsonBuf, srcJsonBuf, srcURL.Fragment, destURL.Fragment, merge, nil)
 	if err != nil {
 		return err
 	}
