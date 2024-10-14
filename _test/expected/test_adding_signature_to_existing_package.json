@@ -1,50 +1,48 @@
 {
-  "#spec": "pantavisor-service-system@1",
-  "_sigs/pvwebstatus.json": {
-    "#spec": "pvs@2",
-    "protected": "eyJhbGciOiJSUzI1NiIsImp3ayI6eyJrdHkiOiJSU0EiLCJuIjoidjRJa0w1MzBYRlkyT1V4aG9vOWVRaWZ1TmxRRk9mOGxHblowUlVGSm9aTkRRNWlHRWlxeXhNMEtpOVh5UUpVV1g2RHpXY3lSVVZPUklJS29hRS1yZlB3YUh1QmdOVDRXY2RzRjN6NTRsWGQ5TUNsdWdfejl5bEgtVFNLUGFKam9ORlAyTVdDX0p5dXUxbG5ucW5iNUdzUlQ1WFh1RlA4MTNwVDlnX25fRmFWbDNuendMUnQ5ZmhHOGs3Y1M5MlJyR2Y0R1pqQnYzUEtORnJWOHBvTmZ1aDI5WHJtcTBWc3ktVGpPNUphT2Q2bzVFcXhGZXBKTnMtS21mMUdMZjlfYS1rN0I3YUQyQWdKYy1hSk9GZ2VEVjNtUFBESXFfbmtPeG9tYXA0a3ZlR0RjbkxMcDg2T1VkUEJaLWVjZHl4ZmhRT3plcm44c2o4ODQ1bmhmWlpPRkN3IiwiZSI6IkFRQUIifSwicHZzIjp7ImluY2x1ZGUiOlsicHZ3ZWJzdGF0dXMvKioiXSwiZXhjbHVkZSI6WyJwdndlYnN0YXR1cy9zcmMuanNvbiIsIl9zaWdzL3B2d2Vic3RhdHVzLmpzb24iXX0sInR5cCI6IlBWUyIsIng1YyI6WyJNSUlEYWpDQ0FsS2dBd0lCQWdJUkFLQnNoZS9Bd1A5ZGI2dU9TSUxTdThJd0RRWUpLb1pJaHZjTkFRRUxCUUF3SERFYU1CZ0dBMVVFQXd3UlVHRnVkR0YyYVhOdmNpQkVaWFlnUTBFd0hoY05Nakl3TmpFeU1UQXdNREU0V2hjTk1qUXdPVEUwTVRBd01ERTRXakFhTVJnd0ZnWURWUVFEREE5d2RpMWtaWFpsYkc5d1pYSXRNREV3Z2dFaU1BMEdDU3FHU0liM0RRRUJBUVVBQTRJQkR3QXdnZ0VLQW9JQkFRQy9naVF2bmZSY1ZqWTVUR0dpajE1Q0orNDJWQVU1L3lVYWRuUkZRVW1oazBORG1JWVNLckxFelFxTDFmSkFsUlpmb1BOWnpKRlJVNUVnZ3Fob1Q2dDgvQm9lNEdBMVBoWngyd1hmUG5pVmQzMHdLVzZEL1AzS1VmNU5JbzlvbU9nMFUvWXhZTDhuSzY3V1dlZXFkdmtheEZQbGRlNFUvelhlbFAyRCtmOFZwV1hlZlBBdEczMStFYnlUdHhMM1pHc1ovZ1ptTUcvYzhvMFd0WHltZzErNkhiMWV1YXJSV3pMNU9NN2tsbzUzcWprU3JFVjZrazJ6NHFaL1VZdC8zOXI2VHNIdG9QWUNBbHo1b2s0V0I0TlhlWTg4TWlyK2VRN0dpWnFuaVM5NFlOeWNzdW56bzVSMDhGbjU1eDNMRitGQTdONnVmeXlQenpqbWVGOWxrNFVMQWdNQkFBR2pnYWd3Z2FVd0NRWURWUjBUQkFJd0FEQWRCZ05WSFE0RUZnUVUxZTN4WmhIUkJKejJKSkp5UjE2ZjJMRzIyR013VndZRFZSMGpCRkF3VG9BVVdZdVErcEtDNElicG1DbXZFL2o0SWVxUmdUMmhJS1FlTUJ3eEdqQVlCZ05WQkFNTUVWQmhiblJoZG1semIzSWdSR1YySUVOQmdoUmpjUVowZWlxcXRCazgwZUJqSUFTVFNjV0p5akFUQmdOVkhTVUVEREFLQmdnckJnRUZCUWNEQXpBTEJnTlZIUThFQkFNQ0I0QXdEUVlKS29aSWh2Y05BUUVMQlFBRGdnRUJBQlcwVUN6SDVtN2txNFE0Yi9qelFLM05QeTlQRjhwOWxoOEtzNWR2SElBUWJMbU1LeUZiWFFpcm5YcWVlZUhYOStNVEU2TDdtSlVaNkVab2JlMWppSjZURzNwcnE4M1dyUUhFaEJQV1k5NWFsZFBBblhCeEhPS3o5by9xYTMrZVVZWHVoTVorUFBiWWRjbVpvZTgyQTc3SlZzRzFKRmNlaURsWFZ6YjgvK2p1bWd4MFUzc1hXN2FBcjFaV2FNNFZqWkx0bGZ3Qk9KL1FDTThsdFJhUjJPejdtVGpmVTUzWlgzUThzVkFUR2VVRWhHbFN6SEhUQjQvb01nRnZ3YWhPaWZTeTJuUk1FL0F5L0NqTDMvSDIxRTBHRHAvaUJvQWdQbzcvQWhNZEU5aUYyV2d0Y0F3RVVFcHZqdldJNFlrN1libTMzUEl0VGhsN0NDTmNvNHVOTzlvPSJdfQ",
-    "signature": "NH_He19tP2fZtWUuYiuNyT9G7teqH-22ueXAA8PTWGvlcuHwbJWTpPUOSWWK-6l49YhFPkmW1ocDQEhtHe1hkTD9i5jkWf6wHYJK8FREbC54XPqZn2IRteV3uQW0YD3p60a4QALQ_g04YKlrIWQe5KAkt21f3exDYjM0mPCkD3MiMMeSHAJNVeudJdG9L6pCW5W9ffSsWvyj1yBo2gzOy06rL_3tTbdkTw5MwNPAjNXfG9dsFR0DIGU_aZYqsfJuKDjBXjcYir_w28-U5C6taf-ejH6YTHIIrXtjNEng9DdzIpckXBJecPRlDcmE5ZiirF_5D1PF-SgyBwZmS4xoGg"
-  },
-  "pvwebstatus/lxc.container.conf": "ef6a1e03f820e9e7b480ef7df8402b0b0ce92d4a97f48eb07f80952c1a87d8f7",
-  "pvwebstatus/root.squashfs": "7758de0929e4cdddf27986d9318e2564877f30c3d640eabaa645ec3e3b5e1461",
-  "pvwebstatus/root.squashfs.docker-digest": "65308529f5a18d425540d3179e080267c79663d4299a514e67679153611817a8",
-  "pvwebstatus/run.json": {
-    "#spec": "service-manifest-run@1",
-    "config": "lxc.container.conf",
-    "drivers": {
-      "manual": [],
-      "optional": [],
-      "required": []
-    },
-    "name": "pvwebstatus",
-    "root-volume": "root.squashfs",
-    "storage": {
-      "lxc-overlay": {
-        "persistence": "boot"
-      }
-    },
-    "type": "lxc",
-    "volumes": []
-  },
-  "pvwebstatus/src.json": {
-    "#spec": "service-manifest-src@1",
-    "docker_config": {
-      "ArgsEscaped": true,
-      "Cmd": [
-        "/app/pantavisor-web-status"
-      ],
-      "Env": [
-        "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-      ],
-      "ExposedPorts": {
-        "5000/tcp": {}
-      },
-      "WorkingDir": "/app"
-    },
-    "docker_digest": "registry.gitlab.com/pantacor/pantavisor-web-status@sha256:d53911ee10126c289e1b6ae860eb1b724ff1de8fab96c519bc498f08dd85f790",
-    "docker_name": "registry.gitlab.com/pantacor/pantavisor-web-status",
-    "docker_source": "remote,local",
-    "docker_tag": "master",
-    "template": "builtin-lxc-docker"
-  }
+	"#spec": "pantavisor-service-system@1",
+	"_sigs/pvwebstatus.json": {
+		"#spec": "pvs@2",
+		"protected": "eyJhbGciOiJSUzI1NiIsImp3ayI6eyJrdHkiOiJSU0EiLCJuIjoidjRJa0w1MzBYRlkyT1V4aG9vOWVRaWZ1TmxRRk9mOGxHblowUlVGSm9aTkRRNWlHRWlxeXhNMEtpOVh5UUpVV1g2RHpXY3lSVVZPUklJS29hRS1yZlB3YUh1QmdOVDRXY2RzRjN6NTRsWGQ5TUNsdWdfejl5bEgtVFNLUGFKam9ORlAyTVdDX0p5dXUxbG5ucW5iNUdzUlQ1WFh1RlA4MTNwVDlnX25fRmFWbDNuendMUnQ5ZmhHOGs3Y1M5MlJyR2Y0R1pqQnYzUEtORnJWOHBvTmZ1aDI5WHJtcTBWc3ktVGpPNUphT2Q2bzVFcXhGZXBKTnMtS21mMUdMZjlfYS1rN0I3YUQyQWdKYy1hSk9GZ2VEVjNtUFBESXFfbmtPeG9tYXA0a3ZlR0RjbkxMcDg2T1VkUEJaLWVjZHl4ZmhRT3plcm44c2o4ODQ1bmhmWlpPRkN3IiwiZSI6IkFRQUIifSwicHZzIjp7ImluY2x1ZGUiOlsicHZ3ZWJzdGF0dXMvKioiXSwiZXhjbHVkZSI6WyJwdndlYnN0YXR1cy9zcmMuanNvbiIsIl9zaWdzL3B2d2Vic3RhdHVzLmpzb24iXX0sInR5cCI6IlBWUyIsIng1YyI6WyJNSUlEYWpDQ0FsS2dBd0lCQWdJUkFOSHphVE8ycmhPS2hhcTdVYUFEU1djd0RRWUpLb1pJaHZjTkFRRUxCUUF3SERFYU1CZ0dBMVVFQXd3UlVHRnVkR0YyYVhOdmNpQkVaWFlnUTBFd0hoY05NalF3T1RFMk1UVXpPVE01V2hjTk1qWXhNakl3TVRVek9UTTVXakFhTVJnd0ZnWURWUVFEREE5d2RpMWtaWFpsYkc5d1pYSXRNREV3Z2dFaU1BMEdDU3FHU0liM0RRRUJBUVVBQTRJQkR3QXdnZ0VLQW9JQkFRQy9naVF2bmZSY1ZqWTVUR0dpajE1Q0orNDJWQVU1L3lVYWRuUkZRVW1oazBORG1JWVNLckxFelFxTDFmSkFsUlpmb1BOWnpKRlJVNUVnZ3Fob1Q2dDgvQm9lNEdBMVBoWngyd1hmUG5pVmQzMHdLVzZEL1AzS1VmNU5JbzlvbU9nMFUvWXhZTDhuSzY3V1dlZXFkdmtheEZQbGRlNFUvelhlbFAyRCtmOFZwV1hlZlBBdEczMStFYnlUdHhMM1pHc1ovZ1ptTUcvYzhvMFd0WHltZzErNkhiMWV1YXJSV3pMNU9NN2tsbzUzcWprU3JFVjZrazJ6NHFaL1VZdC8zOXI2VHNIdG9QWUNBbHo1b2s0V0I0TlhlWTg4TWlyK2VRN0dpWnFuaVM5NFlOeWNzdW56bzVSMDhGbjU1eDNMRitGQTdONnVmeXlQenpqbWVGOWxrNFVMQWdNQkFBR2pnYWd3Z2FVd0NRWURWUjBUQkFJd0FEQWRCZ05WSFE0RUZnUVUxZTN4WmhIUkJKejJKSkp5UjE2ZjJMRzIyR013VndZRFZSMGpCRkF3VG9BVVdZdVErcEtDNElicG1DbXZFL2o0SWVxUmdUMmhJS1FlTUJ3eEdqQVlCZ05WQkFNTUVWQmhiblJoZG1semIzSWdSR1YySUVOQmdoUmpjUVowZWlxcXRCazgwZUJqSUFTVFNjV0p5akFUQmdOVkhTVUVEREFLQmdnckJnRUZCUWNEQXpBTEJnTlZIUThFQkFNQ0I0QXdEUVlKS29aSWh2Y05BUUVMQlFBRGdnRUJBQmRrUGVIQzRQdFVvTm95Q3M5T2crZ1BrYmYrTCtkc1NRNFNBdzBjeG9wZXhUMEdSSm5zVU1pemdIcnZFSGJtREdsbGxCWUhlbTJVWExzVVNHRnAvVHBSNTgrVTBxM0JyNXR2SHlrVmh3WFRqU1lxZWk0b3BZVkZyLzVOc2tvMngvd3cwNzRDcWdHQmdObUd0UDZNYWtFOXNkdmc4elU0TlFHeU5YcnFOYjdLOXQ3RXJvb3VGeW5NMWlvUngyNnFIekszcUpKclFPZmZxbFJGNVJTS1g3VWkyR2g4SGgySXhjYm10MjFGb0tZNjN1MUtBVmtRWGFvNkFJSlROaG42K0JwNVdUbnh1anRNc3BHN01pOW1ZeFZOSzh1RUpUQUVCVDZwODVxN2lGcFVrZ0Z6V24xTzVNK3ZzT1RWc1NZRWZqRTA2bGZMYngxY1FvUXdnUU9ZNHhJPSJdfQ",
+		"signature": "r8eCLPdX0gT6r9lzXd_nEayqCukBk_9es9kJApfIMC0JzzdwnHwwbSTGw8-T42fn1m7Kf4PgCC1_4eRhABUUFRVJSjRS4qn7krS_jSHmV_hW06mP5c_jJ_9W7i7IrTmp-KKC_lghmvS2Z98qsTIbSS-t5whuRtfVrYgjwMHgO1cuMTXK52mug1Ly-tN3ptJEWe4hXS5zsLv5F1wtOPA1btknxLccSMBvdxGt61heY4bGJa2LVpoGYSptQToUL0nU0jU7T58RKtd2TIwUI7G2vhE1SSyGYXQ-jTEkKSGvwUpfnSbTc46NbTIbn9RbieD1BP2PO9jSYJHgoSOFFcGxBg"
+	},
+	"pvwebstatus/lxc.container.conf": "ef6a1e03f820e9e7b480ef7df8402b0b0ce92d4a97f48eb07f80952c1a87d8f7",
+	"pvwebstatus/root.squashfs": "7758de0929e4cdddf27986d9318e2564877f30c3d640eabaa645ec3e3b5e1461",
+	"pvwebstatus/root.squashfs.docker-digest": "65308529f5a18d425540d3179e080267c79663d4299a514e67679153611817a8",
+	"pvwebstatus/run.json": {
+		"#spec": "service-manifest-run@1",
+		"config": "lxc.container.conf",
+		"drivers": {
+			"manual": [],
+			"optional": [],
+			"required": []
+		},
+		"name": "pvwebstatus",
+		"root-volume": "root.squashfs",
+		"storage": {
+			"lxc-overlay": {
+				"persistence": "boot"
+			}
+		},
+		"type": "lxc",
+		"volumes": []
+	},
+	"pvwebstatus/src.json": {
+		"#spec": "service-manifest-src@1",
+		"docker_config": {
+			"ArgsEscaped": true,
+			"Cmd": ["/app/pantavisor-web-status"],
+			"Env": [
+				"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+			],
+			"ExposedPorts": {
+				"5000/tcp": {}
+			},
+			"WorkingDir": "/app"
+		},
+		"docker_digest": "registry.gitlab.com/pantacor/pantavisor-web-status@sha256:d53911ee10126c289e1b6ae860eb1b724ff1de8fab96c519bc498f08dd85f790",
+		"docker_name": "registry.gitlab.com/pantacor/pantavisor-web-status",
+		"docker_source": "remote,local",
+		"docker_tag": "master",
+		"template": "builtin-lxc-docker"
+	}
 }

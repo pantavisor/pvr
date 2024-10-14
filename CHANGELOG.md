@@ -1,13 +1,47 @@
 
+<a name="042"></a>
+## [042](https://gitlab.com/pantacor/pvr/compare/040...042) (2024-10-09)
+
+### Feature
+
+* GetRepo function will expand fragments with all files covert by signature
+* **test:** add test for bignumbers
+
+### Fix
+
+* **statelib:** when patching states make sure of deleting previous signed elements
+* **Applib**: fix volumes split to only split the last :
+
+
+<a name="040"></a>
+## [040](https://gitlab.com/pantacor/pvr/compare/039-rev003...040) (2024-07-18)
+
+
+<a name="039-rev003"></a>
+## [039-rev003](https://gitlab.com/pantacor/pvr/compare/039-rev002...039-rev003) (2024-07-17)
+
+
+<a name="039-rev002"></a>
+## [039-rev002](https://gitlab.com/pantacor/pvr/compare/039-rev001...039-rev002) (2024-07-16)
+
+
+<a name="039-rev001"></a>
+## [039-rev001](https://gitlab.com/pantacor/pvr/compare/039...039-rev001) (2024-07-12)
+
+### Feature
+
+* **container:** add vendor.tar.gz to artifacts
+
+
 <a name="039"></a>
-## [039](https://gitlab.com/pantacor/pvr/compare/038...039) (2024-06-07)
+## [039](https://gitlab.com/pantacor/pvr/compare/038...039) (2024-06-28)
 
 ### Feature
 
 * add objects relative to pvr.InitCustom for pvr init and pvr deploy
 * make pvr binaries smaller with debugger include
-* add makefile to create binaries for debug and release, test and optimize with upx
 * add fakeroot as subcommand it will use user namespaces on linux and fakeroot binary on darwin and windows
+* add makefile to create binaries for debug and release, test and optimize with upx
 * device token managment
 * **app:** app remove will try to remove all the signed files of the app when delete the application
 * **auth:** add support to user password via arguments and .netrc
@@ -25,53 +59,80 @@
 ### Refactor
 
 * -u and -p arguments mesages
-* **app rm:** remove signature file after getting all the files to be deleted
+* **app rm:** remove signature file aftger getting all the files to be deleted
 * **auth:** Retry method numbers
 * **statelib:** make clear why it should get signature from state
 
 
 <a name="038"></a>
-## [038](https://gitlab.com/pantacor/pvr/compare/037...038) (2024-04-29)
+## [038](https://gitlab.com/pantacor/pvr/compare/041...038) (2024-04-29)
+
+
+<a name="041"></a>
+## [041](https://gitlab.com/pantacor/pvr/compare/041-rev001...041) (2024-04-17)
+
+
+<a name="041-rev001"></a>
+## [041-rev001](https://gitlab.com/pantacor/pvr/compare/037...041-rev001) (2024-04-17)
 
 ### Feature
 
-* app add --add-only this will add the container without installing it
+* add objects relative to pvr.InitCustom for pvr init and pvr deploy
+* make pvr binaries smaller with debugger include
 * docker lib add support to oci manifest
+* add fakeroot as subcommand it will use user namespaces on linux and fakeroot binary on darwin and windows
+* app add --add-only this will add the container without installing it
+* device token managment
+* add makefile to create binaries for debug and release, test and optimize with upx
+* **app:** app remove will try to remove all the signed files of the app when delete the application
 * **app add:** add args-json to setup src.json args and config as parameters to set src.json config key
+* **auth:** add support to user password via arguments and .netrc
 * **cmd:** add version command with go build version
+* **container:** add vendor.tar.gz to artifacts
 * **device:** device creation return error if device exists and support pvr repo url
 * **export:** make export builds reproducible by stardarize the timestamps and squashfs reproducibility
 * **repolib:** move merge state logic to library function
 * **self-upgrade:** self upgrade command always force update doesn't matter if installed_version have same digest
+* **sig:** add download command to download from URL using default URL
+* **statelib:** delete app will check if files are already signed by another signature
 * **statelib:** on patch/commit remove signed parts before add new ones
 * **steps:** move merge state logic to library function
+* **testing:** add support to run specific test inside the _test/pvr.sh
 
 ### Fix
 
-* use golang 1.21.5 to run test and build pvr
 * pvr status show multiple changes for same device.
+* use golang 1.21.5 to run test and build pvr
 * pvr post --rev not working for non int strings
+* makefile expose the goos goarch and goarm variables
 * **app add:** app add need to add the app config to the src.json as the key config not docker_config
-* **ci:** push to tag branch
+* **auth:** login shortcut for interactive
+* **auth:** getNewAccessToken methods need to be explicit
 * **ci:** change gitlab ci variables
+* **ci:** push to tag branch
 * **ci:** push to tag branch
 * **cmd:** import dm as submodule
 * **device:** device create with repo path, read correct usernick and devicenick
 * **diff:** update json-patch to get right diffing and status
 * **dockerlib:** use correct sha256 cache file when if cloning for local (removing the repository name)
 * **jsonpatch:** update json-patch library to support big integer on json values
+* **makefile:** remove go clean because deletes the _test folder
 * **repolib:** solve problem with the upload of files with size 0
+* **statelib:** convert ** into .* even when doesn't start with /
+* **statelib:** remove glob and regex printing
 * **statelib:** don't remove spec and signature content when adding new signature
 * **statelib:** mark package as signed when signed parts are present
-* **statelib:** use jsondiff and patch to merge two json instead of jsonpatch
-* **statelib:** remove glob and regex printing
 * **statelib:** normal merge should only remove and add again the frags in the patch json or the src removal frags
-* **statelib:** convert ** into .* even when doesn't start with /
+* **statelib:** use jsondiff and patch to merge two json instead of jsonpatch
 * **test:** removing signature doesn't delete all the parts of package only the signature
 
 ### Refactor
 
+* -u and -p arguments mesages
+* **app rm:** remove signature file aftger getting all the files to be deleted
+* **auth:** Retry method numbers
 * **cmd:** refactor commands structure to have submodules for subcommands
+* **statelib:** make clear why it should get signature from state
 
 
 <a name="037"></a>

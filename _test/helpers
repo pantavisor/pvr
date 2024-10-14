@@ -10,8 +10,8 @@ dir=$(sh -c "cd $(dirname $cmd); pwd")
 pvr="$dir/pvr"
 
 clean_results() {
-  rm -rf $dir/results/* 2>/dev/null
-  rm -rf $dir/results/.pv 2>/dev/null
-  rm -rf $dir/results/.pvr 2>/dev/null
+  rm -rf $dir/results/* > /dev/null 2>&1
+  rm -rf $dir/results/.pv > /dev/null 2>&1
+  rm -rf $dir/results/.pvr > /dev/null 2>&1
+  rm -rf $dir/objects/ > /dev/null 2>&1
 }
-

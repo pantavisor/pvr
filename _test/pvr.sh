@@ -10,7 +10,7 @@ test_package_update_with_less_files() {
   clean_results
   cd $dir/results/
 
-  $pvr init
+  $pvr init --objects $dir/objects
   $pvr import $dir/mocks/data/initial_state_01.tar.gz > /dev/null
   $pvr checkout > /dev/null 2>&1
 
@@ -31,7 +31,7 @@ test_pvr_support_big_numbers() {
 
   cd $dir/results/
 
-  $pvr init
+  $pvr init --objects $dir/objects
   $pvr import /tmp/big_numbers.tar.gz > /dev/null
   $pvr checkout > /dev/null 2>&1
 
@@ -51,7 +51,7 @@ test_signature_removal() {
   clean_results
   cd $dir/results/
 
-  $pvr init
+  $pvr init --objects $dir/objects
   $pvr import $dir/mocks/data/initial_state_01.tar.gz > /dev/null
   $pvr checkout > /dev/null 2>&1
 
@@ -68,7 +68,7 @@ test_package_parts_selection() {
   clean_results
   cd $dir/results/
 
-  $pvr init
+  $pvr init --objects $dir/objects
   $pvr import $dir/mocks/data/initial_state_02.tar.gz > /dev/null
   $pvr checkout > /dev/null 2>&1
 
@@ -86,7 +86,7 @@ test_package_parts_selection_removal() {
   clean_results
   cd $dir/results/
 
-  $pvr init
+  $pvr init --objects $dir/objects
   $pvr import $dir/mocks/data/initial_state_02.tar.gz > /dev/null
   $pvr checkout > /dev/null 2>&1
 
@@ -103,7 +103,7 @@ test_deploy_selecting_parts() {
   clean_results
   cd $dir/results/
 
-  $pvr init
+  $pvr init --objects $dir/objects
   $pvr merge $dir/mocks/data/initial_state_02.tar.gz#-_sigs/nginx-config.json,-_config/nginx > /dev/null 2>&1
   $pvr checkout > /dev/null 2>&1
 
@@ -123,7 +123,7 @@ test_deploy_unselecting_parts() {
   clean_results
   cd $dir/results/
 
-  $pvr init
+  $pvr init --objects $dir/objects
   $pvr merge $dir/mocks/data/initial_state_02.tar.gz#-_sigs/nginx-config.json,-_config/nginx > /dev/null 2>&1
   $pvr checkout > /dev/null 2>&1
 
@@ -143,17 +143,19 @@ test_adding_signature_to_existing_package() {
   clean_results
   cd $dir/results/
 
-  $pvr init
+  $pvr init --objects $dir/objects
   $pvr merge $dir/mocks/data/pvwebstatus.tar.gz#pvwebstatus > /dev/null 2>&1
   $pvr checkout > /dev/null 2>&1
 
   $pvr sig add --noconfig --part pvwebstatus
   $pvr add && $pvr commit
   cd $dir
-  result="$(cat $dir/results/.pvr/json | jq -c)"
-  expected="$(cat $dir/expected/test_adding_signature_to_existing_package.json | jq -c)"
 
-  assertEquals "$expected" "$result"
+  cat $dir/results/.pvr/json | jq > /tmp/result.json
+  cat $dir/expected/test_adding_signature_to_existing_package.json | jq > /tmp/expected.json
+
+  diffing=$(diff /tmp/result.json /tmp/expected.json)
+  assertEquals "" "$diffing"
 }
 
 ## Always generate a exported tar with the same sha256sum if the content is the same
@@ -165,7 +167,7 @@ test_reproducible_exports() {
   mkdir device
   cd device
 
-  $pvr init --objects .pvr/objects
+  $pvr init --objects $dir/objects
   $pvr merge $dir/mocks/data/pvwebstatus.tar.gz > /dev/null 2>&1
   $pvr checkout > /dev/null 2>&1
 
@@ -179,7 +181,7 @@ test_reproducible_exports() {
   mkdir device2
   cd device2
 
-  $pvr init --objects .pvr/objects
+  $pvr init --objects $dir/objects
   $pvr merge $dir/mocks/data/pvwebstatus.tar.gz > /dev/null 2>&1
 
   $pvr checkout > /dev/null 2>&1
@@ -203,7 +205,7 @@ test_remove_app_with_signature() {
   mkdir device
   cd device
 
-  $pvr init --objects .pvr/objects
+  $pvr init --objects $dir/objects
   $pvr get $dir/mocks/data/pvwebstatus.tar.gz > /dev/null 2>&1
   $pvr checkout > /dev/null 2>&1
 
@@ -229,7 +231,7 @@ test_remove_part_already_signed() {
   mkdir device
   cd device
 
-  $pvr init --objects .pvr/objects
+  $pvr init --objects $dir/objects
   $pvr get $dir/mocks/data/package_config_a.tgz > /dev/null 2>&1
   $pvr checkout > /dev/null 2>&1
   $pvr add && $pvr commit > /dev/null 2>&1
@@ -251,6 +253,39 @@ test_remove_part_already_signed() {
   expected="$(cat $dir/expected/test_remove_part_already_signed_step2.json | jq)"
 
   assertEquals "$expected" "$result"
+}
+
+test_update_signature_remove_garbage() {
+  clean_results
+
+  cd $dir/mocks/data/removing_previous_sign_a
+  rm -rf .pvr
+  $pvr init --objects $dir/objects > /dev/null 2>&1
+  $pvr add > /dev/null 2>&1
+  $pvr commit > /dev/null 2>&1
+  $pvr export /tmp/removing_previous_sign_a.tgz
+
+  cd $dir/mocks/data/removing_previous_sign_b
+  rm -rf .pvr
+  $pvr init --objects $dir/objects > /dev/null 2>&1
+  $pvr add > /dev/null 2>&1
+  $pvr commit > /dev/null 2>&1
+  $pvr export /tmp/removing_previous_sign_b.tgz
+
+  cd $dir/results/
+  mkdir device
+  cd device
+
+  $pvr init --objects $dir/objects
+  $pvr get /tmp/removing_previous_sign_a.tgz > /dev/null 2>&1
+  $pvr checkout > /dev/null 2>&1
+  $pvr get /tmp/removing_previous_sign_b.tgz > /dev/null 2>&1
+  $pvr checkout > /dev/null 2>&1
+  $pvr json | jq > /tmp/result.json
+  cat $dir/expected/test_pdate_signature_remove_gc.json | jq > /tmp/expected.json
+
+  diffing=$(diff /tmp/result.json /tmp/expected.json)
+  assertEquals "" "$diffing"
 }
 
 # Load shUnit2.

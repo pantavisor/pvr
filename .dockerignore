@@ -3,3 +3,6 @@ pvr
 testdata/*.json
 .pvr
 _test/results
+_test/objects
+vendor
+build
