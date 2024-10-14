@@ -14,7 +14,7 @@
 // limitations under the License.
 //
 
-package cmd
+package device
 
 import (
 	"net/url"
@@ -24,7 +24,7 @@ import (
 	"gitlab.com/pantacor/pvr/libpvr"
 )
 
-func CommandDelete() cli.Command {
+func CommandDeviceDelete() cli.Command {
 	return cli.Command{
 		Name:        "delete",
 		Aliases:     []string{"del"},

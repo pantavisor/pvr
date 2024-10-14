@@ -33,6 +33,7 @@ func CommandDevice() cli.Command {
 			CommandDeviceCreate(),
 			CommandDeviceGet(),
 			CommandDeviceSet(),
+			CommandDeviceDelete(),
 			tokens.CommandDeviceTokens(),
 		},
 		Usage:       "pvr device <ps|logs|scan>",

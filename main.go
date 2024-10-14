@@ -232,7 +232,6 @@ func main() {
 		cmd.CommandAdd(),
 		cmd.CommandJson(),
 		cmd.CommandClaim(),
-		cmd.CommandDelete(),
 		cmd.CommandDiff(),
 		cmd.CommandStatus(),
 		cmd.CommandCommit(),
