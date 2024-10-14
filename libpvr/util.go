@@ -49,6 +49,18 @@ import (
 	"github.com/go-resty/resty"
 )
 
+const (
+	CHMOD_CMD                      = "chmod"
+	CP_CMD                         = "cp"
+	LN_CMD                         = "ln"
+	MKDIR_CMD                      = "mkdir"
+	MKNOD_CMD                      = "mknod"
+	MKTEMP_CMD                     = "mktemp"
+	RM_CMD                         = "rm"
+	TAR_CMD                        = "tar"
+	TOUCH_CMD                      = "touch"
+)
+
 type ApiError struct {
 	Cod   int    `json:"cod"`
 	Error string `json:"error"`
@@ -74,22 +86,78 @@ func PrintDebugln(a ...interface{}) (n int, err error) {
 	return 0, nil
 }
 
-func Create(path string) error {
+func ExecCommand(name string, arg ...string) error {
+	if IsDebugEnabled {
+		args := []string {name}
+		args = append(args, arg...)
+		fmt.Println("Running Command: " + strings.Join(args, " "))
+	}
+	cmd := exec.Command(name, arg...)
+	for _,v := range os.Environ() {
+		if strings.HasPrefix(v, "SOURCE_DATE_EPOCH") {
+			continue
+		}
+		cmd.Env = append(cmd.Env, v)
+	}
+	if IsDebugEnabled {
+		fmt.Printf("  Env: %v \n", cmd.Env)
+		fmt.Printf("  Environ: %v \n", os.Environ())
+	}
+
+	var out bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+	if err != nil || IsDebugEnabled {
+		fmt.Fprintln(os.Stdout, "OUT: " + stderr.String())
+		fmt.Fprintln(os.Stderr, "ERROR: " + fmt.Sprint(err) +": " + stderr.String())
+	}
+	return err
+}
+
+func ExecCommandOut(name string, arg ...string) (string, error) {
+	if IsDebugEnabled {
+		args := []string {name}
+		args = append(args, arg...)
+		fmt.Println("Running Command: " + strings.Join(args, " "))
+	}
+	cmd := exec.Command(name, arg...)
+	for _,v := range os.Environ() {
+		if ! strings.HasPrefix(v, "SOURCE_DATE_EPOCH=") {
+			continue
+		}
+		cmd.Env = append(cmd.Env, v)
+	}
+	if IsDebugEnabled {
+		fmt.Printf("  Env: %v \n", cmd.Env)
+		fmt.Printf("  Environ: %v \n", os.Environ())
+	}
+
+	var out bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+	if err != nil || IsDebugEnabled {
+		fmt.Fprintln(os.Stdout, "OUT: " + out.String())
+		fmt.Fprintln(os.Stderr, "ERROR: " + fmt.Sprint(err) +": " + stderr.String())
+	}
+	return strings.TrimSpace(out.String()), err
+}
+
+func Create(path string, perm os.FileMode) error {
 	touch, err := exec.LookPath(TOUCH_CMD)
 	if err != nil {
 		return err
 	}
-	args := []string{touch, path}
-	touchCmd := exec.Command(args[0], args[1:]...)
-	var out bytes.Buffer
-	var stderr bytes.Buffer
-	touchCmd.Stdout = &out
-	touchCmd.Stderr = &stderr
-	err = touchCmd.Run()
+	args := []string{touch, "-a", path}
+	err = ExecCommand(args[0], args[1:]...)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, fmt.Sprint(err)+": "+stderr.String())
+		return err
 	}
-	return nil
+	permString := fmt.Sprintf("0%o", perm)
+	return ExecCommand(CHMOD_CMD, permString, path)
 }
 
 func MkdirAll(path string, perm os.FileMode) error {
@@ -97,17 +165,9 @@ func MkdirAll(path string, perm os.FileMode) error {
 	if err != nil {
 		return err
 	}
-	args := []string{mkdir, "-m", perm.String(), "-p", path}
-	mkdirCmd := exec.Command(args[0], args[1:]...)
-	var out bytes.Buffer
-	var stderr bytes.Buffer
-	mkdirCmd.Stdout = &out
-	mkdirCmd.Stderr = &stderr
-	err = mkdirCmd.Run()
-	if err != nil {
-		fmt.Fprintln(os.Stderr, fmt.Sprint(err)+": "+stderr.String())
-	}
-	return nil
+	permString := fmt.Sprintf("0%o", perm)
+	args := []string{mkdir, "-m", permString, "-p", path}
+	return ExecCommand(args[0], args[1:]...)
 }
 
 func Mkdir(path string, perm os.FileMode) error {
@@ -116,16 +176,7 @@ func Mkdir(path string, perm os.FileMode) error {
 		return err
 	}
 	args := []string{mkdir, "-m", perm.String(), path}
-	mkdirCmd := exec.Command(args[0], args[1:]...)
-	var out bytes.Buffer
-	var stderr bytes.Buffer
-	mkdirCmd.Stdout = &out
-	mkdirCmd.Stderr = &stderr
-	err = mkdirCmd.Run()
-	if err != nil {
-		fmt.Fprintln(os.Stderr, fmt.Sprint(err)+": "+stderr.String())
-	}
-	return nil
+	return ExecCommand(args[0], args[1:]...)
 }
 
 // RemoveAll remove a path, could be a file or a folder
@@ -135,52 +186,48 @@ func RemoveAll(path string) error {
 		return err
 	}
 
-	err := os.RemoveAll(path)
+	rm, err := exec.LookPath(RM_CMD)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, fmt.Sprint(err))
+		return err
 	}
-	return err
+	args := []string{rm, "-rf", path}
+	return ExecCommand(args[0], args[1:]...)
 }
 
-// Remove remove a path, a file
+// RemoveAll remove a path, could be a file or a folder
 func Remove(path string) error {
+
 	if _, err := os.Lstat(path); err != nil {
 		return err
 	}
-	err := os.Remove(path)
+	rm, err := exec.LookPath(RM_CMD)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, fmt.Sprint(err))
+		return err
 	}
-	return err
+	args := []string{rm, "-f", path}
+	return ExecCommand(args[0], args[1:]...)
 }
 
 func Copy(dst, src string) error {
-	in, err := os.Open(src)
+	if _, err := os.Lstat(src); err != nil {
+		return err
+	}
+	cp, err := exec.LookPath(CP_CMD)
 	if err != nil {
 		return err
 	}
-	defer in.Close()
-	out, err := os.Create(dst)
-	if err != nil {
-		return err
-	}
-	defer out.Close()
-	_, err = io.Copy(out, in)
-	cerr := out.Close()
-	if err != nil {
-		return err
-	}
-	return cerr
+	args := []string{cp, "-f", src, dst}
+	return ExecCommand(args[0], args[1:]...)
 }
 
 func Hardlink(dst, src string) error {
-	os.Remove(dst)
-	err := os.Link(src, dst)
+	Remove(dst)
+	ln, err := exec.LookPath(LN_CMD)
 	if err != nil {
 		return err
 	}
-	err = os.Chmod(dst, 0444)
-	return err
+	args := []string{ln, src, dst}
+	return ExecCommand(args[0], args[1:]...)
 }
 
 func RenameFile(src string, dst string) (err error) {
@@ -188,7 +235,7 @@ func RenameFile(src string, dst string) (err error) {
 	if err != nil {
 		return fmt.Errorf("failed to copy source file %s to %s: %s", src, dst, err)
 	}
-	err = os.Remove(src)
+	err = Remove(src)
 	if err != nil {
 		return fmt.Errorf("failed to cleanup source file %s: %s", src, err)
 	}
@@ -298,7 +345,7 @@ func ReadOrCreateFile(filePath string) (*[]byte, error) {
 	if os.IsNotExist(err) {
 		_, err := os.Lstat(filepath.Dir(filePath))
 		if os.IsNotExist(err) {
-			err = os.MkdirAll(filePath, 0700)
+			err = MkdirAll(filePath, 0700)
 			if err != nil {
 				return nil, err
 			}
@@ -321,9 +368,17 @@ func ReadOrCreateFile(filePath string) (*[]byte, error) {
 
 func WriteTxtFile(filePath string, content string) error {
 
-	data := []byte(content)
-
-	return os.WriteFile(filePath, data, 0644)
+	err := Create(filePath, 0644)
+	if err != nil {
+		return err
+	}
+	f, err := os.OpenFile(filePath, os.O_WRONLY | os.O_TRUNC, 0666)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	_, err = f.WriteString(content)
+	return err
 }
 
 // GetPlatform get string with the full platform name
@@ -378,12 +433,12 @@ func CreateFolder(path string) error {
 	if os.IsNotExist(err) {
 		_, err := os.Stat(filepath.Dir(path))
 		if os.IsNotExist(err) {
-			err = os.MkdirAll(filepath.Dir(path), 0700)
+			err = MkdirAll(filepath.Dir(path), 0777)
 			if err != nil {
 				return err
 			}
 		}
-		err = os.MkdirAll(path, 0700)
+		err = MkdirAll(path, 0777)
 		if err != nil {
 			return err
 		}
@@ -589,7 +644,7 @@ func SetTempFilesInterrupHandler(tempdir string) {
 			os.Exit(1)
 		}
 		if fileExist {
-			err := os.RemoveAll(tempdir)
+			err := RemoveAll(tempdir)
 			if err != nil {
 				log.Fatal(err.Error())
 				os.Exit(1)
@@ -706,7 +761,7 @@ func RemoveDirContents(dir string) error {
 		return err
 	}
 	for _, name := range names {
-		err = os.RemoveAll(filepath.Join(dir, name))
+		err = RemoveAll(filepath.Join(dir, name))
 		if err != nil {
 			return err
 		}
@@ -1058,21 +1113,7 @@ func Untar(dst string, src string, options []string) error {
 	}
 
 	args = append(args, options...)
-	PrintDebugln(args)
-	untar := exec.Command(args[0], args[1:]...)
-	var out bytes.Buffer
-	var stderr bytes.Buffer
-	untar.Stdout = &out
-	untar.Stderr = &stderr
-	err = untar.Run()
-	if IsDebugEnabled {
-		fmt.Println("untar output: " + out.String())
-	}
-
-	if err != nil {
-		fmt.Println(fmt.Sprint(err) + ": " + stderr.String())
-	}
-	return err
+	return ExecCommand(args[0], args[1:]...)
 }
 
 // GetFileContentType : Get File Content Type of a file
@@ -1093,11 +1134,17 @@ func GetFileContentType(src string) (string, error) {
 }
 
 func DownloadFile(uri *url.URL) (string, error) {
-	tempfile, err := os.CreateTemp(os.TempDir(), "download-rootfs-")
+	temppath, err := ExecCommandOut(MKTEMP_CMD, "-t", "download-rootfs-XXXXXXXX")
 	if err != nil {
 		return "", err
 	}
-	defer tempfile.Close()
+	defer RemoveAll(temppath)
+
+	tempfile, err := os.OpenFile(temppath, os.O_TRUNC | os.O_WRONLY, 0666)
+	if err != nil {
+		return "", err
+	}
+
 	resp, err := http.Get(uri.String())
 	if err != nil {
 		return "", err
@@ -1245,34 +1292,27 @@ func (tree *TreeDiff) MkOvl(ovlDir string) {
 	for _, v := range tree.OnlyInA {
 		vDir := path.Dir(v)
 		vBase := path.Base(v)
-		os.MkdirAll(path.Join(ovlDir, vDir), 0755)
+		MkdirAll(path.Join(ovlDir, vDir), 0755)
 		// Remove the file from the overlay using
 		// A whiteout is created as a character device with 0/0 device number.
 		// When a whiteout is found in the upper level of a merged directory, any matching name in the lower level is ignored, and the whiteout itself is also hidden.
 		// https://docs.kernel.org/filesystems/overlayfs.html#whiteouts-and-opaque-directories
-		cmd := exec.Command("mknod", path.Join(ovlDir, vDir, vBase), "c", "0", "0")
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		err := cmd.Run()
+
+		err := ExecCommand(MKNOD_CMD, path.Join(ovlDir, vDir, vBase), "c", "0", "0")
 		if err != nil {
 			tree.Errors = append(tree.Errors, err)
-			fmt.Println("ERROR: mknod failed with: " + err.Error())
 		}
 	}
 	for _, v := range append(tree.OnlyInB, tree.Differ...) {
 		vDir := path.Dir(v)
 		vBase := path.Base(v)
 		ovlTarget := path.Join(ovlDir, vDir)
-		os.MkdirAll(ovlTarget, 0755)
+		MkdirAll(ovlTarget, 0755)
 		src := path.Join(tree.B, vDir, vBase)
 		dest := path.Join(ovlDir, vDir, vBase)
-		cmd := exec.Command("cp", "-a", "-v", src, dest)
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		err := cmd.Run()
+		err := ExecCommand(CP_CMD, "-a", "-v", src, dest)
 		if err != nil {
 			tree.Errors = append(tree.Errors, err)
-			fmt.Println("ERROR: cp failed with: " + err.Error())
 		}
 	}
 }

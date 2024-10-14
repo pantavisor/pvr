@@ -17,7 +17,6 @@
 package libpvr
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -620,11 +619,11 @@ func (p *Pvr) RemoveApplication(appname string) error {
 
 		sigPath := filepath.Join(p.Dir, sigKey)
 		if _, err := os.Stat(sigPath); err == nil {
-			os.Remove(sigPath)
+			Remove(sigPath)
 		}
 
 		for _, part := range deletedParts {
-			os.Remove(filepath.Join(p.Dir, part))
+			Remove(filepath.Join(p.Dir, part))
 		}
 	}
 
@@ -693,28 +692,14 @@ func (p *Pvr) MakeSquash(rootfsPath string, app *AppData) error {
 	args := []string{makeSquashfsPath, rootfsPath, tempSquashFile}
 	args = append(args, comp...)
 
-	fmt.Println("Generating squashfs file: " + strings.Join(args, " "))
-	makeSquashfs := exec.Command(args[0], args[1:]...)
-	var outb, errb bytes.Buffer
-
-	if IsDebugEnabled {
-		makeSquashfs.Stdout = &outb
-		makeSquashfs.Stderr = &errb
-	}
-
-	err = makeSquashfs.Run()
+	fmt.Println("Generating squashfs: " + strings.Join(args, " "))
+	err = ExecCommand(args[0], args[1:]...)
 	if err != nil {
+		fmt.Println("Cannot generate squashfs " + err.Error())
 		return err
 	}
 
 	fmt.Println("Generating squashfs digest")
-	if IsDebugEnabled && len(outb.Bytes()) > 0 {
-		fmt.Println(outb.String())
-	}
-	if IsDebugEnabled && len(errb.Bytes()) > 0 {
-		fmt.Println(errb.String())
-	}
-
 	return RenameFile(tempSquashFile, squashFile)
 }
 

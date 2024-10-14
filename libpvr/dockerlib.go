@@ -48,10 +48,6 @@ import (
 )
 
 const (
-	MKDIR_CMD                      = "mkdir"
-	RM_CMD                         = "rm"
-	TAR_CMD                        = "tar"
-	TOUCH_CMD                      = "touch"
 	MAKE_SQUASHFS_CMD              = "mksquashfs"
 	SQUASH_FILE                    = "root.squashfs"
 	SQUASH_OVL_FILE                = "root.ovl.squashfs"
@@ -587,9 +583,9 @@ func (p *Pvr) GenerateApplicationSquashFS(app *AppData, appManifest *Source) err
 		return fmt.Errorf("couldn't create cache folder %v", err)
 	}
 
-	fmt.Println("Generating squashfs...")
+	fmt.Println("Drafting squashfs...")
 
-	tempdir, err := os.MkdirTemp(os.TempDir(), "download-layer-")
+	tempdir, err := ExecCommandOut(MKTEMP_CMD, "-d", "-t", "download-layer-XXXXXXXX")
 	if err != nil {
 		return err
 	}
@@ -623,7 +619,11 @@ func (p *Pvr) GenerateApplicationSquashFS(app *AppData, appManifest *Source) err
 			}
 			buf := bufio.NewReader(imageReader)
 			//filename := filepath.Join(tempdir, "layers") + ".tar.gz"
-			file, err := os.Create(filename)
+			err = Create(filename, 0644)
+			if err != nil {
+				return err
+			}
+			file, err := os.OpenFile(filename, os.O_WRONLY | os.O_TRUNC, 0644)
 			if err != nil {
 				return err
 			}
@@ -677,7 +677,11 @@ func (p *Pvr) GenerateApplicationSquashFS(app *AppData, appManifest *Source) err
 
 			buf := bufio.NewReader(layerReader)
 
-			file, err := os.Create(filename)
+			err = Create(filename, 0644)
+			if err != nil {
+				return err
+			}
+			file, err := os.OpenFile(filename, os.O_WRONLY | os.O_TRUNC, 0644)
 			if err != nil {
 				return err
 			}
@@ -736,34 +740,37 @@ func (p *Pvr) GenerateApplicationSquashFS(app *AppData, appManifest *Source) err
 	fmt.Println("Adding essential structural dirs to operate RO containers")
 	for _, file := range structureDirs {
 		dirToMake := filepath.Join(extractPath, file)
-		os.MkdirAll(dirToMake, 0755)
+		err = ExecCommand(MKDIR_CMD, "-p", dirToMake)
+		if err != nil {
+			_, err2 := os.Lstat(dirToMake)
+			if err2 != nil {
+				return err
+			}
+		}
 	}
 
 	// if we are using a different name, we generate an overlay
 	if app.SquashFile == SQUASH_OVL_FILE {
-		basePath, err := os.MkdirTemp("", "base-layer-*")
+		basePath, err := ExecCommandOut(MKTEMP_CMD, "-d", "-t", "base-layer-XXXXXXXX")
 		if err != nil {
 			return err
 		}
 		defer RemoveAll(basePath)
-		ovlPath, err := os.MkdirTemp("", "ovl-*")
+		ovlPath, err := ExecCommandOut(MKTEMP_CMD, "-d", "-t", "ovl-XXXXXXXX")
 		if err != nil {
 			return err
 		}
+		defer RemoveAll(ovlPath)
 		from := path.Join(p.Dir, app.Appname, SQUASH_FILE)
 		if appManifest.Base != "" {
 			from = path.Join(p.Dir, appManifest.Base, SQUASH_FILE)
 		}
-		cmd := exec.Command("unsquashfs", "-f", "-d", basePath, from)
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		err = cmd.Run()
+		err = ExecCommand("unsquashfs", "-f", "-d", basePath, from)
 		if err != nil {
 			return err
 		}
 		treeDiff := MkTreeDiff(basePath, extractPath)
 		treeDiff.MkOvl(ovlPath)
-		defer RemoveAll(ovlPath)
 		extractPath = ovlPath
 	} else if app.SquashFile != SQUASH_FILE {
 		return errors.New("Unsupported SquashFile: " + app.SquashFile + ". Supported: " + SQUASH_FILE + ", " + SQUASH_OVL_FILE)
@@ -774,7 +781,15 @@ func (p *Pvr) GenerateApplicationSquashFS(app *AppData, appManifest *Source) err
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(digestFile, []byte(digest), 0644)
+	Create(digestFile, 0644)
+	currentDigest, err = os.OpenFile(digestFile, os.O_WRONLY | os.O_TRUNC, 0644)
+	if err != nil {
+		return err
+	}
+	defer currentDigest.Close()
+
+	_, err = currentDigest.Write([]byte(digest))
+	return err
 }
 
 // ProcessWhiteouts : FInd Whiteouts from a layer and process it in a given extract path

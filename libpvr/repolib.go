@@ -286,7 +286,7 @@ func (p *Pvr) AddFile(globs []string, forceObject bool) error {
 		return err
 	}
 
-	err = os.WriteFile(filepath.Join(p.Pvrdir, "new.XXX"), jsonData, 0644)
+	err = WriteTxtFile(filepath.Join(p.Pvrdir, "new.XXX"), string(jsonData))
 	if err != nil {
 		return err
 	}
@@ -508,7 +508,7 @@ func (p *Pvr) InitCustom(customInitJson string, objectsDir string) error {
 		return errors.New("pvr init: .pvr directory/file found (" + p.Pvrdir + "). Cannot initialize an existing repository.")
 	}
 
-	err = os.MkdirAll(p.Pvrdir, 0755)
+	err = MkdirAll(p.Pvrdir, 0755)
 	if err != nil {
 		return err
 	}
@@ -546,12 +546,16 @@ func (p *Pvr) InitCustom(customInitJson string, objectsDir string) error {
 		}
 	}
 
-	err = os.MkdirAll(p.Objdir, 0755)
+	err = MkdirAll(p.Objdir, 0755)
 	if err != nil && !os.IsExist(err) {
 		return err
 	}
 
-	jsonFile, err := os.OpenFile(filepath.Join(p.Pvrdir, "json"), os.O_CREATE|os.O_WRONLY, 0644)
+	err = Create(filepath.Join(p.Pvrdir, "json"), 0644)
+	if err != nil {
+		return err
+	}
+	jsonFile, err := os.OpenFile(filepath.Join(p.Pvrdir, "json"), os.O_TRUNC | os.O_WRONLY, 0644)
 
 	if err != nil {
 		return err
@@ -724,7 +728,12 @@ func (p *Pvr) prepCommitCheckpoint() error {
 		goto exit
 	}
 
-	fd, err = os.OpenFile(fNewPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0640)
+	err = Create(fNewPath, 0644)
+	if err != nil {
+		goto exit
+	}
+
+	fd, err = os.OpenFile(fNewPath, os.O_WRONLY| os.O_TRUNC, 0644)
 	if err != nil {
 		goto exit
 	}
@@ -751,7 +760,7 @@ func (p *Pvr) prepCommitCheckpoint() error {
 	}
 
 exit:
-	os.Remove(fNewPath)
+	Remove(fNewPath)
 	return err
 }
 
@@ -842,7 +851,7 @@ func (p *Pvr) Commit(msg string, isCheckpoint bool) (err error) {
 		fmt.Fprintln(os.Stderr, "Removing "+v)
 	}
 
-	os.WriteFile(filepath.Join(p.Pvrdir, "commitmsg.new"), []byte(msg), 0644)
+	WriteTxtFile(filepath.Join(p.Pvrdir, "commitmsg.new"), msg)
 	err = RenameFile(filepath.Join(p.Pvrdir, "commitmsg.new"), filepath.Join(p.Pvrdir, "commitmsg"))
 	if err != nil {
 		return err
@@ -863,7 +872,7 @@ func (p *Pvr) Commit(msg string, isCheckpoint bool) (err error) {
 		return err
 	}
 
-	err = os.WriteFile(filepath.Join(p.Pvrdir, "json.new"), newJson, 0644)
+	err = WriteTxtFile(filepath.Join(p.Pvrdir, "json.new"), string(newJson))
 	if err != nil {
 		return err
 	}
@@ -875,7 +884,7 @@ func (p *Pvr) Commit(msg string, isCheckpoint bool) (err error) {
 	}
 
 	// ignore error here as new might not exist
-	os.Remove(filepath.Join(p.Pvrdir, "new"))
+	Remove(filepath.Join(p.Pvrdir, "new"))
 
 	return err
 }
@@ -884,7 +893,7 @@ func (p *Pvr) PutLocal(repoPath string) error {
 
 	_, err := os.Stat(repoPath)
 	if err != os.ErrNotExist {
-		err = os.MkdirAll(repoPath, 0755)
+		err = MkdirAll(repoPath, 0755)
 	}
 	if err != nil {
 		return err
@@ -901,7 +910,7 @@ func (p *Pvr) PutLocal(repoPath string) error {
 	if err == nil && !info.IsDir() {
 		return errors.New("PVR repo directory in inusable state (objects is not a directory)")
 	} else if err != nil {
-		err = os.MkdirAll(objectsPath, 0755)
+		err = MkdirAll(objectsPath, 0755)
 	}
 	if err != nil && !os.IsExist(err) {
 		return err
@@ -1677,7 +1686,7 @@ func (p *Pvr) SaveConfig() error {
 	if err != nil {
 		return err
 	}
-	err = os.WriteFile(configNew, byteJson, 0644)
+	err = WriteTxtFile(configNew, string(byteJson))
 	if err != nil {
 		return err
 	}
@@ -2139,7 +2148,7 @@ func (p *Pvr) GetRepoLocal(getPath string, merge bool, showFilenames bool, state
 	if updatePristineJson {
 		p.PristineJson = jsonMerged
 		p.PristineJsonMap = jsonMergedMap
-		err = os.WriteFile(filepath.Join(p.Pvrdir, "json.new"), jsonMerged, 0644)
+		err = WriteTxtFile(filepath.Join(p.Pvrdir, "json.new"), string(jsonMerged))
 		if err != nil {
 			return objectsCount, err
 		}
@@ -2470,7 +2479,7 @@ func (p *Pvr) GetRepoRemote(url *url.URL, merge bool, showFilenames bool, state 
 	if updatePristineJson {
 		p.PristineJson = jsonMerged
 		p.PristineJsonMap = jsonMergedMap
-		err = os.WriteFile(filepath.Join(p.Pvrdir, "json.new"), jsonMerged, 0644)
+		err = WriteTxtFile(filepath.Join(p.Pvrdir, "json.new"), string(jsonMerged))
 		if err != nil {
 			return objectsCount, err
 		}
@@ -2644,7 +2653,7 @@ func (p *Pvr) resetInternal(hardlink bool, canonicalJson bool, state *PvrMap) (e
 			if err != nil {
 				return err
 			}
-			err = os.WriteFile(targetP+".new", data, 0644)
+			err = WriteTxtFile(targetP+".new", string(data))
 			if err != nil {
 				return err
 			}
@@ -2735,11 +2744,14 @@ func (p *Pvr) Export(parts []string, dst string) error {
 	if dst == "-" {
 		file = os.Stdout
 	} else {
-		file, err = os.Create(dst)
+		err = Create(dst, 0644)
 		if err != nil {
 			return err
 		}
-		defer file.Close()
+		file, err = os.OpenFile(dst, os.O_TRUNC | os.O_WRONLY, 0644)
+		if err != nil {
+			return err
+		}
 	}
 
 	var fileWriter io.WriteCloser
@@ -2938,10 +2950,10 @@ func (p *Pvr) DeployPvLinks() error {
 
 	if fitFile != "" {
 		fitLink := path.Join(p.Dir, ".pv", "pantavisor.fit")
-		os.MkdirAll(path.Join(p.Dir, ".pv"), 0755)
-		os.Remove(fitLink)
+		MkdirAll(path.Join(p.Dir, ".pv"), 0755)
+		Remove(fitLink)
 
-		err = os.Link(path.Join(p.Dir, "bsp", fitFile), fitLink)
+		err = ExecCommand(LN_CMD, path.Join(p.Dir, "bsp", fitFile), fitLink)
 		if err != nil {
 			return err
 		}
@@ -2952,24 +2964,24 @@ func (p *Pvr) DeployPvLinks() error {
 		if dtbFile != "" {
 			dtbLink = path.Join(p.Dir, ".pv", "pv-fdt.dtb")
 		}
-		os.MkdirAll(path.Join(p.Dir, ".pv"), 0755)
-		os.Remove(kernelLink)
-		os.Remove(initrdLink)
+		MkdirAll(path.Join(p.Dir, ".pv"), 0755)
+		Remove(kernelLink)
+		Remove(initrdLink)
 		if dtbLink != "" {
-			os.Remove(dtbLink)
+			Remove(dtbLink)
 		}
 
-		err = os.Link(path.Join(p.Dir, "bsp", kernelFile), kernelLink)
+		err = ExecCommand(LN_CMD, path.Join(p.Dir, "bsp", kernelFile), kernelLink)
 		if err != nil {
 			return err
 		}
-		err = os.Link(path.Join(p.Dir, "bsp", initrdFile), initrdLink)
+		err = ExecCommand(LN_CMD,path.Join(p.Dir, "bsp", initrdFile), initrdLink)
 		if err != nil {
 			return err
 		}
 
 		if dtbFile != "" {
-			err = os.Link(path.Join(p.Dir, "bsp", dtbFile), dtbLink)
+			err = ExecCommand(LN_CMD, path.Join(p.Dir, "bsp", dtbFile), dtbLink)
 			if err != nil {
 				return err
 			}
