@@ -336,7 +336,7 @@ type LogFilter struct {
 func (p *Session) DoLogs(
 	baseurl string,
 	deviceIds []string,
-	rev int,
+	rev string,
 	startTime *time.Time,
 	endTime *time.Time,
 	cursor bool,
@@ -366,8 +366,8 @@ func (p *Session) DoLogs(
 
 		loc, _ := time.LoadLocation("UTC")
 
-		if rev >= 0 {
-			q.Add("rev", fmt.Sprintf("%d", rev))
+		if rev != "-1" {
+			q.Add("rev", rev)
 		}
 		if startTime != nil {
 			q.Add("after", startTime.In(loc).Format(time.RFC3339))

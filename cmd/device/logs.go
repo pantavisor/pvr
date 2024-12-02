@@ -61,10 +61,10 @@ func CommandLogs() cli.Command {
 				return cli.NewExitError(err, 4)
 			}
 
-			rev := c.Int("rev")
+			rev := c.String("rev")
 
 			var from *time.Time
-			if rev < 0 {
+			if rev == "-1" {
 				_t := time.Now().Add(time.Duration(-1 * time.Minute))
 				from = &_t
 			}
@@ -214,11 +214,11 @@ func CommandLogs() cli.Command {
 				Usage:  "Datetime in RFC3339 format, e.g.: --from=2006-01-02T15:04:05+06:00",
 				EnvVar: "PVR_LOGS_FROM_DATE",
 			},
-			cli.IntFlag{
+			cli.StringFlag{
 				Name:   "rev,r",
-				Usage:  "Get logs for specific revision (rev) number, e.g. --rev=1 or -rev=-1 (disabled), with this flag --from will not be defaulting to NOW",
+				Usage:  "Get logs for specific revision (rev), e.g. --rev=1 or -rev=-1 (disabled), with this flag --from will not be defaulting to NOW",
 				EnvVar: "PVR_LOGS_REV",
-				Value:  -1,
+				Value:  "-1",
 			},
 			cli.StringFlag{
 				Name:   "template,s",
