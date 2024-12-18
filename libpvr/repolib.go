@@ -2829,7 +2829,13 @@ func (p *Pvr) Export(parts []string, dst string) error {
 		return err
 	}
 
+	var previousObjectAdded string
 	for _, v := range SortObjects(filesAndObjects) {
+		// skip dupes
+		if previousObjectAdded == v {
+			continue
+		}
+		previousObjectAdded = v
 		apath := "objects/" + v
 		ipath := filepath.Join(p.Objdir, v)
 		err := addToTar(tw, apath, ipath, &defaultModTime)
