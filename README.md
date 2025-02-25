@@ -1186,6 +1186,9 @@ value from $APP_NAME/src.json and generate the matching rootfs and ovr files.
 ###### `docker_tag`
 - Tag associated with the Docker image.
 
+###### `exports`
+- List of paths in container to be mounted back into the host.
+
 ###### `persistence`
 - [Persistence](https://docs.pantahub.com/containers/#storage) settings for specific directories:
   - Each path can have the values: "permanent", "revision", or "boot".
@@ -1236,6 +1239,9 @@ Example of src.json:
     "docker_name": "registry.gitlab.com/pantacor/pv-platforms/pvr-sdk",
     "docker_source": "remote,local",
     "docker_tag": "arm32v6",
+    "exports": [
+        "/home/root"
+    ],
     "persistence": {
         "/var/dmcrypt/volume": "permanent@dm-versatile",
         "/var/permanent": "permanent",
