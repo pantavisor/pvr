@@ -1163,8 +1163,19 @@ value from $APP_NAME/src.json and generate the matching rootfs and ovr files.
   - `PV_STATUS_GOAL`: Desired [status goal](https://docs.pantahub.com/containers/#status-goal) for the platform. Possible values: "MOUNTED", "STARTED", or "READY".
   - `PV_LXC_EXTRA_CONF`: Extra [LXC configuration](https://linuxcontainers.org/lxc/manpages/man5/lxc.container.conf.5.html) to be appended to lxc.container.conf.
   - `PV_LXC_CAP_KEEP`: Specify the [capabilities](https://linuxcontainers.org/lxc/manpages/man5/lxc.container.conf.5.html) to be kept in the container.
+  - `PV_LXC_CAP_DROP`: Specify the [capabilities](https://linuxcontainers.org/lxc/manpages/man5/lxc.container.conf.5.html) to be kept in the container (note: use either keep or drop, but not both).
   - `PV_LXC_NAMESPACE_KEEP`: Specify the [namespaces](https://linuxcontainers.org/lxc/manpages/man5/lxc.container.conf.5.html) to be inherited from Pantavisor.
   - `PVR_LXC_CGROUP_DEVICES_WHITE`: Allow list of [devices](https://linuxcontainers.org/lxc/manpages/man5/lxc.container.conf.5.html) for the container. See the device indexes to be used [here](https://www.kernel.org/doc/Documentation/admin-guide/devices.txt).
+  - `PV_VOLUME_IMPORTS`: Import a volume or a subpath within a volume; syntax: <source-container>:[<subpath>@]<source-volume>:<target-path>[:ro]
+  - `PV_VOLUME_MOUNTS`: Mount volume owned by the container itself to aditional places; syntax: <volume-name>:<target-path>
+  - `PV_IMPORT_CONFIGVOLUMES`: Mount configvolumes to a target path. configvolumes are volumes that can have configs for multiple containers inside. the top level directory of such volume would be the container name. Syntax: <volume-name>:<target-path> (e.g for a container named 'foo' the directory /foo inside the '<volume-name>' volume would be mounted to '<target-path>' 
+  - `PV_DISABLE_AUTODEV`: disable lxc.autodev feature. Do this if you know what you are doing only.
+  - `PV_SECURITY_FULLDEV`: mount host /dev to dev/ inside container. IMPORTANT: usually you dont want this. Only do this if you know what you are doing.
+  - `PV_SECURITY_WITH_HOST`: mount host / partition to host/ directory inside container. Usually this is not a good idea.
+  - `PV_SECURITY_WITH_HOSTPROC`: mount /proc of host to host/proc mountpoint. Treat carefully.
+  - `PV_SECURITY_WITH_STORAGE`: make the pantavisor /storage partition (e.g. pvroot) available inside the container at /storage.
+  - `PV_RUN_TMPFS_DISABLE`: disable mounting a tmpfs to /run folder. You usually do not want to disable this.
+  - `PV_RESOLV_CONF_DISABLE`: do not mount the central host /etc/resolv.conf inside the container.
 
 ###### `docker_config`
 - Docker container configuration:
