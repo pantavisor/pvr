@@ -359,7 +359,7 @@ func (p *Session) DoLogs(
 		// if cursor we enable in backend request too...
 		if cursor {
 			q.Add("cursor", "true")
-			q.Add("page", "3000")
+			q.Add("page", "500")
 		}
 
 		q.Add("sort", "time-created")
