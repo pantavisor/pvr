@@ -26,6 +26,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"path"
@@ -595,7 +596,7 @@ func (p *Pvr) JwsVerifyPvs(keyPath string, caCerts string, pvsPath string, inclu
 			case *ecdsa.PublicKey:
 				pubKey = v
 			default:
-				fmt.Fprintf(os.Stderr, "WARNING: casting pubKey key of type "+reflect.TypeOf(parsedKey).String())
+				fmt.Fprintf(os.Stderr, "WARNING: casting pubKey key of type %s", reflect.TypeOf(parsedKey).String())
 				continue
 			}
 
@@ -694,7 +695,7 @@ func (p *Pvr) JwsVerifyPvs(keyPath string, caCerts string, pvsPath string, inclu
 			for _, derCandidate := range certPool.certsRaw {
 				cert, err := x509.ParseCertificate(derCandidate)
 				if err != nil {
-					fmt.Fprintf(os.Stderr, "a cert in the pool cannot be parsed %s\n", err.Error())
+					log.Printf("a cert in the pool cannot be parsed %s\n", err.Error())
 					continue
 				}
 				pemcerts, err = cert.Verify(x509.VerifyOptions{
@@ -717,13 +718,16 @@ func (p *Pvr) JwsVerifyPvs(keyPath string, caCerts string, pvsPath string, inclu
 		case *rsa.PublicKey:
 		case *ecdsa.PublicKey:
 		default:
-			fmt.Fprintf(os.Stderr, "WARNING: validation pub key not of supported type: '%s'\n", reflect.TypeOf(pubKey).String())
+			fmt.Fprintf(os.Stderr, "WARNING: validation pub key not of supported type: '%s'\n", reflect.TypeOf(pubKey))
 			continue
 		}
 
 		if IsDebugEnabled {
-			fmt.Fprintf(os.Stderr, "Validating payload: '%s'\n", string(payloadBuf))
+
+			fmt.Fprintf(os.Stderr, "Validating payload: '%s'\n", payloadBuf)
+
 		}
+
 		err = sig.DetachedVerify(payloadBuf, pubKey)
 		if err == nil {
 			verified = true

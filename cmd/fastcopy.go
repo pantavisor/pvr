@@ -69,6 +69,10 @@ func CommandFastCopy() cli.Command {
 				return cli.NewExitError(err, 8)
 			}
 
+			if c.IsSet("platform") {
+				pvr.Platform = c.String("platform")
+			}
+
 			err = pvr.RemoteCopy(src, dest, c.Bool("merge"), c.String("envelope"), c.String("commit-msg"),
 				c.String("rev"), c.Bool("force"))
 
@@ -100,6 +104,10 @@ func CommandFastCopy() cli.Command {
 			cli.BoolFlag{
 				Name:  "merge",
 				Usage: "merge the source json into the target json instead of replacing it",
+			},
+			cli.StringFlag{
+				Name:  "platform, p",
+				Usage: "Set target platform (e.g. linux/arm/v7). Docker platform format",
 			},
 		},
 	}

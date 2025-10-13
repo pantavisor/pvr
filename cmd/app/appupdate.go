@@ -1,5 +1,5 @@
 //
-// Copyright 2017-2023  Pantacor Ltd.
+// Copyright 2017-2025  Pantacor Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -139,8 +139,14 @@ func CommandAppUpdate() cli.Command {
 			EnvVar: "PVR_REGISTRY_PASSWORD",
 		},
 		cli.StringFlag{
-			Name:   "type, t",
-			Usage:  fmt.Sprintf("Type of source. available types [%s, %s, %s]", models.SourceTypeDocker, models.SourceTypePvr, models.SourceTypeRootFs),
+			Name: "type, t",
+			Usage: fmt.Sprintf(
+				"Type of source. available types [%s, %s, %s, %s]",
+				models.SourceTypeDocker,
+				models.SourceTypePvr,
+				models.SourceTypeRootFs,
+				models.SourceTypeGitLabPkg,
+			),
 			EnvVar: "PVR_SOURCE_TYPE",
 		},
 		cli.StringFlag{

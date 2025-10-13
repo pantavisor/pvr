@@ -368,6 +368,6 @@ func TestPatchState(t *testing.T) {
 			return
 		}
 
-		assert.Equal(t, string(result), string(want))
+		assert.Equal(t, string(want), string(result))
 	})
 }

@@ -1,5 +1,5 @@
 //
-// Copyright 2017-2023  Pantacor Ltd.
+// Copyright 2017-2025  Pantacor Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -36,6 +36,7 @@ import (
 
 const (
 	SRC_FILE                    = "src.json"
+	PVPKG_FILE                  = "pvpkg.json"
 	SRC_SPEC                    = "service-manifest-src@1"
 	TEMPLATE_BUILTIN_LXC_DOCKER = "builtin-lxc-docker"
 )
@@ -69,6 +70,12 @@ type RootFsSource struct {
 	RootFsDigest string `json:"rootfs_digest,omitempty"`
 }
 
+type GitLabPkgSource struct {
+	GitLabPkgURL     string `json:"gitlabpkg_url,omitempty"`
+	GitLabPkgVersion string `json:"gitlabpkg_version,omitempty"`
+	GitLabPkgDigest  string `json:"gitlabpkg_digest,omitempty"`
+}
+
 type Source struct {
 	Base         string                   `json:"base,omitempty"`
 	Name         string                   `json:"name,omitempty"`
@@ -82,7 +89,19 @@ type Source struct {
 	DockerSource
 	PvrSource
 	RootFsSource
+	GitLabPkgSource
 	Persistence map[string]string `json:"persistence,omitempty"`
+}
+
+type PVPKG struct {
+	Name        string                 `json:"name"`
+	URL         string                 `json:"url"`
+	PackageURL  string                 `json:"package_url"`
+	License     string                 `json:"license"`
+	Description string                 `json:"description"`
+	Arch        string                 `json:"arch"`
+	SrcExtra    map[string]interface{} `json:"src_extra"`
+	Version     string                 `json:"version"`
 }
 
 // InstallApplication : Install Application from any type of source
@@ -121,8 +140,10 @@ func (p *Pvr) InstallApplication(app *AppData) (err error) {
 		err = InstallRootFsApp(p, &targetApp, targetManifest)
 	case models.SourceTypePvr:
 		err = InstallPVApp(p, &targetApp, targetManifest)
+	case models.SourceTypeGitLabPkg:
+		err = InstallGitLabPkgApp(p, &targetApp, targetManifest)
 	default:
-		return fmt.Errorf("type %s not supported yet", models.SourceTypePvr)
+		return fmt.Errorf("type %s not supported yet", targetApp.SourceType)
 	}
 
 	if err != nil {
@@ -151,7 +172,7 @@ func (p *Pvr) InstallApplication(app *AppData) (err error) {
 		case models.SourceTypePvr:
 			err = InstallPVApp(p, app, appManifest)
 		default:
-			return fmt.Errorf("type %s not supported yet", models.SourceTypePvr)
+			return fmt.Errorf("type %s not supported yet", app.SourceType)
 		}
 	}
 	if err != nil {
@@ -192,6 +213,7 @@ func (p *Pvr) UpdateApplication(app AppData) error {
 		app.SquashFile = SQUASH_OVL_FILE
 		fmt.Println("Update ovl: " + app.SquashFile)
 	}
+
 	switch app.SourceType {
 	case models.SourceTypeDocker:
 		err = UpdateDockerApp(p, &app, appManifest)
@@ -199,8 +221,10 @@ func (p *Pvr) UpdateApplication(app AppData) error {
 		err = UpdateRootFSApp(p, &app, appManifest)
 	case models.SourceTypePvr:
 		err = UpdatePvApp(p, &app, appManifest)
+	case models.SourceTypeGitLabPkg:
+		err = UpdateGitLabPkgApp(p, &app, appManifest)
 	default:
-		err = fmt.Errorf("type %s not supported yet", models.SourceTypePvr)
+		err = fmt.Errorf("type %s not supported yet", app.SourceType)
 	}
 
 	if err != nil {
@@ -248,7 +272,7 @@ func (p *Pvr) AddApplication(app *AppData, addonly bool) (err error) {
 	case models.SourceTypePvr:
 		err = AddPvApp(p, app)
 	default:
-		err = fmt.Errorf("type %s not supported yet", models.SourceTypePvr)
+		err = fmt.Errorf("type %s not supported yet", app.SourceType)
 	}
 
 	if err != nil {
@@ -355,6 +379,25 @@ func (p *Pvr) GetApplicationManifest(appname string) (*Source, error) {
 		Logs:         []map[string]interface{}{},
 		Exports:      []string{},
 		DockerSource: DockerSource{},
+	}
+
+	err = pvjson.Unmarshal(js, &result)
+	if err != nil {
+		return nil, err
+	}
+
+	return &result, nil
+}
+
+func (p *Pvr) GetPackageManifest(appname string) (*PVPKG, error) {
+	manifestFile := filepath.Join(p.Dir, appname, PVPKG_FILE)
+	js, err := os.ReadFile(manifestFile)
+	if err != nil {
+		return nil, err
+	}
+
+	result := PVPKG{
+		SrcExtra: map[string]interface{}{},
 	}
 
 	err = pvjson.Unmarshal(js, &result)
@@ -711,7 +754,7 @@ func GetPersistence(app *AppData) (map[string]string, error) {
 			return nil, ErrInvalidVolumeFormat
 		}
 		if len(split) == 3 {
-			persistence[split[0] + ":" + split[1]] = split[2]
+			persistence[split[0]+":"+split[1]] = split[2]
 		} else {
 			persistence[split[0]] = split[1]
 		}

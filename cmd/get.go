@@ -34,6 +34,12 @@ func CommandGet() cli.Command {
 		ArgsUsage:   "[<repository>[#<part>] [<target-repository>]] | [<USER_NICK>/<DEVICE_NICK>[#<part>]]",
 		Usage:       "get update target-repository from repository",
 		Description: "default target-repository is the local .pvr one. If not <repository> is provided the last one is used. <part> can be one of 'bsp' or $appname.",
+		Flags: []cli.Flag{
+			cli.StringFlag{
+				Name:  "platform, p",
+				Usage: "Set target platform (e.g. linux/arm/v7). Docker platform format",
+			},
+		},
 		BashComplete: func(c *cli.Context) {
 			if c.GlobalString("baseurl") != "" {
 				c.App.Metadata["PVR_BASEURL"] = c.GlobalString("baseurl")
@@ -78,6 +84,10 @@ func CommandGet() cli.Command {
 				if err != nil {
 					return cli.NewExitError(err, 1)
 				}
+			}
+
+			if c.IsSet("platform") {
+				pvr.Platform = c.String("platform")
 			}
 
 			objectsCount, err := pvr.GetRepo(repoUri, false, true, nil)

@@ -43,6 +43,7 @@ import (
 	"github.com/highercomve/jsondiff"
 	"gitlab.com/pantacor/pantahub-base/objects"
 	pvrapi "gitlab.com/pantacor/pvr/api"
+	"gitlab.com/pantacor/pvr/models"
 	"gitlab.com/pantacor/pvr/utils/pvjson"
 	"golang.org/x/term"
 	"gopkg.in/cheggaaa/pb.v1"
@@ -101,6 +102,7 @@ type Pvr struct {
 	PristineJsonMap PvrMap
 	NewFiles        PvrIndex
 	Session         *Session
+	Platform        string
 }
 
 type PvrConfig struct {
@@ -982,7 +984,7 @@ func (p *Pvr) initializeRemote(repoUrl *url.URL) (pvrapi.PvrRemote, error) {
 	response, err := p.Session.DoAuthCall(true, false, func(req *resty.Request) (response *resty.Response, err error) {
 		fmt.Fprintf(os.Stdout, "Getting remote repository info ... ")
 		if response, err = req.Get(pvrRemoteUrl.String()); err != nil {
-			fmt.Fprintf(os.Stderr, "[ERROR "+err.Error()+"]\n")
+			fmt.Fprintf(os.Stderr, "[ERROR %s]\n", err)
 			return response, err
 		}
 		fmt.Fprintf(os.Stdout, "[OK]\n")
@@ -1341,11 +1343,11 @@ func logRequestMiddleware(req *http.Request, debug bool) {
 	}
 
 	fmt.Fprintln(os.Stdout, "---------------------- REQUEST LOG -----------------------")
-	fmt.Fprintf(os.Stdout, "%s", string(reqDump))
+	fmt.Fprintf(os.Stdout, "%s", reqDump)
 	if len(req.Header) > 0 {
 		fmt.Fprintf(os.Stdout, "Headers: \n")
 		for key, value := range req.Header {
-			fmt.Fprintf(os.Stdout, "%s: %s\n", key, strings.Join(value, ", "))
+			fmt.Fprintf(os.Stdout, "%s: %s\n", key, value)
 		}
 	}
 	fmt.Fprintln(os.Stdout, "----------------------------------------------------------")
@@ -1469,13 +1471,13 @@ func (p *Pvr) postObjects(pvrRemote pvrapi.PvrRemote, force bool) error {
 			uri += "/"
 		}
 
-		fmt.Fprintf(os.Stderr, "Posting object info for: "+k+" ... ")
+		fmt.Fprintf(os.Stderr, "Posting object info for: %s ... ", k)
 
 		response, err := p.Session.DoAuthCall(false, false, func(req *resty.Request) (*resty.Response, error) {
 			res, err := req.SetBody(remoteObject).Post(uri)
 
 			if err != nil {
-				fmt.Fprintf(os.Stderr, " [ERROR: "+err.Error()+"]")
+				fmt.Fprintf(os.Stderr, " [ERROR: %s]", err)
 			}
 			return res, err
 		})
@@ -1566,7 +1568,7 @@ func (p *Pvr) postObjects(pvrRemote pvrapi.PvrRemote, force bool) error {
 }
 
 func errout(err error) error {
-	fmt.Fprintf(os.Stderr, " [ERROR: "+err.Error()+"]")
+	fmt.Fprintf(os.Stderr, " [ERROR: %s]", err)
 	return err
 }
 
@@ -1752,7 +1754,7 @@ func (p *Pvr) postRemoteJson(remotePvr pvrapi.PvrRemote, pvrMap PvrMap, envelope
 	}
 
 	if IsDebugEnabled {
-		fmt.Fprintf(os.Stderr, "Posting JSON: %s\n", string(data))
+		fmt.Fprintf(os.Stderr, "Posting JSON: %s\n", data)
 	}
 
 	response, err := p.Session.DoAuthCall(false, false, func(req *resty.Request) (*resty.Response, error) {
@@ -1988,6 +1990,40 @@ func (p *Pvr) GetJson(uri string) (
 		return
 	}
 	return
+}
+
+func (p *Pvr) GetGitlabPackage(
+	getPath string,
+	merge bool,
+	showFilenames bool,
+	state *PvrMap,
+) (objectsCount int, err error) {
+	u, err := url.Parse(getPath)
+	if err != nil {
+		return objectsCount, err
+	}
+	originalFragment := u.Fragment // Store the fragment
+	u.Fragment = ""
+	packageUrl := u.String()
+
+	app := &AppData{
+		From:       packageUrl,
+		SourceType: models.SourceTypeGitLabPkg,
+	}
+
+	downloadedPath, err := GetGitlabPkgApp(p, app)
+	if err != nil {
+		return objectsCount, err
+	}
+	defer os.Remove(downloadedPath)
+
+	// Append the original fragment to the downloadedPath for GetRepoLocal
+	repoLocalPath := downloadedPath
+	if originalFragment != "" {
+		repoLocalPath = fmt.Sprintf("%s#%s", downloadedPath, originalFragment)
+	}
+
+	return p.GetRepoLocal(repoLocalPath, merge, showFilenames, state)
 }
 
 func (p *Pvr) GetRepoLocal(getPath string, merge bool, showFilenames bool, state *PvrMap) (
@@ -2360,7 +2396,7 @@ func (p *Pvr) getObjects(showFilenames bool, pvrRemote pvrapi.PvrRemote, jsonMap
 			continue
 		}
 
-		fmt.Fprintf(os.Stderr, "Getting object info for: "+k+" ... ")
+		fmt.Fprintf(os.Stderr, "Getting object info for: %s ... ", k)
 
 		// only add to downloads if we have not seen this sha already
 		if shaMap[v] != nil {
@@ -2376,7 +2412,7 @@ func (p *Pvr) getObjects(showFilenames bool, pvrRemote pvrapi.PvrRemote, jsonMap
 		if response, err = p.Session.DoAuthCall(true, false, func(req *resty.Request) (*resty.Response, error) {
 			return req.Get(uri)
 		}); err != nil {
-			fmt.Fprintf(os.Stderr, "[ERROR "+err.Error()+"]\n")
+			fmt.Fprintf(os.Stderr, "[ERROR %s]\n", err)
 			return objectsCount, err
 		}
 
@@ -2495,6 +2531,7 @@ func (p *Pvr) GetRepo(uri string, merge bool, showFilenames bool, state *PvrMap)
 	objectsCount int,
 	err error,
 ) {
+	defer p.SaveConfig()
 	objectsCount = 0
 
 	if uri == "" {
@@ -2515,10 +2552,8 @@ func (p *Pvr) GetRepo(uri string, merge bool, showFilenames bool, state *PvrMap)
 	//  3. if a first dir of path is resolvable host -> Prepend https://
 	if url.Scheme == "" {
 		objectsCount, err = p.GetRepoLocal(uri, merge, showFilenames, state)
-
-		// if we get pointed at a pvr repo on disk, go local
 		if err == nil {
-			goto save
+			return objectsCount, err
 		} else if !os.IsNotExist(err) {
 			return objectsCount, errors.New("error testing existance of local json file in provided path: " + err.Error())
 		}
@@ -2536,6 +2571,14 @@ func (p *Pvr) GetRepo(uri string, merge bool, showFilenames bool, state *PvrMap)
 
 	}
 
+	if url.Scheme == "https" && url.Host == "gitlab.com" {
+		objectsCount, err = p.GetGitlabPackage(uri, merge, showFilenames, state)
+		if err != nil {
+			return objectsCount, errors.New("error testing existance of local json file in provided path: " + err.Error())
+		}
+		return objectsCount, err
+	}
+
 	if p.Pvrconfig.DefaultPutUrl == "" {
 		p.Pvrconfig.DefaultPutUrl = uri
 	}
@@ -2545,13 +2588,9 @@ func (p *Pvr) GetRepo(uri string, merge bool, showFilenames bool, state *PvrMap)
 	}
 
 	objectsCount, err = p.GetRepoRemote(url, merge, showFilenames, state)
-
 	if err != nil {
 		return objectsCount, err
 	}
-
-save:
-	err = p.SaveConfig()
 
 	return objectsCount, err
 }

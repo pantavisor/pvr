@@ -243,7 +243,16 @@ func PatchState(srcBuff, patchBuff []byte, srcFrags, patchFrag string, merge boo
 		OverwriteState(*state, patchState)
 	}
 
+	for key, value := range patchState {
+		if value == nil {
+			delete(patchState, key)
+		}
+	}
+
 	jsonMerged, err = cjson.Marshal(&patchState)
+	if err != nil {
+		return nil, nil, err
+	}
 
 	return jsonMerged, patchState, err
 }
@@ -406,15 +415,34 @@ func CleanPatchSignedPkg(src, patch, target *PvrMap) (err error) {
 		if !strings.HasPrefix(key, "_sigs/") || key == "#spec" {
 			continue
 		}
+		var previousValue interface{}
+		if val, ok := (*src)[key]; ok {
+			previousValue = val
+		}
 
-		if value == nil {
-			delete(*src, key)
+		if value == nil && previousValue == nil {
+			deleted = append(deleted, key)
 			continue
 		}
 
-		deleted, err = DeleteSignatureFromState(*src, srcBuf, key, value.(map[string]interface{}), srcSigParts)
-		if err != nil {
-			return err
+		if value == nil && previousValue != nil {
+			del, err := DeleteSignatureFromState(*src, srcBuf, key, previousValue.(map[string]interface{}), srcSigParts)
+			if err != nil {
+				return err
+			}
+
+			deleted = append(deleted, del...)
+			for _, d := range del {
+				delete(*patch, d)
+
+			}
+		} else {
+			del, err := DeleteSignatureFromState(*src, srcBuf, key, value.(map[string]interface{}), srcSigParts)
+			deleted = append(deleted, del...)
+
+			if err != nil {
+				return err
+			}
 		}
 	}
 
@@ -569,7 +597,7 @@ func DeleteSignatureFromState(state PvrMap, stateBuf []byte, delSigKey string, d
 	partsOfSignature := append(sigSummary.Protected, sigSummary.Excluded...)
 	for path := range state {
 		for _, part := range partsOfSignature {
-			delete(signedParts[path], delSigKey)
+			delete(signedParts[part], delSigKey)
 			if part == path && len(signedParts[path]) == 0 {
 				delete(state, path)
 				deletedParts = append(deletedParts, path)
