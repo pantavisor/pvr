@@ -555,7 +555,7 @@ func (p *Pvr) InitCustom(customInitJson string, objectsDir string) error {
 	if err != nil {
 		return err
 	}
-	jsonFile, err := os.OpenFile(filepath.Join(p.Pvrdir, "json"), os.O_TRUNC | os.O_WRONLY, 0644)
+	jsonFile, err := os.OpenFile(filepath.Join(p.Pvrdir, "json"), os.O_TRUNC|os.O_WRONLY, 0644)
 
 	if err != nil {
 		return err
@@ -733,7 +733,7 @@ func (p *Pvr) prepCommitCheckpoint() error {
 		goto exit
 	}
 
-	fd, err = os.OpenFile(fNewPath, os.O_WRONLY| os.O_TRUNC, 0644)
+	fd, err = os.OpenFile(fNewPath, os.O_WRONLY|os.O_TRUNC, 0644)
 	if err != nil {
 		goto exit
 	}
@@ -1447,8 +1447,8 @@ func (p *Pvr) postObjects(pvrRemote pvrapi.PvrRemote, force bool) error {
 	// push all objects
 	for k, v := range filesAndObjects {
 
-		// we skip objects already in baseline state
-		if refObjects[v] != nil {
+		// we skip objects already in baseline state and if is not forcing reupload
+		if refObjects[v] != nil && !force {
 			continue
 		}
 
@@ -2748,7 +2748,7 @@ func (p *Pvr) Export(parts []string, dst string) error {
 		if err != nil {
 			return err
 		}
-		file, err = os.OpenFile(dst, os.O_TRUNC | os.O_WRONLY, 0644)
+		file, err = os.OpenFile(dst, os.O_TRUNC|os.O_WRONLY, 0644)
 		if err != nil {
 			return err
 		}
@@ -2829,7 +2829,13 @@ func (p *Pvr) Export(parts []string, dst string) error {
 		return err
 	}
 
+	var previousObjectAdded string
 	for _, v := range SortObjects(filesAndObjects) {
+		// skip dupes
+		if previousObjectAdded == v {
+			continue
+		}
+		previousObjectAdded = v
 		apath := "objects/" + v
 		ipath := filepath.Join(p.Objdir, v)
 		err := addToTar(tw, apath, ipath, &defaultModTime)
@@ -2975,7 +2981,7 @@ func (p *Pvr) DeployPvLinks() error {
 		if err != nil {
 			return err
 		}
-		err = ExecCommand(LN_CMD,path.Join(p.Dir, "bsp", initrdFile), initrdLink)
+		err = ExecCommand(LN_CMD, path.Join(p.Dir, "bsp", initrdFile), initrdLink)
 		if err != nil {
 			return err
 		}

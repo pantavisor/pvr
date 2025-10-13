@@ -1,6 +1,22 @@
 
+<a name="044"></a>
+## [044](https://gitlab.com/pantacor/pvr/compare/042...044) (2024-12-18)
+
+### Feature
+
+* delete device command
+
+### Repolib
+
+* skip exporting dupes of objects to tar
+
+
 <a name="042"></a>
 ## [042](https://gitlab.com/pantacor/pvr/compare/040...042) (2024-10-09)
+
+### Applib
+
+* fix volumes split to only split the last :
 
 ### Feature
 
@@ -10,7 +26,7 @@
 ### Fix
 
 * **statelib:** when patching states make sure of deleting previous signed elements
-* **Applib**: fix volumes split to only split the last :
+* **test:** correct the use of a folder object for testing
 
 
 <a name="040"></a>
@@ -377,3 +393,4 @@
 
 <a name="001"></a>
 ## 001 (2017-06-19)
+

@@ -91,8 +91,13 @@ func CommandPost() cli.Command {
 				return cli.NewExitError(err, 2)
 			}
 
-			err = pvr.Post(repoPath, c.String("envelope"), c.String("commit-msg"),
-				c.String("rev"), c.Bool("force"))
+			err = pvr.Post(
+				repoPath,
+				c.String("envelope"),
+				c.String("commit-msg"),
+				c.String("rev"),
+				c.Bool("force"),
+			)
 
 			if err != nil {
 				fmt.Println("ERROR: " + err.Error())
