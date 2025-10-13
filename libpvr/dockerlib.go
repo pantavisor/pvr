@@ -33,6 +33,7 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"time"
 
@@ -402,7 +403,7 @@ func (p *Pvr) LoadRemoteImage(app *AppData) error {
 		if err != nil {
 			manifestErr := ReportDockerManifestError(err, app.From)
 			if err.Error() == "image not found or you do not have access" {
-				fmt.Fprintf(os.Stderr, manifestErr.Error()+"\n")
+				fmt.Fprintf(os.Stderr, "%s\n", manifestErr.Error())
 				return nil
 			}
 			return manifestErr
@@ -553,6 +554,31 @@ type AppData struct {
 	ForceAdd        bool
 }
 
+func (data *AppData) GetPlatform(p *Pvr) string {
+	if data.Platform != "" {
+		return data.Platform
+	}
+
+	if p.Platform != "" {
+		return p.Platform
+	}
+
+	if dockerJsonRaw, ok := p.PristineJsonMap["_hostconfig/pvr/docker.json"]; ok {
+		if dockerJson, ok := dockerJsonRaw.(map[string]any); ok {
+			if platformsRaw, ok := dockerJson["platforms"]; ok {
+				if platformsList, ok := platformsRaw.([]any); ok && len(platformsList) > 0 {
+					if platformStr, ok := platformsList[0].(string); ok {
+						// Found a platform in the config, use it.
+						return platformStr
+					}
+				}
+			}
+		}
+	}
+
+	return fmt.Sprintf("%s/%s", runtime.GOOS, runtime.GOARCH)
+}
+
 func (p *Pvr) GenerateApplicationSquashFS(app *AppData, appManifest *Source) error {
 	digestFile := filepath.Join(app.DestinationPath, app.SquashFile+DOCKER_DIGEST_SUFFIX)
 	digest := ""
@@ -623,7 +649,7 @@ func (p *Pvr) GenerateApplicationSquashFS(app *AppData, appManifest *Source) err
 			if err != nil {
 				return err
 			}
-			file, err := os.OpenFile(filename, os.O_WRONLY | os.O_TRUNC, 0644)
+			file, err := os.OpenFile(filename, os.O_WRONLY|os.O_TRUNC, 0644)
 			if err != nil {
 				return err
 			}
@@ -681,7 +707,7 @@ func (p *Pvr) GenerateApplicationSquashFS(app *AppData, appManifest *Source) err
 			if err != nil {
 				return err
 			}
-			file, err := os.OpenFile(filename, os.O_WRONLY | os.O_TRUNC, 0644)
+			file, err := os.OpenFile(filename, os.O_WRONLY|os.O_TRUNC, 0644)
 			if err != nil {
 				return err
 			}
@@ -782,7 +808,7 @@ func (p *Pvr) GenerateApplicationSquashFS(app *AppData, appManifest *Source) err
 		return err
 	}
 	Create(digestFile, 0644)
-	currentDigest, err = os.OpenFile(digestFile, os.O_WRONLY | os.O_TRUNC, 0644)
+	currentDigest, err = os.OpenFile(digestFile, os.O_WRONLY|os.O_TRUNC, 0644)
 	if err != nil {
 		return err
 	}

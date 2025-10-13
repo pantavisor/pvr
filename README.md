@@ -23,12 +23,63 @@ Sumodules:
 
 ## Install
 
-1. From gitlab:
+Pre-built binaries are available for various architectures on the GitLab package registry.
 
+1.  **Download the appropriate package:**
+    Visit [https://gitlab.com/pantacor/pvr/-/packages](https://gitlab.com/pantacor/pvr/-/packages) and download the `pvr` binary suitable for your operating system and architecture.
+
+2.  **Extract and install:**
+    Extract the downloaded archive (if applicable) and move the `pvr` executable to a directory in your system's PATH, such as `/usr/local/bin` or `~/bin`.
+
+    Example (for a Linux 64-bit system, assuming the downloaded file is `pvr-linux-amd64.tar.gz`):
+    ```bash
+    tar -xzf pvr-linux-amd64.tar.gz
+    sudo mv pvr /usr/local/bin/
+    ```
+
+    Example (for a Windows 64-bit system, assuming the downloaded file is `pvr-windows-amd64.zip`):
+    ```powershell
+    Expand-Archive -Path pvr-windows-amd64.zip -DestinationPath C:\Program Files\pvr
+    # Then, add C:\Program Files\pvr to your system's PATH environment variable manually.
+    ```
+
+### Build from Source
+
+If you prefer to build `pvr` from source, follow these steps:
+
+1.  **Prerequisites:**
+    *   Go 1.21 or higher installed and configured.
+
+2.  **Clone the repository:**
+    ```bash
+    git clone https://gitlab.com/pantacor/pvr.git
+    cd pvr
+    ```
+
+3.  **Build and install:**
+    ```bash
+    go build -o ~/bin/pvr ./cmd/pvr
+    ```
+    This will compile the `pvr` executable and place it in `~/bin/pvr`. Ensure `~/bin` is in your system's PATH.
+
+### Using the Install Script
+
+For a quick and automated installation, you can use the `install.sh` script. This script will automatically detect your operating system and architecture, find the latest stable version of `pvr` from the GitLab package registry, download it, and install it to `~/.local/bin`.
+
+To install the **latest stable version**:
+
+```bash
+curl -sL https://gitlab.com/pantacor/pvr/-/raw/main/install.sh | bash
 ```
-$ go get gitlab.com/pantacor/pvr
-$ go build -o ~/bin/pvr gitlab.com/pantacor/pvr
+
+To install a **specific version** (e.g., `044`):
+
+```bash
+curl -sL https://gitlab.com/pantacor/pvr/-/raw/main/install.sh | bash -s -- 044
 ```
+
+**Note:** The script requires `jq` to be installed on your system for JSON parsing. If you encounter issues, please ensure `jq` is installed.
+
 
 ## Get Started
 

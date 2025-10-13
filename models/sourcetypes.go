@@ -1,5 +1,5 @@
 //
-// Copyright 2017-2023  Pantacor Ltd.
+// Copyright 2017-2025  Pantacor Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,9 +17,10 @@
 package models
 
 const (
-	SourceTypeDocker = "docker"
-	SourceTypePvr    = "pvr"
-	SourceTypeRootFs = "rootfs"
+	SourceTypeDocker    = "docker"
+	SourceTypePvr       = "pvr"
+	SourceTypeRootFs    = "rootfs"
+	SourceTypeGitLabPkg = "gitlabpkg"
 )
 
 type GetSTOptions struct {

@@ -33,6 +33,12 @@ func CommandMerge() cli.Command {
 		ArgsUsage:   "[repository [target-repository]]",
 		Usage:       "merge content of repository into target-directory",
 		Description: "default target-repository is the local .pvr one. If not <repository> is provided the last one is used.",
+		Flags: []cli.Flag{
+			cli.StringFlag{
+				Name:  "platform, p",
+				Usage: "Set target platform (e.g. linux/arm/v7). Docker platform format",
+			},
+		},
 		Action: func(c *cli.Context) error {
 			wd, err := os.Getwd()
 			if err != nil {
@@ -58,6 +64,10 @@ func CommandMerge() cli.Command {
 				repoPath = ""
 			} else {
 				repoPath = c.Args()[0]
+			}
+
+			if c.IsSet("platform") {
+				pvr.Platform = c.String("platform")
 			}
 
 			objectsCount, err := pvr.GetRepo(repoPath, true, true, nil)

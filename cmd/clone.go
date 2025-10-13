@@ -125,6 +125,10 @@ func CommandClone() cli.Command {
 				return cli.NewExitError(err, 20)
 			}
 
+			if c.IsSet("platform") {
+				pvr.Platform = c.String("platform")
+			}
+
 			_, err = pvr.GetRepo(deviceString, false, false, nil)
 			if err != nil {
 				return cli.NewExitError(err, 7)
@@ -160,6 +164,10 @@ func CommandClone() cli.Command {
 				Name:  "spec, s",
 				Usage: "Use `SPEC` as state format (e.g. pantavisor-service-system@1 or pantavisor-multi-platform@1 (legacy)",
 				Value: "pantavisor-service-system@1",
+			},
+			cli.StringFlag{
+				Name:  "platform, p",
+				Usage: "Set target platform (e.g. linux/arm/v7). Docker platform format",
 			},
 		},
 	}

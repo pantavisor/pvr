@@ -34,61 +34,61 @@ var (
 	}
 )
 
-func ExampleSprintTmplBasic() {
+func ExampleSprintTmpl_basic() {
 	s, _ := SprintTmpl("Basic", testMap1)
 	fmt.Println(s)
 	// Output: Basic
 }
 
-func ExampleSprintTmplSimple1() {
+func ExampleSprintTmpl_simple1() {
 	s, _ := SprintTmpl("Basic: {{ .key1 }}", testMap1)
 	fmt.Println(s)
 	// Output: Basic: value1
 }
 
-func ExampleSprintTmplSprintf1() {
+func ExampleSprintTmpl_sprintf1() {
 	s, _ := SprintTmpl("Basic: {{ \"test\" | sprintf \"%.3s\" }}", testMap1)
 	fmt.Println(s)
 	// Output: Basic: tes
 }
 
-func ExampleSprintTmplSprintf2() {
+func ExampleSprintTmpl_sprintf2() {
 	s, _ := SprintTmpl("Basic: {{ .key1 | sprintf \"%.3s\" }}", testMap1)
 	fmt.Println(s)
 	// Output: Basic: val
 }
 
-func ExampleSprintTmplStruct() {
+func ExampleSprintTmpl_struct() {
 	s, _ := SprintTmpl("Basic: {{ .Field1 | sprintf \"%.3s\" }}", testStruct1)
 	fmt.Println(s)
 	// Output: Basic: Tes
 }
 
-func ExampleFixupRef1() {
+func ExampleFixupRepoRef_ref1() {
 	uristring, _ := FixupRepoRef("192.168.1.3")
 	fmt.Println(uristring)
 	// Output: http://192.168.1.3:12368/cgi-bin/pvr
 }
 
-func ExampleFixupRef2() {
+func ExampleFixupRepoRef_ref2() {
 	uristring, _ := FixupRepoRef("192.168.1.3#hash,some")
 	fmt.Println(uristring)
 	// Output: http://192.168.1.3:12368/cgi-bin/pvr#hash,some
 }
 
-func ExampleFixupRef3() {
+func ExampleFixupRepoRef_ref3() {
 	uristring, _ := FixupRepoRef("asacasa/test1234")
 	fmt.Println(uristring)
 	// Output: https://pvr.pantahub.com/asacasa/test1234
 }
 
-func ExampleFixupRef4() {
+func ExampleFixupRepoRef_ref4() {
 	uristring, _ := FixupRepoRef("asacasa/test1234#something,fun")
 	fmt.Println(uristring)
 	// Output: https://pvr.pantahub.com/asacasa/test1234#something,fun
 }
 
-func ExampleTestIsValidUrl1() {
+func ExampleIsValidUrl_url1() {
 	if IsValidUrl("asacasa/test") {
 		fmt.Println("yes")
 	} else {
@@ -97,7 +97,7 @@ func ExampleTestIsValidUrl1() {
 	// Output: no
 }
 
-func ExampleTestIsValidUrl2() {
+func ExampleIsValidUrl_url2() {
 	if IsValidUrl("192.168.1.1") {
 		fmt.Println("yes")
 	} else {
@@ -106,7 +106,7 @@ func ExampleTestIsValidUrl2() {
 	// Output: no
 }
 
-func ExampleTestIsValidUrl3() {
+func ExampleIsValidUrl_url3() {
 	if IsValidUrl("http://192.168.1.1") {
 		fmt.Println("yes")
 	} else {

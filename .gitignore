@@ -1,4 +1,4 @@
-pvr
+/pvr
 build
 .vscode
 testdata/*.json
@@ -6,3 +6,4 @@ testdata/*.json
 _test/results
 _test/objects
 vendor
+_test/pvr
