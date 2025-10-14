@@ -331,6 +331,20 @@ you can use `pvr clone IP` directly.
 
 In that `pvr clone 1.2.3.4` is equivalent to `pvr clone http://1.2.3.4:12368/cgi-bin/pvr`.
 
+### pvr clone from GitLab Package
+
+You can also clone a PVR repository from a GitLab Package. This is useful for platform-specific builds. Use the GitLab project URL.
+
+The `--platform` argument is used to select the desired platform from the package. You can also specify a version by appending `@<version>` to the URL.
+
+```bash
+# Clone from a GitLab package for a specific platform
+$ pvr clone --platform=linux/amd64 https://gitlab.com/my-group/my-project my-local-dir
+
+# Clone a specific version
+$ pvr clone --platform=linux/amd64 https://gitlab.com/my-group/my-project@1.2.3 my-local-dir
+```
+
 ### pvr fastcopy <SOURCE>[#part1,part2,path/part3] <DESTINATION>[#part1name,$part2name,...]
 
 You can copy device state or subelements from one device to another without
@@ -806,8 +820,59 @@ sirinibin(prn:::accounts:/5bf2ac9e41b2dd0009a96c97) at https://api.pantahub.com/
 
 ### pvr get [remote-or-local-repository[#part1,part2,-unpart]] [target-repository]
 
-Update target-repository from remote or local repository
+Update target-repository from remote or local repository. `pvr get` updates the local repository's pristine state, but not the working copy.
 
+You can pull from a variety of sources:
+
+#### 1. Local PVR Repository
+```bash
+# Get from a local repo path
+$ pvr get /path/to/another/pvr/repo
+```
+
+#### 2. PVR Export Tarball (`.tar.gz`)
+```bash
+# Get from a tarball
+$ pvr get /path/to/my-export.tar.gz
+
+# You can also select specific parts
+$ pvr get /path/to/my-export.tar.gz#bsp
+```
+
+#### 3. Online PVR Repositories (Pantahub)
+```bash
+# Get from a Pantahub repo using shorthand
+$ pvr get pantahub-ci/rpi3_initial_latest
+
+# Get from a full Pantahub URL
+$ pvr get https://pvr.pantahub.com/pantahub-ci/rpi3_initial_latest
+```
+
+#### 4. Local Network Device
+```bash
+# Get from a device on the local network
+$ pvr get 192.168.1.123
+```
+
+#### 5. GitLab Packages
+The `--platform` argument is used to select the desired platform from the package. You can also specify a version by appending `@<version>` to the URL.
+
+If the `--platform` argument is not provided, `pvr` will look for a `_hostconfig/pvr/docker.json` file in the local repository and use the platforms defined there.
+```json
+{
+    "platforms": [
+        "linux/arm",
+        "linux/arm/v6"
+    ]
+}
+```
+
+```bash
+# Get from a GitLab package for a specific platform
+$ pvr get --platform=linux/arm64 https://gitlab.com/my-group/my-project
+```
+
+An example of the output:
 ```
 # get latest from remembered repository
 example1$ $ pvr get
@@ -827,97 +892,53 @@ b56390fbeb5e46f [OK]
 70075ca4496451e [OK]
 ```
 
-or
-
-```
-# get latest from remembered repository
-example1$ $ pvr get pantahub-ci/rpi3_initial_latest
-fe4d959c5541950 [OK]
-5a544d45a44cf3e [OK]
-834d31840a923e0 [OK]
-763030a2c49b8e8 [OK]
-5090f4922c2492e [OK]
-018e41b74500fa7 [OK]
-237277bb3586033 [OK]
-7bdd13f15773ab1 [OK]
-62f92986988541a [OK]
-13cef79b5098b82 [OK]
-dee31a19ce47772 [OK]
-67b1ce399971e30 [OK]
-12c8d468094e3d0 [OK]
-```
-
-You can also retrieve just one part (e.g. 'bsp' or $appname) using the fragment (#) notation:
-
-```
-pvr get pantahub-ci/rpi3_initial_latest#bsp
-67b1ce399971e30 [OK]
-018e41b74500fa7 [OK]
-fe4d959c5541950 [OK]
-dee31a19ce47772 [OK]
-```
-
-You can also retrieve two mor more parts with , separated (e.g. 'bsp' and $appname) using the fragment (#) notation:
-
-```
-pvr get pantahub-ci/rpi3_initial_latest#bsp,$appname
-...
-```
-
-Further can also remove one or multiple parts from repo in the same operation by prefixing the part with a '-', e.g.
-the following would get the latest bsp but also remove $appname from the pvr repo
-
-```
-pvr get pantahub-ci/rpi3_initial_latest#bsp,-$appname
-...
-```
-
-You can also get from a tarball produced with ```pvr export```:
-
-```
-pvr get /tmp/myexport.tar.gz#bsp
-pulling objects file /tmp/pvr-tmprepo-544439698/objects/dee31a19ce4777282e8f388ee174ec214d60d2682cd2c09537f5656b1106bf3f-> /home/asac/.pvr/objects/dee31a19ce4777282e8f388ee174ec214d60d2682cd2c09537f5656b1106bf3f.new
-pulling objects file /tmp/pvr-tmprepo-544439698/objects/018e41b74500fa7109390f0505180cfb612146e7c1dcac1669b4df226110aa90-> /home/asac/.pvr/objects/018e41b74500fa7109390f0505180cfb612146e7c1dcac1669b4df226110aa90.new
-pulling objects file /tmp/pvr-tmprepo-544439698/objects/fe4d959c5541950fe8fb10fd13eaeee0cfa2a9bf3fcae37c825daeb12a5366d2-> /home/asac/.pvr/objects/fe4d959c5541950fe8fb10fd13eaeee0cfa2a9bf3fcae37c825daeb12a5366d2.new
-pulling objects file /tmp/pvr-tmprepo-544439698/objects/67b1ce399971e304b02aa4ad11049ae78a7c7a44652d89ef44a60a04b2b541b6-> /home/asac/.pvr/objects/67b1ce399971e304b02aa4ad11049ae78a7c7a44652d89ef44a60a04b2b541b6.new
-``` 
-
-Rememember that ```pvr get``` will update the pristine state only, but not the working copy.
-
-You would usually introspect retrieved changes first using:
-
-```
-pvr status
-```
-
-and then replace working copy with pristine state using pvr checkout:
-
-```
-pvr checkout
-```
-
-### pvr global-config
-
-pvr global-config :Get Global Configuration details of the repo.
-
-```
-
-example1\$ pvr global-config
-{
-"Spec": "1",
-"AutoUpgrade": false,
-"DistributionTag": "develop"
-}
-
-```
+You would usually introspect retrieved changes first using `pvr status` and then replace working copy with pristine state using `pvr checkout`.
 
 ### pvr merge [remote-or-local-repository[#part]] [target-repository]
 
-pvr merge : Merge content of repository into target-directory.Default target-repository is the local .pvr one. If not <repository> is provided the last one is used.
+`pvr merge` fetches changes from another PVR repository and applies those changes to the working directory.
 
+You can merge from a variety of sources:
+
+#### 1. Local PVR Repository
+```bash
+# Merge from a local repo path
+$ pvr merge /path/to/another/pvr/repo
 ```
 
-example1\$ pvr merge
+#### 2. Online PVR Repositories (Pantahub)
+```bash
+# Merge from a Pantahub repo
+$ pvr merge my-user/my-device
+```
+
+#### 3. Local Network Device
+```bash
+# Merge from a local device, selecting a specific part
+$ pvr merge 192.168.1.123#my-app
+```
+
+#### 4. GitLab Packages
+The `--platform` argument is used to select the desired platform from the package. You can also specify a version by appending `@<version>` to the URL.
+
+If the `--platform` argument is not provided, `pvr` will look for a `_hostconfig/pvr/docker.json` file in the local repository and use the platforms defined there.
+```json
+{
+    "platforms": [
+        "linux/arm",
+        "linux/arm/v6"
+    ]
+}
+```
+
+```bash
+# Merge a specific version from a GitLab package
+$ pvr merge --platform=linux/amd64 https://gitlab.com/my-group/my-project@1.2.3
+```
+
+An example of the output:
+```
+example1$ pvr merge
 e8305714eaadc57 [OK]
 3f4889e5eed2252 [OK]
 76d1d085d44fd3f [OK]
@@ -933,8 +954,22 @@ f1b441cb2721355 [OK]
 b30e6b64d3e1ecb [OK]
 ff2a85a62cd09f1 [OK]
 ```
-
 Same syntax for retrieving remote or local or just a part of a repository as for ```pvr get``` do apply.
+
+### pvr global-config
+
+pvr global-config :Get Global Configuration details of the repo.
+
+```
+
+example1\$ pvr global-config
+{
+"Spec": "1",
+"AutoUpgrade": false,
+"DistributionTag": "develop"
+}
+
+```
 
 ### pvr putobjects <OBJECTS_ENDPOINT>
 
