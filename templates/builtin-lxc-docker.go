@@ -308,7 +308,7 @@ lxc.mount.entry = /volumes/{{- $source -}}/
 	"roles": {{- .Source.args.PV_ROLES | sprig_toPrettyJson | sprig_indent 8 }},
 	{{- end }}
 	{{- end }}
-	"root-volume": "{{- if and (.Source.dm_enabled) (or (index .Source.dm_enabled "root.ovl.squashfs") (index .Source.dm_enabled "root.squashfs")) }}dm:{{ end }}{{- if and (.Source.docker_ovl_digest) (.Source.base) }}root.ovl.squashfs{{ else }}root.squashfs{{ end }}",
+	"root-volume": "{{- if and (.Source.dm_enabled) (or (hasKey .Source.dm_enabled "root.ovl.squashfs") (hasKey .Source.dm_enabled "root.squashfs")) }}dm:{{ end }}{{- if and (.Source.docker_ovl_digest) (.Source.base) }}root.ovl.squashfs{{ else }}root.squashfs{{ end }}",
 	"volumes":[
 		{{- $v := sprig_list }}
 		{{- if .Source.args.PV_EXTRA_VOLUMES }}
@@ -334,7 +334,7 @@ lxc.mount.entry = /volumes/{{- $source -}}/
 		{{ $m := sprig_list}}
 		{{ $dmEnabled := .Source.dm_enabled }}
 		{{- range $i, $v := $n }}
-			{{- if and ($dmEnabled) (index $dmEnabled $v) }} {{ sprig_set $n $i (print "dm:" $v) }}{{ end }}
+			{{- if and ($dmEnabled) (hasKey $dmEnabled $v) }} {{ sprig_set $n $i (print "dm:" $v) }}{{ end }}
 		{{- end}}
 		{{ join ",\\n" $n }}
 	]
