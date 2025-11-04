@@ -564,9 +564,9 @@ func (data *AppData) GetPlatform(p *Pvr) string {
 	}
 
 	if dockerJsonRaw, ok := p.PristineJsonMap["_hostconfig/pvr/docker.json"]; ok {
-		if dockerJson, ok := dockerJsonRaw.(map[string]any); ok {
+		if dockerJson, ok := dockerJsonRaw.(map[string]interface{}); ok {
 			if platformsRaw, ok := dockerJson["platforms"]; ok {
-				if platformsList, ok := platformsRaw.([]any); ok && len(platformsList) > 0 {
+				if platformsList, ok := platformsRaw.([]interface{}); ok && len(platformsList) > 0 {
 					if platformStr, ok := platformsList[0].(string); ok {
 						// Found a platform in the config, use it.
 						return platformStr
