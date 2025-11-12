@@ -36,6 +36,10 @@ func CommandLogin() cli.Command {
 				Name:  "interactive, i",
 				Usage: "Login using only interactive mode",
 			},
+			cli.BoolFlag{
+				Name:  "oauth, o",
+				Usage: "Login with oauth",
+			},
 		},
 		Action: func(c *cli.Context) error {
 			APIURL := ""
@@ -52,7 +56,7 @@ func CommandLogin() cli.Command {
 				return cli.NewExitError(err, 4)
 			}
 
-			response, err := session.Login(APIURL, c.Bool("interactive"))
+			response, err := session.Login(APIURL, c.Bool("interactive"), c.Bool("oauth"))
 			if err != nil {
 				return cli.NewExitError(err, 4)
 			}

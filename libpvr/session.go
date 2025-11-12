@@ -32,6 +32,14 @@ const (
 	ConfigurationFile = "config.json"
 )
 
+type CallMethod int
+
+const (
+	InteractiveCallMethod CallMethod = iota
+	OAuthCallMethod
+	NoneCallMethod
+)
+
 type Session struct {
 	app           *cli.App
 	auth          *PvrAuthConfig
@@ -71,7 +79,7 @@ func (s *Session) GetApp() *cli.App {
 }
 
 // Login : Login to a given URL
-func (s *Session) Login(APIURL string, interactiveOnly bool) (*resty.Response, error) {
+func (s *Session) Login(APIURL string, interactiveOnly bool, oauth bool) (*resty.Response, error) {
 	//clear token
 	u, err := url.Parse(APIURL)
 	if err != nil {
@@ -83,7 +91,14 @@ func (s *Session) Login(APIURL string, interactiveOnly bool) (*resty.Response, e
 	if err != nil {
 		return nil, err
 	}
-	response, err := s.DoAuthCall(false, interactiveOnly, func(req *resty.Request) (*resty.Response, error) {
+	method := NoneCallMethod
+	if interactiveOnly {
+		method = InteractiveCallMethod
+	}
+	if oauth {
+		method = OAuthCallMethod
+	}
+	response, err := s.DoAuthCall(false, method, func(req *resty.Request) (*resty.Response, error) {
 		return req.Get(APIURL)
 	})
 	if err != nil {
@@ -102,7 +117,7 @@ func (s *Session) getNewCacheHeader() (string, error) {
 	return authHeader, nil
 }
 
-func (s *Session) DoAuthCall(withAnonToken, interactiveOnly bool, fn WrappableRestyCallFunc) (*resty.Response, error) {
+func (s *Session) DoAuthCall(withAnonToken bool, method CallMethod, fn WrappableRestyCallFunc) (*resty.Response, error) {
 
 	var bearer string
 	var err error
@@ -130,14 +145,18 @@ func (s *Session) DoAuthCall(withAnonToken, interactiveOnly bool, fn WrappableRe
 		retryMethods = append(retryMethods, AnonTokenMethod)
 	}
 
-	if !interactiveOnly {
-		retryMethods = append(retryMethods, InteractiveMethod)
-	}
+	retryMethods = append(retryMethods, OAuthMethod)
 
 	// rewrite all the retry methods if we only want interactive
-	if interactiveOnly {
+	if method == InteractiveCallMethod {
 		retryMethods = []GetAccesstokenMethod{
 			InteractiveMethod,
+		}
+	}
+
+	if method == OAuthCallMethod {
+		retryMethods = []GetAccesstokenMethod{
+			OAuthMethod,
 		}
 	}
 
@@ -175,26 +194,37 @@ func (s *Session) DoAuthCall(withAnonToken, interactiveOnly bool, fn WrappableRe
 		case CachedAccessTokenMethod:
 			bearer, err = s.auth.getCachedAccessToken(authHeader)
 			if bearer != "" {
+				s.GetApp().Metadata["PVR_AUTH"] = bearer
 				continue
 			}
 		case RefreshTokenMethod:
 			bearer, err = s.auth.getNewAccessToken(authHeader, RefreshTokenMethod)
 			if bearer != "" {
+				s.GetApp().Metadata["PVR_AUTH"] = bearer
 				continue
 			}
 		case UserPassMethod:
 			bearer, err = s.auth.getNewAccessToken(authHeader, UserPassMethod)
 			if bearer != "" {
+				s.GetApp().Metadata["PVR_AUTH"] = bearer
 				continue
 			}
 		case AnonTokenMethod:
 			bearer, err = s.auth.getNewAccessToken(authHeader, AnonTokenMethod)
 			if bearer != "" {
+				s.GetApp().Metadata["PVR_AUTH"] = bearer
 				continue
 			}
 		case InteractiveMethod:
 			bearer, err = s.auth.getNewAccessToken(authHeader, InteractiveMethod)
 			if bearer != "" {
+				s.GetApp().Metadata["PVR_AUTH"] = bearer
+				continue
+			}
+		case OAuthMethod:
+			bearer, err = s.auth.getNewAccessToken(authHeader, OAuthMethod)
+			if bearer != "" {
+				s.GetApp().Metadata["PVR_AUTH"] = bearer
 				continue
 			}
 		}

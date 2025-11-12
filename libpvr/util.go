@@ -50,15 +50,15 @@ import (
 )
 
 const (
-	CHMOD_CMD                      = "chmod"
-	CP_CMD                         = "cp"
-	LN_CMD                         = "ln"
-	MKDIR_CMD                      = "mkdir"
-	MKNOD_CMD                      = "mknod"
-	MKTEMP_CMD                     = "mktemp"
-	RM_CMD                         = "rm"
-	TAR_CMD                        = "tar"
-	TOUCH_CMD                      = "touch"
+	CHMOD_CMD  = "chmod"
+	CP_CMD     = "cp"
+	LN_CMD     = "ln"
+	MKDIR_CMD  = "mkdir"
+	MKNOD_CMD  = "mknod"
+	MKTEMP_CMD = "mktemp"
+	RM_CMD     = "rm"
+	TAR_CMD    = "tar"
+	TOUCH_CMD  = "touch"
 )
 
 type ApiError struct {
@@ -88,12 +88,12 @@ func PrintDebugln(a ...interface{}) (n int, err error) {
 
 func ExecCommand(name string, arg ...string) error {
 	if IsDebugEnabled {
-		args := []string {name}
+		args := []string{name}
 		args = append(args, arg...)
 		fmt.Println("Running Command: " + strings.Join(args, " "))
 	}
 	cmd := exec.Command(name, arg...)
-	for _,v := range os.Environ() {
+	for _, v := range os.Environ() {
 		if strings.HasPrefix(v, "SOURCE_DATE_EPOCH") {
 			continue
 		}
@@ -110,21 +110,21 @@ func ExecCommand(name string, arg ...string) error {
 	cmd.Stderr = &stderr
 	err := cmd.Run()
 	if err != nil || IsDebugEnabled {
-		fmt.Fprintln(os.Stdout, "OUT: " + stderr.String())
-		fmt.Fprintln(os.Stderr, "ERROR: " + fmt.Sprint(err) +": " + stderr.String())
+		fmt.Fprintln(os.Stdout, "OUT: "+stderr.String())
+		fmt.Fprintln(os.Stderr, "ERROR: "+fmt.Sprint(err)+": "+stderr.String())
 	}
 	return err
 }
 
 func ExecCommandOut(name string, arg ...string) (string, error) {
 	if IsDebugEnabled {
-		args := []string {name}
+		args := []string{name}
 		args = append(args, arg...)
 		fmt.Println("Running Command: " + strings.Join(args, " "))
 	}
 	cmd := exec.Command(name, arg...)
-	for _,v := range os.Environ() {
-		if ! strings.HasPrefix(v, "SOURCE_DATE_EPOCH=") {
+	for _, v := range os.Environ() {
+		if !strings.HasPrefix(v, "SOURCE_DATE_EPOCH=") {
 			continue
 		}
 		cmd.Env = append(cmd.Env, v)
@@ -140,8 +140,8 @@ func ExecCommandOut(name string, arg ...string) (string, error) {
 	cmd.Stderr = &stderr
 	err := cmd.Run()
 	if err != nil || IsDebugEnabled {
-		fmt.Fprintln(os.Stdout, "OUT: " + out.String())
-		fmt.Fprintln(os.Stderr, "ERROR: " + fmt.Sprint(err) +": " + stderr.String())
+		fmt.Fprintln(os.Stdout, "OUT: "+out.String())
+		fmt.Fprintln(os.Stderr, "ERROR: "+fmt.Sprint(err)+": "+stderr.String())
 	}
 	return strings.TrimSpace(out.String()), err
 }
@@ -372,7 +372,7 @@ func WriteTxtFile(filePath string, content string) error {
 	if err != nil {
 		return err
 	}
-	f, err := os.OpenFile(filePath, os.O_WRONLY | os.O_TRUNC, 0666)
+	f, err := os.OpenFile(filePath, os.O_WRONLY|os.O_TRUNC, 0666)
 	if err != nil {
 		return err
 	}
@@ -514,7 +514,7 @@ func (s *Session) CreateDevice(baseURL string, deviceNick string) (
 	if err != nil {
 		return nil, err
 	}
-	response, err := s.DoAuthCall(false, false, func(req *resty.Request) (*resty.Response, error) {
+	response, err := s.DoAuthCall(false, NoneCallMethod, func(req *resty.Request) (*resty.Response, error) {
 		body := map[string]interface{}{}
 		if deviceNick != "" {
 			body["nick"] = deviceNick
@@ -661,7 +661,7 @@ func (s *Session) GetUserProfiles(baseURL string,
 	*resty.Response,
 	error,
 ) {
-	response, err := s.DoAuthCall(true, false, func(req *resty.Request) (*resty.Response, error) {
+	response, err := s.DoAuthCall(true, NoneCallMethod, func(req *resty.Request) (*resty.Response, error) {
 		response, err := req.Get(baseURL + "/profiles/?nick=^" + userNick)
 		return response, err
 	})
@@ -687,7 +687,7 @@ func (s *Session) GetDevices(baseURL string,
 	*resty.Response,
 	error,
 ) {
-	response, err := s.DoAuthCall(true, false, func(req *resty.Request) (*resty.Response, error) {
+	response, err := s.DoAuthCall(true, NoneCallMethod, func(req *resty.Request) (*resty.Response, error) {
 		ownerNickParam := ""
 		if ownerNick != "" {
 			ownerNickParam = "&owner-nick=" + ownerNick
@@ -717,7 +717,7 @@ func (s *Session) GetDevice(baseURL string,
 	*resty.Response,
 	error,
 ) {
-	response, err := s.DoAuthCall(true, false, func(req *resty.Request) (*resty.Response, error) {
+	response, err := s.DoAuthCall(true, NoneCallMethod, func(req *resty.Request) (*resty.Response, error) {
 
 		if ownerNick != "" {
 			req.SetQueryParam("owner-nick", ownerNick)
@@ -779,7 +779,7 @@ func (s *Session) UpdateDevice(
 	*resty.Response,
 	error,
 ) {
-	response, err := s.DoAuthCall(false, false, func(req *resty.Request) (*resty.Response, error) {
+	response, err := s.DoAuthCall(false, NoneCallMethod, func(req *resty.Request) (*resty.Response, error) {
 		return req.SetBody(data).Patch(baseURL + "/devices/" + deviceNick + "/" + updateField)
 	})
 	if err != nil {
@@ -801,7 +801,7 @@ func (s *Session) GetAuthStatus(baseURL string) (
 	*resty.Response,
 	error,
 ) {
-	response, err := s.DoAuthCall(true, false, func(req *resty.Request) (*resty.Response, error) {
+	response, err := s.DoAuthCall(true, NoneCallMethod, func(req *resty.Request) (*resty.Response, error) {
 		return req.Get(baseURL + "/auth/auth_status")
 	})
 	if err != nil {
@@ -1140,7 +1140,7 @@ func DownloadFile(uri *url.URL) (string, error) {
 	}
 	defer RemoveAll(temppath)
 
-	tempfile, err := os.OpenFile(temppath, os.O_TRUNC | os.O_WRONLY, 0666)
+	tempfile, err := os.OpenFile(temppath, os.O_TRUNC|os.O_WRONLY, 0666)
 	if err != nil {
 		return "", err
 	}

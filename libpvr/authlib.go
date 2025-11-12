@@ -17,17 +17,36 @@
 package libpvr
 
 import (
+	"context"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
+	"net"
+	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/go-resty/resty"
+	"github.com/skratchdot/open-golang/open"
 	"gitlab.com/pantacor/pvr/utils/pvjson"
+)
+
+type GetAccesstokenMethod int
+
+const (
+	CachedAccessTokenMethod GetAccesstokenMethod = iota
+	RefreshTokenMethod
+	UserPassMethod
+	AnonTokenMethod
+	InteractiveMethod
+	OAuthMethod
 )
 
 type PvrAuthTarget struct {
@@ -258,16 +277,6 @@ func (session *Session) IsUserLoggedIn(baseURL string) (bool, error) {
 	return false, nil
 }
 
-type GetAccesstokenMethod int8
-
-const (
-	CachedAccessTokenMethod GetAccesstokenMethod = 1
-	RefreshTokenMethod      GetAccesstokenMethod = 2
-	UserPassMethod          GetAccesstokenMethod = 3
-	AnonTokenMethod         GetAccesstokenMethod = 4
-	InteractiveMethod       GetAccesstokenMethod = 5
-)
-
 func (p *PvrAuthConfig) getNewAccessToken(authHeader string, method GetAccesstokenMethod) (string, error) {
 
 	authType, opts := getWwwAuthenticateInfo(authHeader)
@@ -364,11 +373,174 @@ func (p *PvrAuthConfig) getNewAccessToken(authHeader string, method GetAccesstok
 
 			return accessToken, nil
 		}
+	case OAuthMethod:
+		parsedAuthEp, err := url.Parse(authEp)
+		if err != nil {
+			return "", errors.New("invalid authEp URL for OAuth: " + err.Error())
+		}
+		apiUrl := fmt.Sprintf("%s://%s", parsedAuthEp.Scheme, parsedAuthEp.Host)
+		accessToken, refreshToken, err := handlePKCELogin(apiUrl)
+		if err != nil {
+			return "", err
+		}
+		if accessToken != "" {
+			s.AccessToken = accessToken
+			s.RefreshToken = refreshToken
+			p.Tokens[authEp+" realm="+realm] = s
+			p.Save()
+
+			return accessToken, nil
+		}
 	default:
 		return "", fmt.Errorf("unable to get access token, method %d not supported", method)
 	}
 
 	return "", errors.New("unable to get access token")
+}
+
+type PkceResponse struct {
+	Token     string `json:"token"`
+	ExpiresIn int64  `json:"expires_in"`
+	Type      string `json:"token_type"`
+}
+
+func (r *PkceResponse) Body() []byte {
+	return []byte(r.Token)
+}
+
+const clientID = "prn:pantahub.com:apis:/pvr"
+const page = `
+<html>
+	<script>
+		window.close();
+	</script>
+	<body>
+		<h1>Login successful! You can close this window.</h1>
+	</body>
+</html>
+`
+
+func handlePKCELogin(apiURL string) (token string, refreshToken string, err error) {
+	// Step 1: Generate code_verifier and code_challenge
+	codeVerifierBytes := make([]byte, 32)
+	_, err = rand.Read(codeVerifierBytes)
+	if err != nil {
+		return token, refreshToken, fmt.Errorf("Error generating code_verifier: %v", err)
+	}
+	codeVerifier := base64.RawURLEncoding.EncodeToString(codeVerifierBytes)
+
+	sha256Hasher := sha256.New()
+	sha256Hasher.Write([]byte(codeVerifier))
+	codeChallengeBytes := sha256Hasher.Sum(nil)
+	codeChallenge := base64.RawURLEncoding.EncodeToString(codeChallengeBytes)
+
+	// Step 2: Initiate Authorization Request (Browser Redirect)
+	// Find an available port for the local callback server
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return token, refreshToken, fmt.Errorf("Error finding available port: %v", err)
+	}
+	defer listener.Close()
+	redirectPort := listener.Addr().(*net.TCPAddr).Port
+	redirectURI := fmt.Sprintf("http://127.0.0.1:%d/callback", redirectPort)
+
+	stateBytes := make([]byte, 16)
+	_, err = rand.Read(stateBytes)
+	if err != nil {
+		return token, refreshToken, fmt.Errorf("Error generating random state: %v", err)
+	}
+	state := base64.RawURLEncoding.EncodeToString(stateBytes)
+
+	authURL := fmt.Sprintf(
+		"%s/auth/oauth/authorize?response_type=code&client_id=%s&redirect_uri=%s&scope=%s&code_challenge=%s&code_challenge_method=S256&state=%s",
+		apiURL,
+		clientID,
+		url.QueryEscape(redirectURI),
+		url.QueryEscape("prn:pantahub.com:apis:/base/all"),
+		url.QueryEscape(codeChallenge),
+		url.QueryEscape(state))
+
+	fmt.Printf("Opening browser for login. Please complete the authentication in your browser.\n")
+	fmt.Printf("If your browser does not open automatically, please navigate to: %s\n", authURL)
+	open.Run(authURL)
+
+	codeCh := make(chan string)
+	server := &http.Server{
+		Addr: fmt.Sprintf(":%d", redirectPort),
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			queryState := r.URL.Query().Get("state")
+			if queryState != state {
+				errStr := "Invalid state parameter"
+				http.Error(w, errStr, http.StatusBadRequest)
+				return
+			}
+			code := r.URL.Query().Get("code")
+			if code == "" {
+				errStr := "Authorization code not found"
+				http.Error(w, errStr, http.StatusBadRequest)
+				return
+			}
+			fmt.Fprintf(w, page)
+			codeCh <- code
+		}),
+	}
+
+	go func() {
+		fmt.Printf("Starting local callback server on 127.0.0.1:%d\n", redirectPort)
+		if err := server.Serve(listener); err != nil && err != http.ErrServerClosed {
+			fmt.Printf("Local callback server error: %v\n", err)
+		}
+	}()
+
+	var authCode string
+	select {
+	case authCode = <-codeCh:
+	case <-time.After(5 * time.Minute):
+		_ = server.Shutdown(context.Background())
+		return token, refreshToken, fmt.Errorf("Timed out waiting for authorization code")
+	}
+
+	_ = server.Shutdown(context.Background())
+
+	// Step 3: Client Exchanges Authorization Code for Access Token
+
+	tokenURL := fmt.Sprintf("%s/auth/oauth/token", apiURL)
+	tokenPayload := map[string]string{
+		"grant_type":    "authorization_code",
+		"client_id":     clientID,
+		"redirect_uri":  redirectURI,
+		"access-code":   authCode,
+		"code_verifier": codeVerifier,
+		"scope":         "prn:pantahub.com:apis:/base/all",
+	}
+
+	var body []byte // Declare body here to match original structure
+
+	restyResp, err := resty.R().
+		SetHeader("Content-Type", "application/json").
+		SetBody(tokenPayload).
+		Post(tokenURL)
+
+	if err != nil {
+		return token, refreshToken, fmt.Errorf("Error making token exchange request: %v", err)
+	}
+
+	// resty handles closing the response body, so no explicit defer is needed.
+	// The body is readily available from the response object.
+	body = restyResp.Body()
+
+	if restyResp.StatusCode() != http.StatusOK {
+		return token, refreshToken, fmt.Errorf("Token exchange failed with status %d: %s", restyResp.StatusCode(), string(body))
+	}
+
+	response := PkceResponse{}
+	err = json.Unmarshal(body, &response)
+	if err != nil {
+		return token, refreshToken, fmt.Errorf("Error unmarshalling token response: %v", err)
+	}
+
+	response.ExpiresIn = time.Now().Add(time.Duration(response.ExpiresIn) * time.Second).Unix()
+	return response.Token, response.Token, nil
 }
 
 func newDefaultAuthConfig(filePath string) *PvrAuthConfig {
@@ -387,7 +559,7 @@ func (s *Session) GetWhoami() (nick string, err error) {
 			continue
 		}
 		authEndPoint := splits[0]
-		response, err := s.DoAuthCall(true, false, func(req *resty.Request) (*resty.Response, error) {
+		response, err := s.DoAuthCall(true, NoneCallMethod, func(req *resty.Request) (*resty.Response, error) {
 			return req.Get(authEndPoint + "/auth_status")
 		})
 		if err != nil {
@@ -416,7 +588,7 @@ func (s *Session) Whoami() (err error) {
 			continue
 		}
 		authEndPoint := splits[0]
-		response, err := s.DoAuthCall(true, false, func(req *resty.Request) (*resty.Response, error) {
+		response, err := s.DoAuthCall(true, NoneCallMethod, func(req *resty.Request) (*resty.Response, error) {
 			return req.Get(authEndPoint + "/auth_status")
 		})
 		if err != nil {
