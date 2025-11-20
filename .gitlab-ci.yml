@@ -1,4 +1,4 @@
-image: docker:cli
+image: docker:27.3.1-cli # Use a modern client
 
 stages:
   - test
@@ -6,7 +6,8 @@ stages:
   - deploy
 
 services:
-  - docker:dind
+  - name: docker:27.3.1-dind # Use a matching server
+    alias: docker
 
 variables:
   CONTAINER_IMAGE: registry.gitlab.com/$CI_PROJECT_PATH
