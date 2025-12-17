@@ -462,7 +462,9 @@ func handlePKCELogin(apiURL string) (token string, refreshToken string, err erro
 
 	fmt.Printf("Opening browser for login. Please complete the authentication in your browser.\n")
 	fmt.Printf("If your browser does not open automatically, please navigate to: %s\n", authURL)
-	open.Run(authURL)
+	go func() {
+		open.Run(authURL)
+	}()
 
 	codeCh := make(chan string)
 	server := &http.Server{
