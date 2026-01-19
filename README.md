@@ -23,7 +23,17 @@ Sumodules:
 
 ## Install
 
-Pre-built binaries are available for various architectures on the GitLab package registry.
+### Quick Install
+
+One-line installation that automatically detects your OS and architecture:
+
+```bash
+curl -sL https://gitlab.com/pantacor/pvr/-/raw/master/install.sh | bash
+```
+
+---
+
+Pre-built binaries are also available for various architectures on the GitLab package registry.
 
 1.  **Download the appropriate package:**
     Visit [https://gitlab.com/pantacor/pvr/-/packages](https://gitlab.com/pantacor/pvr/-/packages) and download the `pvr` binary suitable for your operating system and architecture.
@@ -66,19 +76,36 @@ If you prefer to build `pvr` from source, follow these steps:
 
 For a quick and automated installation, you can use the `install.sh` script. This script will automatically detect your operating system and architecture, find the latest stable version of `pvr` from the GitLab package registry, download it, and install it to `~/.local/bin`.
 
-To install the **latest stable version**:
+#### Install the latest stable version:
 
 ```bash
-curl -sL https://gitlab.com/pantacor/pvr/-/raw/main/install.sh | bash
+curl -sL https://gitlab.com/pantacor/pvr/-/raw/master/install.sh | bash
 ```
 
-To install a **specific version** (e.g., `044`):
+#### Install a specific version:
 
 ```bash
-curl -sL https://gitlab.com/pantacor/pvr/-/raw/main/install.sh | bash -s -- 044
+PVR_VERSION=046 bash <(curl -sL https://gitlab.com/pantacor/pvr/-/raw/master/install.sh)
 ```
 
-**Note:** The script requires `jq` to be installed on your system for JSON parsing. If you encounter issues, please ensure `jq` is installed.
+#### Install from the develop channel:
+
+```bash
+PVR_CHANNEL=develop bash <(curl -sL https://gitlab.com/pantacor/pvr/-/raw/master/install.sh)
+```
+
+#### Install to a custom directory:
+
+```bash
+PVR_INSTALL_DIR=/usr/local/bin bash <(curl -sL https://gitlab.com/pantacor/pvr/-/raw/master/install.sh)
+```
+
+#### Environment Variables:
+
+- `PVR_VERSION` - Specific version to install (default: latest)
+- `PVR_CHANNEL` - Channel to fetch version from: `stable` or `develop` (default: stable)
+- `PVR_INSTALL_DIR` - Installation directory (default: `$HOME/.local/bin`)
+- `GITLAB_HOST` - GitLab instance (default: gitlab.com)
 
 
 ## Get Started
