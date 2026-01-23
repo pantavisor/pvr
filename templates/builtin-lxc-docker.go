@@ -259,6 +259,18 @@ lxc.mount.entry = /volumes/{{- $source -}}/
 	{{- if .Source.args.PV_REMOUNT }}
 	"remount": {{ .Source.args.PV_REMOUNT | sprig_toPrettyJson | sprig_indent 8 | trim }},
 	{{- end }}
+	{{- if .Source.args.PV_NETWORK_POOL }}
+	"network": {
+		"pool": "{{- .Source.args.PV_NETWORK_POOL -}}",
+		"hostname": "{{- .Source.args.PV_NETWORK_HOSTNAME | pvr_ifNull .Source.name -}}"
+		{{- if .Source.args.PV_NETWORK_IP -}}
+		,"ip": "{{- .Source.args.PV_NETWORK_IP -}}"
+		{{- end -}}
+		{{- if .Source.args.PV_NETWORK_MAC -}}
+		,"mac": "{{- .Source.args.PV_NETWORK_MAC -}}"
+		{{- end }}
+	},
+	{{- end }}
 	"storage":{
 		{{- range $key, $value := pvr_mergePersistentMaps .Docker.Volumes $persistence -}}
 		{{- $realkey := $key }}
