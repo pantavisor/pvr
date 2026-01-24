@@ -117,6 +117,15 @@ To leverage the features of json diff/merge etc. all json files found in a direc
 get inlined while all other objects will get a sha reference entry with the files themselves
 getting stored in a flat objects directory.
 
+### Templates and Manifests
+
+When adding applications from Docker images or other sources, `pvr` uses a powerful template system to automatically generate Pantavisor manifests (`run.json`) and container configurations (`lxc.container.conf`).
+
+You can customize this process using `args.json` (for Pantavisor-specific settings) and `config.json` (to override Docker manifest values like Entrypoint or Env).
+
+For a detailed guide on available variables and how the template system works, see:
+- [PVR Templates & Variables Documentation](PVR_TEMPLATES.md)
+
 ## Basics
 
 To start a pvr from scratch you use the pvr init command which sets you up.
