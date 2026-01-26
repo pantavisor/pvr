@@ -125,3 +125,17 @@ These variables control the low-level LXC configuration parameters.
     *   **lxc.container.conf**: Generates the LXC config file using the template logic.
     *   **run.json**: Generates the Pantavisor manifest, mapping Docker settings and `args` variables to the standard fields.
 4.  **Output**: These files are written to the container directory (or `pvrexport`).
+
+## Advanced Feature Configuration
+
+### IPAM Networking
+
+The `PV_NETWORK_*` keys configure container networking via Pantavisor's IPAM subsystem.
+
+```json
+{
+  "PV_NETWORK_POOL": "internal",
+  "PV_NETWORK_IP": "10.0.3.50",
+  "PV_NETWORK_HOSTNAME": "my-custom-host"
+}
+```
