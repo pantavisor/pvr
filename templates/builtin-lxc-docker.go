@@ -248,6 +248,22 @@ lxc.mount.entry = /volumes/{{- $source -}}/
 	},
 	{{- if .Source.args.PV_AUTO_RECOVERY }}
 	"auto_recovery": {{- sprig_toPrettyJson .Source.args.PV_AUTO_RECOVERY | pvr_jsonIndent 0 1 "\t" -}}{{- "," -}}
+	{{- else if .Source.args.PV_AUTO_RECOVERY_POLICY }}
+	"auto_recovery": {
+		"policy": "{{- .Source.args.PV_AUTO_RECOVERY_POLICY -}}"
+		{{- if .Source.args.PV_AUTO_RECOVERY_MAX_RETRIES -}}
+		,"max_retries": {{- .Source.args.PV_AUTO_RECOVERY_MAX_RETRIES -}}
+		{{- end -}}
+		{{- if .Source.args.PV_AUTO_RECOVERY_RETRY_DELAY -}}
+		,"retry_delay": {{- .Source.args.PV_AUTO_RECOVERY_RETRY_DELAY -}}
+		{{- end -}}
+		{{- if .Source.args.PV_AUTO_RECOVERY_BACKOFF_FACTOR -}}
+		,"backoff_factor": {{- .Source.args.PV_AUTO_RECOVERY_BACKOFF_FACTOR -}}
+		{{- end -}}
+		{{- if .Source.args.PV_AUTO_RECOVERY_RESET_WINDOW -}}
+		,"reset_window": {{- .Source.args.PV_AUTO_RECOVERY_RESET_WINDOW -}}
+		{{- end }}
+	},
 	{{- end }}
 	{{- if .EffectiveGroup }}
 	"group": "{{- .EffectiveGroup }}",

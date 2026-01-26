@@ -139,3 +139,63 @@ The `PV_NETWORK_*` keys configure container networking via Pantavisor's IPAM sub
   "PV_NETWORK_HOSTNAME": "my-custom-host"
 }
 ```
+
+### Service Mesh & Ingress (pv-xconnect)
+
+The `PV_SERVICES_REQUIRED` key is used to define dependencies on other containers or to configure external traffic ingress.
+
+#### TCP Ingress
+Routes external traffic from port 2222 into the container, which then proxies it to a backend service named `raw-unix`.
+```json
+{
+  "PV_SERVICES_REQUIRED": [
+    {
+      "name": "raw-unix",
+      "type": "tcp",
+      "target": "0.0.0.0:2222"
+    }
+  ]
+}
+```
+
+#### HTTP Ingress with Path Rewriting
+Routes external traffic on port 80 with path `/api` to a backend service named `network-manager`. The path prefix is stripped when forwarding to the provider.
+```json
+{
+  "PV_SERVICES_REQUIRED": [
+    {
+      "name": "network-manager",
+      "type": "http",
+      "target": "0.0.0.0:80/api"
+    }
+  ]
+}
+```
+
+### Auto-Recovery (Restart Policies)
+
+The `PV_AUTO_RECOVERY` key defines how Pantavisor should handle container crashes using an exponential backoff strategy.
+
+#### Option 1: Wholesale JSON object
+```json
+{
+  "PV_AUTO_RECOVERY": {
+    "policy": "on-failure",
+    "max_retries": 10,
+    "retry_delay": 5,
+    "backoff_factor": 2.0,
+    "reset_window": 300
+  }
+}
+```
+
+#### Option 2: Granular variables (Less error-prone)
+```json
+{
+  "PV_AUTO_RECOVERY_POLICY": "on-failure",
+  "PV_AUTO_RECOVERY_MAX_RETRIES": 10,
+  "PV_AUTO_RECOVERY_RETRY_DELAY": 5,
+  "PV_AUTO_RECOVERY_BACKOFF_FACTOR": 2.0,
+  "PV_AUTO_RECOVERY_RESET_WINDOW": 300
+}
+```
