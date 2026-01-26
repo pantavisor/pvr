@@ -561,8 +561,11 @@ func (s *Session) GetWhoami() (nick string, err error) {
 			continue
 		}
 		authEndPoint := splits[0]
-		response, err := s.DoAuthCall(true, NoneCallMethod, func(req *resty.Request) (*resty.Response, error) {
-			return req.Get(authEndPoint + "/auth_status")
+		authStatusURL := authEndPoint + "/auth_status"
+		response, err := s.DoAuthCall(true, NoneCallMethod, func(req *resty.Request) error {
+			req.Method = resty.MethodGet
+			req.URL = authStatusURL
+			return nil
 		})
 		if err != nil {
 			return nick, err
@@ -590,8 +593,11 @@ func (s *Session) Whoami() (err error) {
 			continue
 		}
 		authEndPoint := splits[0]
-		response, err := s.DoAuthCall(true, NoneCallMethod, func(req *resty.Request) (*resty.Response, error) {
-			return req.Get(authEndPoint + "/auth_status")
+		authStatusURL := authEndPoint + "/auth_status"
+		response, err := s.DoAuthCall(true, NoneCallMethod, func(req *resty.Request) error {
+			req.Method = resty.MethodGet
+			req.URL = authStatusURL
+			return nil
 		})
 		if err != nil {
 			return err

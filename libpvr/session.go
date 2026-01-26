@@ -23,6 +23,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/go-resty/resty"
 	"github.com/urfave/cli"
@@ -98,8 +99,10 @@ func (s *Session) Login(APIURL string, interactiveOnly bool, oauth bool) (*resty
 	if oauth {
 		method = OAuthCallMethod
 	}
-	response, err := s.DoAuthCall(false, method, func(req *resty.Request) (*resty.Response, error) {
-		return req.Get(APIURL)
+	response, err := s.DoAuthCall(false, method, func(req *resty.Request) error {
+		req.Method = resty.MethodGet
+		req.URL = APIURL
+		return nil
 	})
 	if err != nil {
 		return response, err
@@ -118,6 +121,16 @@ func (s *Session) getNewCacheHeader() (string, error) {
 }
 
 func (s *Session) DoAuthCall(withAnonToken bool, method CallMethod, fn WrappableRestyCallFunc) (*resty.Response, error) {
+	// Prepare the request using the callback
+	req := resty.R()
+	if err := fn(req); err != nil {
+		return nil, err
+	}
+
+	// If it's a local device URL, skip authentication entirely
+	if IsLocalDeviceURL(req.URL) {
+		return req.Execute(req.Method, req.URL)
+	}
 
 	var bearer string
 	var err error
@@ -165,7 +178,10 @@ func (s *Session) DoAuthCall(withAnonToken bool, method CallMethod, fn Wrappable
 	for _, method := range retryMethods {
 		var newAuthHeader string
 
-		response, err = fn(resty.R().SetAuthToken(bearer))
+		// Execute request with current bearer token
+		req.SetAuthToken(bearer)
+		response, err = req.Execute(req.Method, req.URL)
+
 		// we continue looping for 401 and 403 error codes, everything
 		// else are error conditions that need to be handled upstream
 		if err == nil &&
@@ -240,4 +256,18 @@ func (s *Session) DoAuthCall(withAnonToken bool, method CallMethod, fn Wrappable
 	}
 
 	return response, err
+}
+
+// IsLocalDeviceURL checks if a URL points to a local device.
+// Local devices are identified by the presence of /cgi-bin in the URL path,
+// which is only present when talking directly to a Pantavisor device
+// (via the CGI interface), not when going through the cloud API.
+func IsLocalDeviceURL(urlStr string) bool {
+	u, err := url.Parse(urlStr)
+	if err != nil {
+		return false
+	}
+
+	// Check for /cgi-bin in the path - this indicates a direct device connection
+	return strings.Contains(u.Path, "/cgi-bin")
 }

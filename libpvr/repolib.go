@@ -116,7 +116,9 @@ type PvrConfig struct {
 	RefreshTokens map[string]string
 }
 
-type WrappableRestyCallFunc func(req *resty.Request) (*resty.Response, error)
+// WrappableRestyCallFunc prepares a resty request (sets URL, Method, Body, etc.)
+// DoAuthCall will handle authentication and execute the request
+type WrappableRestyCallFunc func(req *resty.Request) error
 
 func (p *Pvr) String() string {
 	return "PVR: " + p.Dir
@@ -980,20 +982,20 @@ func (p *Pvr) initializeRemote(repoUrl *url.URL) (pvrapi.PvrRemote, error) {
 
 	pvrRemoteUrl := repoUrl
 	pvrRemoteUrl.Path = path.Join(pvrRemoteUrl.Path, ".pvrremote")
+	urlStr := pvrRemoteUrl.String()
 
-	response, err := p.Session.DoAuthCall(true, NoneCallMethod, func(req *resty.Request) (response *resty.Response, err error) {
-		fmt.Fprintf(os.Stdout, "Getting remote repository info ... ")
-		if response, err = req.Get(pvrRemoteUrl.String()); err != nil {
-			fmt.Fprintf(os.Stderr, "[ERROR %s]\n", err)
-			return response, err
-		}
-		fmt.Fprintf(os.Stdout, "[OK]\n")
-		return response, err
+	fmt.Fprintf(os.Stdout, "Getting remote repository info ... ")
+	response, err := p.Session.DoAuthCall(true, NoneCallMethod, func(req *resty.Request) error {
+		req.Method = resty.MethodGet
+		req.URL = urlStr
+		return nil
 	})
 
 	if err != nil {
+		fmt.Fprintf(os.Stderr, "[ERROR %s]\n", err)
 		return res, err
 	}
+	fmt.Fprintf(os.Stdout, "[OK]\n")
 
 	if response.StatusCode() != 200 {
 		return res, errors.New("REST call failed. " +
@@ -1178,9 +1180,12 @@ func (p *Pvr) DoClaim(deviceEp, challenge string) error {
 	uV := u.Query()
 	uV.Set("challenge", challenge)
 	u.RawQuery = uV.Encode()
+	urlStr := u.String()
 
-	response, err := p.Session.DoAuthCall(false, NoneCallMethod, func(req *resty.Request) (*resty.Response, error) {
-		return req.Put(u.String())
+	response, err := p.Session.DoAuthCall(false, NoneCallMethod, func(req *resty.Request) error {
+		req.Method = resty.MethodPut
+		req.URL = urlStr
+		return nil
 	})
 
 	if err != nil {
@@ -1213,9 +1218,12 @@ func (p *Pvr) DoDelete(deviceEp string, confirm bool) error {
 
 	uV := u.Query()
 	u.RawQuery = uV.Encode()
+	urlStr := u.String()
 
-	response, err := p.Session.DoAuthCall(false, NoneCallMethod, func(req *resty.Request) (*resty.Response, error) {
-		return req.Delete(u.String())
+	response, err := p.Session.DoAuthCall(false, NoneCallMethod, func(req *resty.Request) error {
+		req.Method = resty.MethodDelete
+		req.URL = urlStr
+		return nil
 	})
 
 	if err != nil {
@@ -1473,16 +1481,15 @@ func (p *Pvr) postObjects(pvrRemote pvrapi.PvrRemote, force bool) error {
 
 		fmt.Fprintf(os.Stderr, "Posting object info for: %s ... ", k)
 
-		response, err := p.Session.DoAuthCall(false, NoneCallMethod, func(req *resty.Request) (*resty.Response, error) {
-			res, err := req.SetBody(remoteObject).Post(uri)
-
-			if err != nil {
-				fmt.Fprintf(os.Stderr, " [ERROR: %s]", err)
-			}
-			return res, err
+		response, err := p.Session.DoAuthCall(false, NoneCallMethod, func(req *resty.Request) error {
+			req.Method = resty.MethodPost
+			req.URL = uri
+			req.SetBody(remoteObject)
+			return nil
 		})
 
 		if err != nil {
+			fmt.Fprintf(os.Stderr, " [ERROR: %s]", err)
 			return errout(err)
 		}
 
@@ -1600,8 +1607,11 @@ func (p *Pvr) PutRemote(repoPath *url.URL, force bool) error {
 		return err
 	}
 
-	response, err := p.Session.DoAuthCall(false, NoneCallMethod, func(req *resty.Request) (*resty.Response, error) {
-		return req.SetBody(body).Put(uri)
+	response, err := p.Session.DoAuthCall(false, NoneCallMethod, func(req *resty.Request) error {
+		req.Method = resty.MethodPut
+		req.URL = uri
+		req.SetBody(body)
+		return nil
 	})
 
 	if err != nil {
@@ -1757,8 +1767,11 @@ func (p *Pvr) postRemoteJson(remotePvr pvrapi.PvrRemote, pvrMap PvrMap, envelope
 		fmt.Fprintf(os.Stderr, "Posting JSON: %s\n", data)
 	}
 
-	response, err := p.Session.DoAuthCall(false, NoneCallMethod, func(req *resty.Request) (*resty.Response, error) {
-		return req.SetBody(data).SetContentLength(true).Post(remotePvr.PostUrl)
+	response, err := p.Session.DoAuthCall(false, NoneCallMethod, func(req *resty.Request) error {
+		req.Method = resty.MethodPost
+		req.URL = remotePvr.PostUrl
+		req.SetBody(data).SetContentLength(true)
+		return nil
 	})
 
 	if err != nil {
@@ -2197,9 +2210,10 @@ func (p *Pvr) GetRepoLocal(getPath string, merge bool, showFilenames bool, state
 }
 
 func (p *Pvr) getJSONBuf(pvrRemote pvrapi.PvrRemote) ([]byte, error) {
-
-	response, err := p.Session.DoAuthCall(true, NoneCallMethod, func(req *resty.Request) (*resty.Response, error) {
-		return req.Get(pvrRemote.JsonGetUrl)
+	response, err := p.Session.DoAuthCall(true, NoneCallMethod, func(req *resty.Request) error {
+		req.Method = resty.MethodGet
+		req.URL = pvrRemote.JsonGetUrl
+		return nil
 	})
 
 	if err != nil {
@@ -2211,10 +2225,11 @@ func (p *Pvr) getJSONBuf(pvrRemote pvrapi.PvrRemote) ([]byte, error) {
 	return jsonData, nil
 }
 
-func (p *Pvr) getURLBuf(url string) ([]byte, error) {
-
-	response, err := p.Session.DoAuthCall(true, NoneCallMethod, func(req *resty.Request) (*resty.Response, error) {
-		return req.Get(url)
+func (p *Pvr) getURLBuf(urlStr string) ([]byte, error) {
+	response, err := p.Session.DoAuthCall(true, NoneCallMethod, func(req *resty.Request) error {
+		req.Method = resty.MethodGet
+		req.URL = urlStr
+		return nil
 	})
 
 	if err != nil {
@@ -2409,9 +2424,12 @@ func (p *Pvr) getObjects(showFilenames bool, pvrRemote pvrapi.PvrRemote, jsonMap
 
 		fmt.Fprintf(os.Stderr, "[OK]\n")
 
-		if response, err = p.Session.DoAuthCall(true, NoneCallMethod, func(req *resty.Request) (*resty.Response, error) {
-			return req.Get(uri)
-		}); err != nil {
+		response, err = p.Session.DoAuthCall(true, NoneCallMethod, func(req *resty.Request) error {
+			req.Method = resty.MethodGet
+			req.URL = uri
+			return nil
+		})
+		if err != nil {
 			fmt.Fprintf(os.Stderr, "[ERROR %s]\n", err)
 			return objectsCount, err
 		}

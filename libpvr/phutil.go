@@ -161,38 +161,40 @@ type PantahubDevicesJoinToken struct {
 }
 
 func (p *Session) TokenCreate(baseurl string, usermeta map[string]interface{}) (*PantahubDevicesJoinToken, error) {
-	res, err := p.DoAuthCall(false, NoneCallMethod, func(req *resty.Request) (*resty.Response, error) {
-		burl, err := url.Parse(baseurl)
-		if err != nil {
-			return nil, errors.New("Cannot parse baseurl '" + baseurl + "': " + err.Error())
-		}
+	burl, err := url.Parse(baseurl)
+	if err != nil {
+		return nil, errors.New("Cannot parse baseurl '" + baseurl + "': " + err.Error())
+	}
 
-		dtUrl, err := url.Parse(PhDeviceTokens)
-		if err != nil {
-			return nil, errors.New("Cannot parse PhDeviceTokensUrl '" + dtUrl.String() + "': " + err.Error())
-		}
+	dtUrl, err := url.Parse(PhDeviceTokens)
+	if err != nil {
+		return nil, errors.New("Cannot parse PhDeviceTokensUrl '" + dtUrl.String() + "': " + err.Error())
+	}
 
-		fullURL := burl.ResolveReference(dtUrl)
+	fullURL := burl.ResolveReference(dtUrl)
 
-		token := PantahubDevicesJoinToken{
-			DefaultUserMeta: usermeta,
-		}
-		body, err := json.Marshal(token)
-		if err != nil {
-			return nil, err
-		}
+	token := PantahubDevicesJoinToken{
+		DefaultUserMeta: usermeta,
+	}
+	body, err := json.Marshal(token)
+	if err != nil {
+		return nil, err
+	}
 
+	res, err := p.DoAuthCall(false, NoneCallMethod, func(req *resty.Request) error {
+		req.Method = resty.MethodPost
+		req.URL = fullURL.String()
 		req.Body = body
-		return req.Post(fullURL.String())
+		return nil
 	})
 
 	if err != nil {
 		return nil, errors.New("ERROR: authenticated call to " + baseurl + " failed with: " + err.Error())
 	}
 
-	body := res.Body()
+	respBody := res.Body()
 	var resultSet *PantahubDevicesJoinToken
-	err = pvjson.Unmarshal(body, &resultSet)
+	err = pvjson.Unmarshal(respBody, &resultSet)
 	if err != nil {
 		return nil, errors.New("ERROR: cannot decode result of authenticated call to " + baseurl + ": " + err.Error())
 	}
@@ -201,20 +203,22 @@ func (p *Session) TokenCreate(baseurl string, usermeta map[string]interface{}) (
 }
 
 func (p *Session) TokenDisable(baseurl string, id string) (*PantahubDevicesJoinToken, error) {
-	_, err := p.DoAuthCall(false, NoneCallMethod, func(req *resty.Request) (*resty.Response, error) {
-		burl, err := url.Parse(baseurl)
-		if err != nil {
-			return nil, errors.New("Cannot parse baseurl '" + baseurl + "': " + err.Error())
-		}
+	burl, err := url.Parse(baseurl)
+	if err != nil {
+		return nil, errors.New("Cannot parse baseurl '" + baseurl + "': " + err.Error())
+	}
 
-		dtUrl, err := url.Parse(PhDeviceTokens + "/" + id)
-		if err != nil {
-			return nil, errors.New("Cannot parse PhDeviceTokensUrl '" + dtUrl.String() + "': " + err.Error())
-		}
+	dtUrl, err := url.Parse(PhDeviceTokens + "/" + id)
+	if err != nil {
+		return nil, errors.New("Cannot parse PhDeviceTokensUrl '" + dtUrl.String() + "': " + err.Error())
+	}
 
-		fullURL := burl.ResolveReference(dtUrl)
+	fullURL := burl.ResolveReference(dtUrl)
 
-		return req.Delete(fullURL.String())
+	_, err = p.DoAuthCall(false, NoneCallMethod, func(req *resty.Request) error {
+		req.Method = resty.MethodDelete
+		req.URL = fullURL.String()
+		return nil
 	})
 
 	if err != nil {
@@ -230,19 +234,22 @@ func (p *Session) TokenDisable(baseurl string, id string) (*PantahubDevicesJoinT
 }
 
 func (p *Session) TokenLs(baseurl string) ([]PantahubDevicesJoinToken, error) {
-	res, err := p.DoAuthCall(false, NoneCallMethod, func(req *resty.Request) (*resty.Response, error) {
-		burl, err := url.Parse(baseurl)
-		if err != nil {
-			return nil, errors.New("Cannot parse baseurl '" + baseurl + "': " + err.Error())
-		}
+	burl, err := url.Parse(baseurl)
+	if err != nil {
+		return nil, errors.New("Cannot parse baseurl '" + baseurl + "': " + err.Error())
+	}
 
-		dtUrl, err := url.Parse(PhDeviceTokens)
-		if err != nil {
-			return nil, errors.New("Cannot parse PhDeviceTokensUrl '" + dtUrl.String() + "': " + err.Error())
-		}
+	dtUrl, err := url.Parse(PhDeviceTokens)
+	if err != nil {
+		return nil, errors.New("Cannot parse PhDeviceTokensUrl '" + dtUrl.String() + "': " + err.Error())
+	}
 
-		fullURL := burl.ResolveReference(dtUrl)
-		return req.Get(fullURL.String())
+	fullURL := burl.ResolveReference(dtUrl)
+
+	res, err := p.DoAuthCall(false, NoneCallMethod, func(req *resty.Request) error {
+		req.Method = resty.MethodGet
+		req.URL = fullURL.String()
+		return nil
 	})
 
 	if err != nil {
@@ -260,19 +267,22 @@ func (p *Session) TokenLs(baseurl string) ([]PantahubDevicesJoinToken, error) {
 }
 
 func (p *Session) DoPs(baseurl string) ([]PantahubDevice, error) {
-	res, err := p.DoAuthCall(false, NoneCallMethod, func(req *resty.Request) (*resty.Response, error) {
-		burl, err := url.Parse(baseurl)
-		if err != nil {
-			return nil, errors.New("Cannot parse baseurl '" + baseurl + "': " + err.Error())
-		}
+	burl, err := url.Parse(baseurl)
+	if err != nil {
+		return nil, errors.New("Cannot parse baseurl '" + baseurl + "': " + err.Error())
+	}
 
-		trailSummaryEpURL, err := url.Parse(PhTrailsSummaryEp)
-		if err != nil {
-			return nil, errors.New("Cannot parse trailsSummaryEpURL '" + trailSummaryEpURL.String() + "': " + err.Error())
-		}
+	trailSummaryEpURL, err := url.Parse(PhTrailsSummaryEp)
+	if err != nil {
+		return nil, errors.New("Cannot parse trailsSummaryEpURL '" + trailSummaryEpURL.String() + "': " + err.Error())
+	}
 
-		fullURL := burl.ResolveReference(trailSummaryEpURL)
-		return req.Get(fullURL.String())
+	fullURL := burl.ResolveReference(trailSummaryEpURL)
+
+	res, err := p.DoAuthCall(false, NoneCallMethod, func(req *resty.Request) error {
+		req.Method = resty.MethodGet
+		req.URL = fullURL.String()
+		return nil
 	})
 
 	if err != nil {
@@ -290,25 +300,27 @@ func (p *Session) DoPs(baseurl string) ([]PantahubDevice, error) {
 }
 
 func (p *Session) DoLogsCursor(baseurl string, cursor string) (logEntries []*logs.Entry, cursorID string, err error) {
+	burl, err := url.Parse(baseurl)
+	if err != nil {
+		return nil, "", errors.New("Cannot parse baseurl '" + baseurl + "': " + err.Error())
+	}
 
-	res, err := p.DoAuthCall(false, NoneCallMethod, func(req *resty.Request) (*resty.Response, error) {
-		burl, err := url.Parse(baseurl)
-		if err != nil {
-			return nil, errors.New("Cannot parse baseurl '" + baseurl + "': " + err.Error())
-		}
+	logsEpCursorURL, err := url.Parse(PhLogsEpCursor)
+	if err != nil {
+		return nil, "", errors.New("Cannot parse PhLogsEp '" + PhLogsEp + "': " + err.Error())
+	}
 
-		logsEpCursorURL, err := url.Parse(PhLogsEpCursor)
-		if err != nil {
-			return nil, errors.New("Cannot parse PhLogsEp '" + PhLogsEp + "': " + err.Error())
-		}
+	fullURL := burl.ResolveReference(logsEpCursorURL)
 
-		fullURL := burl.ResolveReference(logsEpCursorURL)
+	bodyMap := map[string]interface{}{
+		"next-cursor": cursor,
+	}
 
-		bodyMap := map[string]interface{}{
-			"next-cursor": cursor,
-		}
-
-		return req.SetBody(bodyMap).Post(fullURL.String())
+	res, err := p.DoAuthCall(false, NoneCallMethod, func(req *resty.Request) error {
+		req.Method = resty.MethodPost
+		req.URL = fullURL.String()
+		req.SetBody(bodyMap)
+		return nil
 	})
 
 	if err != nil {
@@ -342,55 +354,58 @@ func (p *Session) DoLogs(
 	cursor bool,
 	logFilter LogFilter,
 ) (logEntries []*logs.Entry, cursorID string, err error) {
-	res, err := p.DoAuthCall(false, NoneCallMethod, func(req *resty.Request) (*resty.Response, error) {
-		burl, err := url.Parse(baseurl)
-		if err != nil {
-			return nil, errors.New("cannot parse baseurl '" + baseurl + "': " + err.Error())
-		}
+	burl, err := url.Parse(baseurl)
+	if err != nil {
+		return nil, "", errors.New("cannot parse baseurl '" + baseurl + "': " + err.Error())
+	}
 
-		logsEpURL, err := url.Parse(PhLogsEp)
-		if err != nil {
-			return nil, errors.New("cannot parse PhLogsEp '" + PhLogsEp + "': " + err.Error())
-		}
+	logsEpURL, err := url.Parse(PhLogsEp)
+	if err != nil {
+		return nil, "", errors.New("cannot parse PhLogsEp '" + PhLogsEp + "': " + err.Error())
+	}
 
-		fullURL := burl.ResolveReference(logsEpURL)
-		q := fullURL.Query()
+	fullURL := burl.ResolveReference(logsEpURL)
+	q := fullURL.Query()
 
-		// if cursor we enable in backend request too...
-		if cursor {
-			q.Add("cursor", "true")
-			q.Add("page", "500")
-		}
+	// if cursor we enable in backend request too...
+	if cursor {
+		q.Add("cursor", "true")
+		q.Add("page", "500")
+	}
 
-		q.Add("sort", "time-created")
+	q.Add("sort", "time-created")
 
-		loc, _ := time.LoadLocation("UTC")
+	loc, _ := time.LoadLocation("UTC")
 
-		if rev != "-1" {
-			q.Add("rev", rev)
-		}
-		if startTime != nil {
-			q.Add("after", startTime.In(loc).Format(time.RFC3339))
-		}
-		if endTime != nil && !endTime.IsZero() {
-			q.Add("before", endTime.In(loc).Format(time.RFC3339))
-		}
-		if logFilter.Devices != "" {
-			q.Add("dev", logFilter.Devices)
-		}
-		if logFilter.Sources != "" {
-			q.Add("src", logFilter.Sources)
-		}
-		if logFilter.Levels != "" {
-			q.Add("lvl", logFilter.Levels)
-		}
-		if logFilter.Platforms != "" {
-			q.Add("plat", logFilter.Platforms)
-		}
+	if rev != "-1" {
+		q.Add("rev", rev)
+	}
+	if startTime != nil {
+		q.Add("after", startTime.In(loc).Format(time.RFC3339))
+	}
+	if endTime != nil && !endTime.IsZero() {
+		q.Add("before", endTime.In(loc).Format(time.RFC3339))
+	}
+	if logFilter.Devices != "" {
+		q.Add("dev", logFilter.Devices)
+	}
+	if logFilter.Sources != "" {
+		q.Add("src", logFilter.Sources)
+	}
+	if logFilter.Levels != "" {
+		q.Add("lvl", logFilter.Levels)
+	}
+	if logFilter.Platforms != "" {
+		q.Add("plat", logFilter.Platforms)
+	}
 
-		fullURL.RawQuery = q.Encode()
+	fullURL.RawQuery = q.Encode()
+	urlStr := fullURL.String()
 
-		return req.Get(fullURL.String())
+	res, err := p.DoAuthCall(false, NoneCallMethod, func(req *resty.Request) error {
+		req.Method = resty.MethodGet
+		req.URL = urlStr
+		return nil
 	})
 
 	if err != nil {

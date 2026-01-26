@@ -514,15 +514,16 @@ func (s *Session) CreateDevice(baseURL string, deviceNick string) (
 	if err != nil {
 		return nil, err
 	}
-	response, err := s.DoAuthCall(false, NoneCallMethod, func(req *resty.Request) (*resty.Response, error) {
-		body := map[string]interface{}{}
-		if deviceNick != "" {
-			body["nick"] = deviceNick
-		}
-		return req.
-			SetBody(body).
-			SetAuthToken(accessToken).
-			Post(baseURL + "/devices/")
+	devicesURL := baseURL + "/devices/"
+	body := map[string]interface{}{}
+	if deviceNick != "" {
+		body["nick"] = deviceNick
+	}
+	response, err := s.DoAuthCall(false, NoneCallMethod, func(req *resty.Request) error {
+		req.Method = resty.MethodPost
+		req.URL = devicesURL
+		req.SetBody(body).SetAuthToken(accessToken)
+		return nil
 	})
 	if err != nil {
 		return response, err
@@ -661,9 +662,11 @@ func (s *Session) GetUserProfiles(baseURL string,
 	*resty.Response,
 	error,
 ) {
-	response, err := s.DoAuthCall(true, NoneCallMethod, func(req *resty.Request) (*resty.Response, error) {
-		response, err := req.Get(baseURL + "/profiles/?nick=^" + userNick)
-		return response, err
+	profilesURL := baseURL + "/profiles/?nick=^" + userNick
+	response, err := s.DoAuthCall(true, NoneCallMethod, func(req *resty.Request) error {
+		req.Method = resty.MethodGet
+		req.URL = profilesURL
+		return nil
 	})
 	if err != nil {
 		return response, err
@@ -687,12 +690,15 @@ func (s *Session) GetDevices(baseURL string,
 	*resty.Response,
 	error,
 ) {
-	response, err := s.DoAuthCall(true, NoneCallMethod, func(req *resty.Request) (*resty.Response, error) {
-		ownerNickParam := ""
-		if ownerNick != "" {
-			ownerNickParam = "&owner-nick=" + ownerNick
-		}
-		return req.Get(baseURL + "/devices/?nick=^" + deviceNick + ownerNickParam)
+	ownerNickParam := ""
+	if ownerNick != "" {
+		ownerNickParam = "&owner-nick=" + ownerNick
+	}
+	devicesURL := baseURL + "/devices/?nick=^" + deviceNick + ownerNickParam
+	response, err := s.DoAuthCall(true, NoneCallMethod, func(req *resty.Request) error {
+		req.Method = resty.MethodGet
+		req.URL = devicesURL
+		return nil
 	})
 
 	if err != nil {
@@ -717,13 +723,14 @@ func (s *Session) GetDevice(baseURL string,
 	*resty.Response,
 	error,
 ) {
-	response, err := s.DoAuthCall(true, NoneCallMethod, func(req *resty.Request) (*resty.Response, error) {
-
+	deviceURL := baseURL + "/devices/" + deviceNick
+	response, err := s.DoAuthCall(true, NoneCallMethod, func(req *resty.Request) error {
+		req.Method = resty.MethodGet
+		req.URL = deviceURL
 		if ownerNick != "" {
 			req.SetQueryParam("owner-nick", ownerNick)
 		}
-
-		return req.Get(baseURL + "/devices/" + deviceNick)
+		return nil
 	})
 	if err != nil {
 		return response, err
@@ -779,8 +786,12 @@ func (s *Session) UpdateDevice(
 	*resty.Response,
 	error,
 ) {
-	response, err := s.DoAuthCall(false, NoneCallMethod, func(req *resty.Request) (*resty.Response, error) {
-		return req.SetBody(data).Patch(baseURL + "/devices/" + deviceNick + "/" + updateField)
+	deviceURL := baseURL + "/devices/" + deviceNick + "/" + updateField
+	response, err := s.DoAuthCall(false, NoneCallMethod, func(req *resty.Request) error {
+		req.Method = resty.MethodPatch
+		req.URL = deviceURL
+		req.SetBody(data)
+		return nil
 	})
 	if err != nil {
 		return response, err
@@ -801,8 +812,11 @@ func (s *Session) GetAuthStatus(baseURL string) (
 	*resty.Response,
 	error,
 ) {
-	response, err := s.DoAuthCall(true, NoneCallMethod, func(req *resty.Request) (*resty.Response, error) {
-		return req.Get(baseURL + "/auth/auth_status")
+	authStatusURL := baseURL + "/auth/auth_status"
+	response, err := s.DoAuthCall(true, NoneCallMethod, func(req *resty.Request) error {
+		req.Method = resty.MethodGet
+		req.URL = authStatusURL
+		return nil
 	})
 	if err != nil {
 		return response, err
