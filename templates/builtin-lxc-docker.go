@@ -241,6 +241,14 @@ lxc.mount.entry = /volumes/{{- $source -}}/
 		"required": {{- if .Source.args.PV_DRIVERS_REQUIRED }} {{ sprig_toJson .Source.args.PV_DRIVERS_REQUIRED -}}{{- else }}[]{{- end }},
 		"optional": {{- if .Source.args.PV_DRIVERS_OPTIONAL }} {{ sprig_toJson .Source.args.PV_DRIVERS_OPTIONAL -}}{{- else }}[]{{- end }}
 	},
+	"services": {
+		"manual": {{- if .Source.args.PV_SERVICES_MANUAL }} {{ sprig_toJson .Source.args.PV_SERVICES_MANUAL -}}{{- else }}[]{{- end }},
+		"required": {{- if .Source.args.PV_SERVICES_REQUIRED }} {{ sprig_toJson .Source.args.PV_SERVICES_REQUIRED -}}{{- else }}[]{{- end }},
+		"optional": {{- if .Source.args.PV_SERVICES_OPTIONAL }} {{ sprig_toJson .Source.args.PV_SERVICES_OPTIONAL -}}{{- else }}[]{{- end }}
+	},
+	{{- if .Source.args.PV_AUTO_RECOVERY }}
+	"auto_recovery": {{- sprig_toPrettyJson .Source.args.PV_AUTO_RECOVERY | pvr_jsonIndent 0 1 "\t" -}}{{- "," -}}
+	{{- end }}
 	{{- if .EffectiveGroup }}
 	"group": "{{- .EffectiveGroup }}",
 	{{- end }}
