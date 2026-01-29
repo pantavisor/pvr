@@ -1,10 +1,10 @@
-FROM golang:1.21.5-alpine
+FROM golang:1.24-alpine
 
 WORKDIR /app
 COPY . .
 
-RUN apk add jq && \
-	rm -rf /var/cache/apk/*
+RUN apk add --no-cache jq docker-cli fakeroot squashfs-tools
 
 RUN go build -o _test/pvr . && _test/pvr sig download
-RUN ./run_test.sh
+
+CMD ["./run_test.sh"]

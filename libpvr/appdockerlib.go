@@ -75,6 +75,7 @@ func AddDockerApp(p *Pvr, app *AppData) error {
 	//  priority order provided in --source=local,remote
 	if app.LocalImage.Exists {
 		//docker config
+		src.DockerPlatform = app.GetPlatform(p)
 		src.DockerConfig = app.LocalImage.DockerConfig
 		if app.DoOverlay {
 			src.DockerOvlDigest = app.LocalImage.DockerDigest
@@ -83,7 +84,7 @@ func AddDockerApp(p *Pvr, app *AppData) error {
 		}
 	} else if app.RemoteImage.Exists {
 		// Remote repo.
-		src.DockerPlatform = app.RemoteImage.DockerPlatform
+		src.DockerPlatform = app.GetPlatform(p)
 		src.DockerConfig = app.RemoteImage.DockerConfig
 		if app.DoOverlay {
 			src.DockerOvlDigest = app.RemoteImage.DockerDigest
@@ -148,29 +149,7 @@ func UpdateDockerApp(p *Pvr, app *AppData, appManifest *Source) (err error) {
 		return err
 	}
 
-	trackURL := appManifest.DockerName
-	if appManifest.DockerTag != "" {
-		trackURL += fmt.Sprintf(":%s", appManifest.DockerTag)
-	}
-
-	//	Exists flag is true only if the image got loaded which will depend on
-	//  priority order provided in --source=local,remote
-	if app.LocalImage.Exists {
-		appManifest.DockerConfig = app.LocalImage.DockerConfig
-		if app.DoOverlay {
-			appManifest.DockerOvlDigest = app.LocalImage.DockerDigest
-		} else {
-			appManifest.DockerDigest = app.LocalImage.DockerDigest
-		}
-	} else if app.RemoteImage.Exists {
-		appManifest.DockerPlatform = app.RemoteImage.DockerPlatform
-		appManifest.DockerConfig = app.RemoteImage.DockerConfig
-		if app.DoOverlay {
-			appManifest.DockerOvlDigest = app.RemoteImage.DockerDigest
-		} else {
-			appManifest.DockerDigest = app.RemoteImage.DockerDigest
-		}
-	}
+	appManifest.DockerPlatform = app.GetPlatform(p)
 
 	for k, v := range appManifest.DockerConfig {
 		if v == nil {

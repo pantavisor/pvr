@@ -1,5 +1,5 @@
 //
-// Copyright 2017-2023  Pantacor Ltd.
+// Copyright 2017-2026  Pantacor Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,7 +18,6 @@ package libpvr
 
 import (
 	"bufio"
-	"context"
 	"fmt"
 	"os"
 	"os/user"
@@ -26,9 +25,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/genuinetools/reg/registry"
-	"github.com/genuinetools/reg/repoutils"
-	"github.com/opencontainers/go-digest"
+	"github.com/google/go-containerregistry/pkg/authn"
+	"github.com/google/go-containerregistry/pkg/name"
+	v1 "github.com/google/go-containerregistry/pkg/v1"
+	"github.com/google/go-containerregistry/pkg/v1/remote"
 	"github.com/urfave/cli"
 )
 
@@ -52,12 +52,10 @@ type downloadData struct {
 }
 
 type layerData struct {
-	Registry    *registry.Registry
-	ImagePath   string
-	LayerDigest digest.Digest
-	OutputDir   string
-	Number      int
-	Downloads   chan<- *downloadData
+	Layer     v1.Layer
+	OutputDir string
+	Number    int
+	Downloads chan<- *downloadData
 }
 
 // UpdateIfNecessary update pvr if is necesary but only check on time at the day
@@ -106,7 +104,7 @@ func UpdateIfNecessary(c *cli.Context) error {
 
 // UpdatePvr Take the username, password and configuration File (aka: ~/.pvr) and update the pvr binary
 func (pvr *Pvr) UpdatePvr(username, password string, silent, force bool) error {
-	currentDigest, previousDigest, manifestV2, err := pvr.getDigetsDifference(username, password)
+	currentDigest, previousDigest, img, err := pvr.getDigetsDifference(username, password)
 	if err != nil {
 		return err
 	}
@@ -120,7 +118,7 @@ func (pvr *Pvr) UpdatePvr(username, password string, silent, force bool) error {
 
 	fmt.Fprintf(os.Stderr, "Starting update PVR using Docker latest tag (%v) \r\n ", currentDigest)
 
-	cacheFolder, err := pvr.downloadAdUpdateBinary(username, password, currentDigest, manifestV2)
+	cacheFolder, err := pvr.downloadAdUpdateBinary(username, password, currentDigest, img)
 	if err != nil {
 		return err
 	}
@@ -136,26 +134,34 @@ func (pvr *Pvr) getDockerURL() string {
 	return fmt.Sprintf("%s:%s", pvrRegistry+"/"+pvrProject, pvr.Session.Configuration.DistributionTag)
 }
 
-func (pvr *Pvr) getDigetsDifference(username, password string) (string, string, *Manifest, error) {
+func (pvr *Pvr) getDigetsDifference(username, password string) (string, string, v1.Image, error) {
 	configDir := pvr.Session.configDir
 	dockerURL := pvr.getDockerURL()
 
-	image, err := registry.ParseImage(dockerURL)
+	auth := pvr.AuthConfig(username, password, pvrRegistry)
+
+	ref, err := name.ParseReference(dockerURL)
 	if err != nil {
 		return "", "", nil, err
 	}
 
-	auth, err := pvr.AuthConfig(username, password, pvrRegistry)
+	var img v1.Image
+	// If anonymous auth, use default keychain for docker config.json credentials
+	if auth == authn.Anonymous {
+		img, err = remote.Image(ref, remote.WithAuthFromKeychain(authn.DefaultKeychain))
+	} else {
+		img, err = remote.Image(ref, remote.WithAuth(auth))
+	}
 	if err != nil {
 		return "", "", nil, err
 	}
 
-	manifestV2, err := pvr.GetDockerManifest(image, auth, "", "")
+	configDigest, err := img.ConfigName()
 	if err != nil {
 		return "", "", nil, err
 	}
 
-	currentDigest := string(manifestV2.Config.Digest)
+	currentDigest := configDigest.String()
 
 	fileContent, err := ReadOrCreateFile(filepath.Join(configDir, lastUpdateFile))
 	if err != nil {
@@ -167,20 +173,19 @@ func (pvr *Pvr) getDigetsDifference(username, password string) (string, string, 
 	} else {
 		previousDigest = string(*fileContent)
 	}
-	return currentDigest, previousDigest, manifestV2, nil
+	return currentDigest, previousDigest, img, nil
 }
 
-func (pvr *Pvr) downloadAdUpdateBinary(username, password, currentDigest string, manifestV2 *Manifest) (string, error) {
+func (pvr *Pvr) downloadAdUpdateBinary(username, password, currentDigest string, img v1.Image) (string, error) {
 	configDir := pvr.Session.configDir
 	cachePath := filepath.Join(configDir, cacheFolder)
-	dockerURL := pvr.getDockerURL()
 
 	err := CreateFolder(cachePath)
 	if err != nil {
 		return "", err
 	}
 
-	temp, extractPath, err := pvr.getDockerContent(dockerURL, cachePath, username, password, manifestV2)
+	temp, extractPath, err := pvr.getDockerContent(cachePath, img)
 	if err != nil {
 		return "", err
 	}
@@ -200,37 +205,25 @@ func (pvr *Pvr) downloadAdUpdateBinary(username, password, currentDigest string,
 	return temp, nil
 }
 
-func (pvr *Pvr) getDockerContent(dockerURL string, outputDir, username, password string, dockerManifest *Manifest) (string, string, error) {
-	image, err := registry.ParseImage(dockerURL)
+func (pvr *Pvr) getDockerContent(outputDir string, img v1.Image) (string, string, error) {
+	layers, err := img.Layers()
 	if err != nil {
 		return "", "", err
 	}
 
-	auth, err := repoutils.GetAuthConfig(username, password, image.Domain)
-	if err != nil {
-		return "", "", err
-	}
-
-	r, err := pvr.GetDockerRegistry(image, auth)
-	if err != nil {
-		return "", "", err
-	}
-
-	totalLayers := len(dockerManifest.Layers)
+	totalLayers := len(layers)
 	downloads := make(chan *downloadData)
 	var waitGroup sync.WaitGroup
 
 	fmt.Fprintf(os.Stderr, "\n\rDownloading layers %d ... \r\n", totalLayers)
 
 	waitGroup.Add(totalLayers)
-	for i, layer := range dockerManifest.Layers {
+	for i, layer := range layers {
 		layerdata := &layerData{
-			Registry:    r,
-			ImagePath:   image.Path,
-			LayerDigest: layer.Digest,
-			OutputDir:   outputDir,
-			Number:      i + 1,
-			Downloads:   downloads,
+			Layer:     layer,
+			OutputDir: outputDir,
+			Number:    i + 1,
+			Downloads: downloads,
 		}
 		go func(layerdata *layerData) {
 			defer waitGroup.Done()
@@ -316,9 +309,20 @@ func processDownloads(downloads chan *downloadData, totalLayers int) ([]string, 
 
 func downloadlayers(layerdata *layerData) {
 	i := layerdata.Number
-	filename := filepath.Join(layerdata.OutputDir, string(layerdata.LayerDigest)+cacheFileExt)
 
-	sameFile, err := FileHasSameSha(filename, string(layerdata.LayerDigest))
+	digest, err := layerdata.Layer.Digest()
+	if err != nil {
+		layerdata.Downloads <- &downloadData{
+			filename: "",
+			number:   i,
+			err:      err,
+		}
+		return
+	}
+
+	filename := filepath.Join(layerdata.OutputDir, digest.String()+cacheFileExt)
+
+	sameFile, err := FileHasSameSha(filename, digest.String())
 	if err != nil {
 		layerdata.Downloads <- &downloadData{
 			filename: filename,
@@ -347,7 +351,7 @@ func downloadlayers(layerdata *layerData) {
 		return
 	}
 
-	layerReader, err := layerdata.Registry.DownloadLayer(context.Background(), layerdata.ImagePath, layerdata.LayerDigest)
+	layerReader, err := layerdata.Layer.Compressed()
 	if err != nil {
 		layerdata.Downloads <- &downloadData{
 			filename: filename,

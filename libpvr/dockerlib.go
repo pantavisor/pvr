@@ -1,5 +1,7 @@
+//go:build go1.24
+
 //
-// Copyright 2017-2023  Pantacor Ltd.
+// Copyright 2017-2026  Pantacor Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,30 +23,25 @@ import (
 	"bufio"
 	"compress/gzip"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log"
-	"net/http"
 	"os"
 	"os/exec"
 	"path"
 	"path/filepath"
-	"regexp"
 	"runtime"
 	"strings"
-	"time"
 
-	"github.com/docker/distribution"
-	"github.com/docker/distribution/manifest"
-	"github.com/docker/distribution/manifest/ocischema"
-	"github.com/docker/distribution/manifest/schema2"
-	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/client"
-	"github.com/genuinetools/reg/registry"
-	"github.com/genuinetools/reg/repoutils"
+	dockerclient "github.com/docker/docker/client"
+	"github.com/google/go-containerregistry/pkg/authn"
+	"github.com/google/go-containerregistry/pkg/name"
+	v1 "github.com/google/go-containerregistry/pkg/v1"
+	"github.com/google/go-containerregistry/pkg/v1/daemon"
+	"github.com/google/go-containerregistry/pkg/v1/remote"
+	"github.com/google/go-containerregistry/pkg/v1/tarball"
 	"gitlab.com/pantacor/pvr/utils/pvjson"
 )
 
@@ -81,198 +78,20 @@ var (
 
 type DockerManifest map[string]interface{}
 
+// Manifest represents a Docker/OCI image manifest
 type Manifest struct {
-	manifest.Versioned
-
-	// Config references the image configuration as a blob.
-	Config distribution.Descriptor `json:"config"`
-
-	// Layers lists descriptors for the layers referenced by the
-	// configuration.
-	Layers []distribution.Descriptor `json:"layers"`
-
-	// Annotations contains arbitrary metadata for the image manifest.
-	Annotations map[string]string `json:"annotations,omitempty"`
+	SchemaVersion int               `json:"schemaVersion"`
+	MediaType     string            `json:"mediaType,omitempty"`
+	Config        Descriptor        `json:"config"`
+	Layers        []Descriptor      `json:"layers"`
+	Annotations   map[string]string `json:"annotations,omitempty"`
 }
 
-func (p *Pvr) GetDockerRegistry(image registry.Image, auth types.AuthConfig) (*registry.Registry, error) {
-	return registry.New(context.Background(), auth, registry.Opt{
-		Domain:   image.Domain,
-		Insecure: false,
-		Debug:    false,
-		SkipPing: true,
-		NonSSL:   false,
-		Timeout:  1800 * time.Second,
-	})
-}
-
-func (p *Pvr) GetDockerManifest(image registry.Image, auth types.AuthConfig, digest, version string) (*Manifest, error) {
-	r, err := p.GetDockerRegistry(image, auth)
-	if err != nil {
-		return nil, err
-	}
-
-	if digest == "" {
-		digest = image.Reference()
-	}
-
-	if version == "" {
-		version = schema2.SchemaVersion.MediaType
-	}
-
-	fmt.Println("Getting manifest:", version)
-	manifest, err := GetManifest(r, version, image.Path, digest)
-	if err != nil && err.Error() == registry.ErrUnexpectedSchemaVersion.Error() {
-		if version == schema2.SchemaVersion.MediaType {
-			version = ocischema.SchemaVersion.MediaType
-		} else {
-			version = schema2.SchemaVersion.MediaType
-		}
-		fmt.Println("Getting manifest:", version)
-		manifest, err = GetManifest(r, version, image.Path, digest)
-	}
-	if err != nil {
-		return nil, ErrImageNotFound
-	}
-
-	return manifest, nil
-}
-
-// GetDockerImageRepoDigest : Get Docker Image Repo Digest
-func (p *Pvr) GetDockerImageRepoDigest(image registry.Image, auth types.AuthConfig) (string, error) {
-	r, err := p.GetDockerRegistry(image, auth)
-	if err != nil {
-		return "", err
-	}
-	repoDigest, err := r.Digest(context.Background(), image)
-	if err != nil {
-		return "", err
-	}
-	return string(repoDigest), nil
-}
-
-func (p *Pvr) GetDockerConfig(manifest *Manifest, image registry.Image, auth types.AuthConfig) (map[string]interface{}, error) {
-	r, err := p.GetDockerRegistry(image, auth)
-	if err != nil {
-		return nil, err
-	}
-
-	blobsURL := fmt.Sprintf("%s/v2/%s/blobs/%s", r.URL, image.Path, manifest.Config.Digest)
-
-	resp, err := http.Get(blobsURL)
-	if err != nil {
-		return nil, err
-	}
-
-	if resp.StatusCode == http.StatusUnauthorized {
-		wwwHeaders := resp.Header["Www-Authenticate"][0]
-
-		// Expected format: Bearer realm="https://auth.docker.io/token",service="registry.docker.io",scope="repository:library/nginx:pull"
-
-		baseReg := `%s="(([a-z]|[A-Z]|[0-9]|\:|\/|\-|\_|\.)+)"`
-
-		realmReg := regexp.MustCompile(fmt.Sprintf(baseReg, "realm"))
-		realm := realmReg.FindStringSubmatch(wwwHeaders)[1]
-
-		serviceReg := regexp.MustCompile(fmt.Sprintf(baseReg, "service"))
-		service := serviceReg.FindStringSubmatch(wwwHeaders)[1]
-
-		scopeReg := regexp.MustCompile(fmt.Sprintf(baseReg, "scope"))
-		scope := scopeReg.FindStringSubmatch(wwwHeaders)[1]
-
-		tokenURL := fmt.Sprintf("%s?service=%s&scope=%s", realm, service, scope)
-		req, err := http.NewRequest(http.MethodGet, tokenURL, nil)
-		if err != nil {
-			return nil, err
-		}
-
-		if auth.Username != "" && auth.Password != "" {
-			auth := base64.StdEncoding.EncodeToString([]byte(auth.Username + ":" + auth.Password))
-			req.Header.Set("Authorization", "Basic "+auth)
-		}
-
-		resp, err = http.DefaultClient.Do(req)
-		if err != nil {
-			return nil, err
-		}
-
-		content, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return nil, err
-		}
-
-		var tokenResponse map[string]interface{}
-		err = pvjson.Unmarshal(content, &tokenResponse)
-		if err != nil {
-			return nil, err
-		}
-
-		tokenData, ok := tokenResponse["token"]
-		if !ok {
-			tokenData, ok = tokenResponse["access_token"]
-			if !ok {
-				return nil, fmt.Errorf("can't get a access token for %s", tokenURL)
-			}
-		}
-
-		token := tokenData.(string)
-		req, err = http.NewRequest(http.MethodGet, blobsURL, nil)
-		if err != nil {
-			return nil, err
-		}
-
-		req.Header.Add("Accept", "application/vnd.docker.distribution.manifest.v2+json")
-		req.Header.Add("Authorization", "Bearer "+token)
-		resp, err = http.DefaultClient.Do(req)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, ErrImageNotFound
-	}
-
-	if err != nil {
-		return nil, err
-	}
-
-	blobContent, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	var blob map[string]interface{}
-	err = pvjson.Unmarshal(blobContent, &blob)
-	if err != nil {
-		return nil, err
-	}
-
-	config := blob["config"].(map[string]interface{})
-
-	return config, nil
-}
-
-// DownloadLayersFromLocalDocker : Download Layers From Local Docker
-func DownloadLayersFromLocalDocker(digest string) (io.ReadCloser, error) {
-	ctx := context.Background()
-	cli, err := client.NewClientWithOpts(client.FromEnv)
-	if err != nil {
-		return nil, err
-	}
-	cli.NegotiateAPIVersion(ctx)
-	httpClient := cli.HTTPClient()
-
-	url := "http://v" + cli.ClientVersion() + "/images/" + digest + "/get"
-	req, err := http.NewRequest(http.MethodGet, url, nil)
-	if err != nil {
-		return nil, err
-	}
-	res, err := httpClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	return res.Body, nil
+// Descriptor represents a content descriptor
+type Descriptor struct {
+	MediaType string `json:"mediaType,omitempty"`
+	Size      int64  `json:"size"`
+	Digest    string `json:"digest"`
 }
 
 // DockerImage : return type of ImageExistsInLocalDocker()
@@ -281,9 +100,192 @@ type DockerImage struct {
 	DockerDigest   string
 	DockerConfig   map[string]interface{}
 	DockerManifest *Manifest
-	DockerRegistry *registry.Registry
+	ImageRef       name.Reference
 	ImagePath      string
 	DockerPlatform string
+}
+
+// getDaemonOptions returns daemon options with a Docker client configured
+// with API version negotiation. This is needed for compatibility with
+// Docker-in-Docker setups where the client connects via TCP (DOCKER_HOST).
+func getDaemonOptions() []daemon.Option {
+	cli, err := dockerclient.NewClientWithOpts(
+		dockerclient.FromEnv,
+		dockerclient.WithAPIVersionNegotiation(),
+	)
+	if err != nil {
+		// Fall back to default client if we can't create one
+		return nil
+	}
+	return []daemon.Option{daemon.WithClient(cli)}
+}
+
+// GetRemoteImage fetches a remote image using go-containerregistry
+func (p *Pvr) GetRemoteImage(imageRef string, auth authn.Authenticator) (v1.Image, error) {
+	ref, err := name.ParseReference(imageRef)
+	if err != nil {
+		return nil, err
+	}
+
+	// If anonymous auth, use default keychain for docker config.json credentials
+	if auth == authn.Anonymous {
+		return remote.Image(ref, remote.WithAuthFromKeychain(authn.DefaultKeychain), remote.WithContext(context.Background()))
+	}
+
+	return remote.Image(ref, remote.WithAuth(auth), remote.WithContext(context.Background()))
+}
+
+// GetRemoteImageForPlatform fetches a remote image for a specific platform
+func (p *Pvr) GetRemoteImageForPlatform(imageRef string, platform v1.Platform, auth authn.Authenticator) (v1.Image, error) {
+	ref, err := name.ParseReference(imageRef)
+	if err != nil {
+		return nil, err
+	}
+
+	// If anonymous auth, use default keychain for docker config.json credentials
+	if auth == authn.Anonymous {
+		return remote.Image(ref,
+			remote.WithAuthFromKeychain(authn.DefaultKeychain),
+			remote.WithPlatform(platform),
+			remote.WithContext(context.Background()),
+		)
+	}
+
+	return remote.Image(ref,
+		remote.WithAuth(auth),
+		remote.WithPlatform(platform),
+		remote.WithContext(context.Background()),
+	)
+}
+
+// GetRemoteIndex fetches a remote multi-platform image index
+func (p *Pvr) GetRemoteIndex(imageRef string, auth authn.Authenticator) (v1.ImageIndex, error) {
+	ref, err := name.ParseReference(imageRef)
+	if err != nil {
+		return nil, err
+	}
+
+	// If anonymous auth, use default keychain for docker config.json credentials
+	if auth == authn.Anonymous {
+		return remote.Index(ref, remote.WithAuthFromKeychain(authn.DefaultKeychain), remote.WithContext(context.Background()))
+	}
+
+	return remote.Index(ref, remote.WithAuth(auth), remote.WithContext(context.Background()))
+}
+
+// GetImageManifest extracts the manifest from a v1.Image
+func GetImageManifest(img v1.Image) (*Manifest, error) {
+	rawManifest, err := img.Manifest()
+	if err != nil {
+		return nil, err
+	}
+
+	manifest := &Manifest{
+		SchemaVersion: int(rawManifest.SchemaVersion),
+		MediaType:     string(rawManifest.MediaType),
+		Config: Descriptor{
+			MediaType: string(rawManifest.Config.MediaType),
+			Size:      rawManifest.Config.Size,
+			Digest:    rawManifest.Config.Digest.String(),
+		},
+		Layers:      make([]Descriptor, len(rawManifest.Layers)),
+		Annotations: rawManifest.Annotations,
+	}
+
+	for i, layer := range rawManifest.Layers {
+		manifest.Layers[i] = Descriptor{
+			MediaType: string(layer.MediaType),
+			Size:      layer.Size,
+			Digest:    layer.Digest.String(),
+		}
+	}
+
+	return manifest, nil
+}
+
+// GetImageConfig extracts the config from a v1.Image
+func GetImageConfig(img v1.Image) (map[string]interface{}, error) {
+	configFile, err := img.ConfigFile()
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert ConfigFile.Config to map
+	configData, err := json.Marshal(configFile.Config)
+	if err != nil {
+		return nil, err
+	}
+
+	var config map[string]interface{}
+	err = pvjson.Unmarshal(configData, &config)
+	if err != nil {
+		return nil, err
+	}
+
+	return config, nil
+}
+
+// GetImageDigest returns the digest of a v1.Image as a string
+func GetImageDigest(img v1.Image) (string, error) {
+	digest, err := img.Digest()
+	if err != nil {
+		return "", err
+	}
+	return digest.String(), nil
+}
+
+// DownloadLayersFromLocalDocker : Download Layers From Local Docker using go-containerregistry
+func DownloadLayersFromLocalDocker(imageRef string) (io.ReadCloser, error) {
+	ref, err := name.ParseReference(imageRef)
+	if err != nil {
+		return nil, err
+	}
+
+	img, err := daemon.Image(ref, getDaemonOptions()...)
+	if err != nil {
+		return nil, err
+	}
+
+	// Export the image as a tar archive using tarball.Write
+	pr, pw := io.Pipe()
+
+	go func() {
+		err := tarball.Write(ref, img, pw)
+		if err != nil {
+			pw.CloseWithError(err)
+			return
+		}
+		pw.Close()
+	}()
+
+	return pr, nil
+}
+
+// ExportLocalImage exports a local Docker image as a tar stream
+func ExportLocalImage(imageRef string) (io.ReadCloser, error) {
+	ref, err := name.ParseReference(imageRef)
+	if err != nil {
+		return nil, err
+	}
+
+	img, err := daemon.Image(ref, getDaemonOptions()...)
+	if err != nil {
+		return nil, err
+	}
+
+	// Export the image as a tar archive using tarball.Write
+	pr, pw := io.Pipe()
+
+	go func() {
+		err := tarball.Write(ref, img, pw)
+		if err != nil {
+			pw.CloseWithError(err)
+			return
+		}
+		pw.Close()
+	}()
+
+	return pr, nil
 }
 
 // FindDockerImage : Find Docker Image
@@ -322,32 +324,23 @@ func (p *Pvr) FindDockerImage(app *AppData) (err error) {
 
 // LoadRemoteImage : To check whether Image Exist In Remote Docker Or Not
 func (p *Pvr) LoadRemoteImage(app *AppData) error {
-
-	var dockerManifest *Manifest
-
 	app.RemoteImage = DockerImage{
 		Exists: false,
 	}
-	image, err := registry.ParseImage(app.From)
-	if err != nil {
-		return err
-	}
-	auth, err := p.AuthConfig(app.Username, app.Password, image.Domain)
-	if err != nil {
-		return err
-	}
-	dockerRegistry, err := p.GetDockerRegistry(image, auth)
+
+	auth := p.AuthConfig(app.Username, app.Password, "")
+	ref, err := name.ParseReference(app.From)
 	if err != nil {
 		return err
 	}
 
+	var img v1.Image
 	var repoDigest string
 	var dockerPlatform string
 	var platforms []interface{}
 
 	if app.Platform == "" {
 		dockerJsonI, ok := p.PristineJsonMap["_hostconfig/pvr/docker.json"]
-
 		if ok {
 			dockerJson := dockerJsonI.(map[string]interface{})
 			platformsI, ok := dockerJson["platforms"]
@@ -359,50 +352,53 @@ func (p *Pvr) LoadRemoteImage(app *AppData) error {
 		platforms = append(platforms, app.Platform)
 	}
 
-	// we go down the multiarch path if we have seen a platform
-	// restriction in pvr-docker.json
+	// Try to get image for specific platform if platforms are specified
 	if platforms != nil {
-		manifestList, err := dockerRegistry.ManifestList(context.Background(),
-			image.Path, image.Reference())
+		// First try to get the image index to check if it's a multi-platform image
+		idx, err := p.GetRemoteIndex(app.From, auth)
+		if err == nil {
+			indexManifest, err := idx.IndexManifest()
+			if err == nil {
+				for _, manifest := range indexManifest.Manifests {
+					if manifest.Platform == nil {
+						continue
+					}
+					for _, platformStr := range platforms {
+						plat := platformStr.(string)
+						parts := strings.SplitN(plat, "/", 3)
+						if len(parts) >= 2 &&
+							manifest.Platform.Architecture == parts[1] &&
+							(len(parts) < 3 || parts[2] == manifest.Platform.Variant) {
+							repoDigest = manifest.Digest.String()
+							app.ManifestType = string(manifest.MediaType)
+							dockerPlatform = plat
 
-		if err != nil {
-			return err
-		}
+							// Get the specific image for this platform
+							img, err = idx.Image(manifest.Digest)
+							if err != nil {
+								continue
+							}
 
-		for _, v := range manifestList.Manifests {
-			for _, v1 := range platforms {
-				v1S := v1.(string)
-				p := strings.SplitN(v1S, "/", 3)
-				if v.Platform.Architecture == p[1] &&
-					(len(p) < 3 || p[2] == v.Platform.Variant) {
-					repoDigest = v.Digest.String()
-					app.ManifestType = v.MediaType
-					dockerPlatform = v1S
-					break
+							fmt.Fprintf(os.Stderr, "Found Manifest for platform %s\n", dockerPlatform)
+							break
+						}
+					}
+					if img != nil {
+						break
+					}
 				}
-			}
-			if repoDigest != "" {
-				dm, err := p.GetDockerManifest(image, auth, repoDigest, app.ManifestType)
-				if err != nil {
-					return err
-				}
-				dockerManifest = dm
-
-				fmt.Fprintf(os.Stderr, "Found Manifest for platform %s\n",
-					dockerPlatform)
-
-				break
-			} else {
-				dockerPlatform = ""
 			}
 		}
 	}
 
-	if dockerManifest == nil {
-		dockerManifest, err = p.GetDockerManifest(image, auth, "", app.ManifestType)
+	// If no platform-specific image found, get the default image
+	if img == nil {
+		img, err = p.GetRemoteImage(app.From, auth)
 		if err != nil {
 			manifestErr := ReportDockerManifestError(err, app.From)
-			if err.Error() == "image not found or you do not have access" {
+			if strings.Contains(err.Error(), "MANIFEST_UNKNOWN") ||
+				strings.Contains(err.Error(), "NAME_UNKNOWN") ||
+				strings.Contains(err.Error(), "not found") {
 				fmt.Fprintf(os.Stderr, "%s\n", manifestErr.Error())
 				return nil
 			}
@@ -411,22 +407,30 @@ func (p *Pvr) LoadRemoteImage(app *AppData) error {
 		fmt.Fprintf(os.Stderr, "Found Manifest for default platform.\n")
 	}
 
-	dockerConfig, err := p.GetDockerConfig(dockerManifest, image, auth)
+	// Get manifest
+	dockerManifest, err := GetImageManifest(img)
 	if err != nil {
 		err = ReportDockerManifestError(err, app.From)
 		return err
 	}
 
-	// if we cannot find our arch we go the old direct way of retrieving repo
-	if repoDigest == "" && app.RemoteImage.DockerPlatform != "" {
-		return errors.New("no docker image found for platform " + app.RemoteImage.DockerPlatform)
-	} else if repoDigest == "" {
-		repoDigest, err = p.GetDockerImageRepoDigest(image, auth)
+	// Get config
+	dockerConfig, err := GetImageConfig(img)
+	if err != nil {
+		err = ReportDockerManifestError(err, app.From)
+		return err
+	}
+
+	// Get digest if not already set from multi-platform lookup
+	if repoDigest == "" {
+		digest, err := img.Digest()
 		if err != nil {
 			return err
 		}
+		repoDigest = digest.String()
 	}
 
+	// Build the full repo digest with image name
 	li := strings.LastIndex(app.From, ":")
 	var imageName string
 	if li < 0 {
@@ -436,7 +440,7 @@ func (p *Pvr) LoadRemoteImage(app *AppData) error {
 		imageName = splits[0]
 	}
 
-	//Extract image name from repo digest. eg: Extract "busybox" from "busybox@sha256:afe605d272837ce1732f390966166c2afff5391208ddd57de10942748694049d"
+	// Extract image name from repo digest
 	if strings.Contains(imageName, "@sha256") {
 		splits := strings.Split(imageName, "@")
 		imageName = splits[0]
@@ -446,46 +450,22 @@ func (p *Pvr) LoadRemoteImage(app *AppData) error {
 		repoDigest = imageName + "@" + repoDigest
 	}
 
-	app.Username = auth.Username
-	app.Password = auth.Password
+	if dockerPlatform == "" {
+		configFile, err := img.ConfigFile()
+		if err == nil {
+			dockerPlatform = fmt.Sprintf("%s/%s", configFile.OS, configFile.Architecture)
+		}
+	}
 
 	app.RemoteImage.Exists = true
 	app.RemoteImage.DockerDigest = repoDigest
 	app.RemoteImage.DockerConfig = dockerConfig
 	app.RemoteImage.DockerManifest = dockerManifest
-	app.RemoteImage.DockerRegistry = dockerRegistry
+	app.RemoteImage.ImageRef = ref
 	app.RemoteImage.DockerPlatform = dockerPlatform
-	app.RemoteImage.ImagePath = image.Path
+	app.RemoteImage.ImagePath = ref.Context().RepositoryStr()
 
 	return nil
-}
-
-func GetManifest(dockerReg *registry.Registry, version, path, digest string) (manifest *Manifest, err error) {
-	switch version {
-	case ocischema.SchemaVersion.MediaType:
-		r, err := dockerReg.OCIManifestV1(context.Background(), path, digest)
-		if err != nil {
-			return nil, err
-		}
-		manifest = &Manifest{
-			Versioned:   r.Versioned,
-			Config:      r.Config,
-			Layers:      r.Layers,
-			Annotations: r.Annotations,
-		}
-	default:
-		r, err := dockerReg.ManifestV2(context.Background(), path, digest)
-		if err != nil {
-			return nil, err
-		}
-		manifest = &Manifest{
-			Versioned: r.Versioned,
-			Config:    r.Config,
-			Layers:    r.Layers,
-		}
-	}
-
-	return manifest, err
 }
 
 // LoadLocalImage : To check whether Image Exist In Local Docker Or Not
@@ -493,38 +473,52 @@ func LoadLocalImage(app *AppData) error {
 	app.LocalImage = DockerImage{
 		Exists: false,
 	}
-	ctx := context.Background()
-	cli, err := client.NewClientWithOpts(client.FromEnv)
-	cli.NegotiateAPIVersion(ctx)
-	defer cli.Close()
+
+	ref, err := name.ParseReference(app.From)
 	if err != nil {
 		return err
 	}
-	inspect, _, err := cli.ImageInspectWithRaw(ctx, app.From)
+
+	img, err := daemon.Image(ref, getDaemonOptions()...)
 	if err != nil {
-		if err.Error() == "Error: No such image: "+app.From {
+		if strings.Contains(err.Error(), "not found") ||
+			strings.Contains(err.Error(), "No such image") {
 			fmt.Printf("Repo not exists in local docker\n")
 			return nil
 		}
 		return err
 	}
+
 	fmt.Printf("Repo exists in local docker\n")
 	app.LocalImage.Exists = true
-	if len(inspect.RepoDigests) > 0 {
-		app.LocalImage.DockerDigest = inspect.RepoDigests[0]
+
+	// Get the digest
+	digest, err := img.Digest()
+	if err != nil {
+		// Fall back to config digest if image digest not available
+		configName, err := img.ConfigName()
+		if err != nil {
+			return err
+		}
+		app.LocalImage.DockerDigest = configName.String()
 	} else {
-		app.LocalImage.DockerDigest = inspect.ID
+		// Try to get repo digest format (image@sha256:...)
+		app.LocalImage.DockerDigest = ref.Context().String() + "@" + digest.String()
 	}
 
-	//Setting Docker Config values
-	configData, err := json.Marshal(inspect.Config)
+	// Get Docker Config values
+	dockerConfig, err := GetImageConfig(img)
 	if err != nil {
 		return err
 	}
-	err = pvjson.Unmarshal(configData, &app.LocalImage.DockerConfig)
-	if err != nil {
-		return err
+	app.LocalImage.DockerConfig = dockerConfig
+	app.LocalImage.ImageRef = ref
+
+	configFile, err := img.ConfigFile()
+	if err == nil {
+		app.LocalImage.DockerPlatform = fmt.Sprintf("%s/%s", configFile.OS, configFile.Architecture)
 	}
+
 	return nil
 }
 
@@ -639,12 +633,12 @@ func (p *Pvr) GenerateApplicationSquashFS(app *AppData, appManifest *Source) err
 		} else {
 			fmt.Println("Layers Not Found in Cache")
 			fmt.Println("Downloading layers from local docker")
-			imageReader, err := DownloadLayersFromLocalDocker(app.LocalImage.DockerDigest)
+			// Use ImageRef (tag-based) for export as local Docker can't resolve by digest
+			imageReader, err := ExportLocalImage(app.LocalImage.ImageRef.String())
 			if err != nil {
 				return err
 			}
 			buf := bufio.NewReader(imageReader)
-			//filename := filepath.Join(tempdir, "layers") + ".tar.gz"
 			err = Create(filename, 0644)
 			if err != nil {
 				return err
@@ -683,10 +677,26 @@ func (p *Pvr) GenerateApplicationSquashFS(app *AppData, appManifest *Source) err
 		}
 
 	} else if app.RemoteImage.Exists {
-		//Download from remote repo.
-		for i, layer := range app.RemoteImage.DockerManifest.Layers {
-			filename := filepath.Join(cacheDir, string(layer.Digest)) + ".tar.gz"
-			shaValid, err := FileHasSameSha(filename, string(layer.Digest))
+		// Download layers from remote using go-containerregistry
+		auth := p.AuthConfig(app.Username, app.Password, "")
+		img, err := p.GetRemoteImage(app.From, auth)
+		if err != nil {
+			return err
+		}
+
+		layers, err := img.Layers()
+		if err != nil {
+			return err
+		}
+
+		for i, layer := range layers {
+			layerDigest, err := layer.Digest()
+			if err != nil {
+				return err
+			}
+
+			filename := filepath.Join(cacheDir, layerDigest.String()) + ".tar.gz"
+			shaValid, err := FileHasSameSha(filename, layerDigest.String())
 			if err != nil {
 				return err
 			}
@@ -696,7 +706,8 @@ func (p *Pvr) GenerateApplicationSquashFS(app *AppData, appManifest *Source) err
 				continue
 			}
 
-			layerReader, err := app.RemoteImage.DockerRegistry.DownloadLayer(context.Background(), app.RemoteImage.ImagePath, layer.Digest)
+			// Download compressed layer
+			layerReader, err := layer.Compressed()
 			if err != nil {
 				return err
 			}
@@ -712,8 +723,13 @@ func (p *Pvr) GenerateApplicationSquashFS(app *AppData, appManifest *Source) err
 				return err
 			}
 
+			layerSize, err := layer.Size()
+			if err != nil {
+				return err
+			}
+
 			writedCount, err := buf.WriteTo(file)
-			if writedCount != layer.Size {
+			if writedCount != layerSize {
 				return ErrDownloadedLayerDiffSize
 			}
 
@@ -897,6 +913,7 @@ func FindWhiteoutsFromLayer(layerPath string) ([]string, error) {
 	}
 	return whiteoutPaths, nil
 }
+
 func (p *Pvr) GetSquashFSDigest(squashFile, appName string) (string, error) {
 	content, err := os.ReadFile(filepath.Join(p.Dir, appName, squashFile+DOCKER_DIGEST_SUFFIX))
 	if os.IsNotExist(err) {
@@ -910,14 +927,17 @@ func (p *Pvr) GetSquashFSDigest(squashFile, appName string) (string, error) {
 	return string(content), nil
 }
 
-func (p *Pvr) AuthConfig(username, password, registry string) (types.AuthConfig, error) {
-	if registry == DOCKER_DOMAIN {
-		auth, err := repoutils.GetAuthConfig(username, password, DOCKER_REGISTRY)
-		auth.ServerAddress = DOCKER_REGISTRY_SERVER_ADDRESS
-		return auth, err
+// AuthConfig returns an authenticator for registry access
+func (p *Pvr) AuthConfig(username, password, registry string) authn.Authenticator {
+	if username != "" && password != "" {
+		return authn.FromConfig(authn.AuthConfig{
+			Username: username,
+			Password: password,
+		})
 	}
-
-	return repoutils.GetAuthConfig(username, password, registry)
+	// Fall back to anonymous authentication
+	// For authenticated access from ~/.docker/config.json, use remote.WithAuthFromKeychain(authn.DefaultKeychain)
+	return authn.Anonymous
 }
 
 // IsFileExists : Check if File Exists  or not

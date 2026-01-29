@@ -6,3 +6,4 @@ _test/results
 _test/objects
 vendor
 build
+.gitlab-ci.yml

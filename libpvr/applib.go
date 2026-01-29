@@ -128,9 +128,22 @@ func (p *Pvr) InstallApplication(app *AppData) (err error) {
 	dockerName := targetManifest.DockerName
 	repoDigest := targetManifest.DockerDigest
 
-	targetApp.From = repoDigest
-	if targetApp.Source == "remote" && !strings.Contains(repoDigest, "@") {
-		targetApp.From = dockerName + "@" + repoDigest
+	// Build tag-based URL for local lookups (local Docker can't resolve by digest)
+	trackURL := dockerName
+	if targetManifest.DockerTag != "" {
+		trackURL += ":" + targetManifest.DockerTag
+	}
+
+	// Use tag-based reference when source includes "local" because
+	// local Docker daemon cannot resolve images by manifest digest
+	if strings.Contains(targetApp.Source, "local") {
+		targetApp.From = trackURL
+	} else {
+		// For remote-only source, use digest for immutable reference
+		targetApp.From = repoDigest
+		if !strings.Contains(repoDigest, "@") {
+			targetApp.From = dockerName + "@" + repoDigest
+		}
 	}
 
 	switch targetApp.SourceType {
@@ -159,9 +172,19 @@ func (p *Pvr) InstallApplication(app *AppData) (err error) {
 		app.SquashFile = SQUASH_OVL_FILE
 
 		repoDigest = appManifest.DockerOvlDigest
-		app.From = repoDigest
-		if app.Source == "remote" && !strings.Contains(repoDigest, "@") {
-			app.From = dockerName + "@" + repoDigest
+		// For overlay, also need tag-based reference for local lookups
+		ovlTrackURL := appManifest.DockerName
+		if appManifest.DockerTag != "" {
+			ovlTrackURL += ":" + appManifest.DockerTag
+		}
+
+		if strings.Contains(app.Source, "local") {
+			app.From = ovlTrackURL
+		} else {
+			app.From = repoDigest
+			if !strings.Contains(repoDigest, "@") {
+				app.From = dockerName + "@" + repoDigest
+			}
 		}
 
 		switch app.SourceType {
