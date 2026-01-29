@@ -1,14 +1,77 @@
 
-<a name="044"></a>
-## [044](https://gitlab.com/pantacor/pvr/compare/042...044) (2024-12-18)
+<a name="048"></a>
+## [048](https://gitlab.com/pantacor/pvr/compare/047...048) (2026-01-26)
+
+### Refactor
+
+* change the DoCallAuth to modify the request in order to see when auth is need it
+
+
+<a name="047"></a>
+## [047](https://gitlab.com/pantacor/pvr/compare/046...047) (2026-01-26)
+
+### Docs
+
+* add Ingress and Recovery examples and support granular variables
+* add IPAM networking examples to PVR_TEMPLATES.md
+* keep PVR_TEMPLATES.md as base reference (move examples to feature branches)
+* add detailed examples for ingress, recovery and networking
+* reference PVR_TEMPLATES.md in README.md
+* add PVR_TEMPLATES.md documenting built-in template variables
+
+### Feat
+
+* **templates:** add PV_NETWORK_* args for IPAM pool networking
 
 ### Feature
 
-* delete device command
+* add authentication with pkce flow
+
+### Fix
+
+* docker image needs to use latest golang 1.21
+
+### Templates
+
+* update builtin-lxc-docker for ingress and recovery support
+
+
+<a name="046"></a>
+## [046](https://gitlab.com/pantacor/pvr/compare/045...046) (2025-11-04)
+
+### Fix
+
+* build breaks with any on older go versions
+
+
+<a name="045"></a>
+## [045](https://gitlab.com/pantacor/pvr/compare/044...045) (2025-11-04)
+
+### Feature
+
+* add support to get/merge/app update/fastcopy gitlabpackages
+* **docs:** add information about how to use gitlab packages for pvr get and pvr merge
+
+### Fix
+
+* **logs:** page limit 500
+* **post:** on post force make sure of reloading objects
+
+
+<a name="044"></a>
+## [044](https://gitlab.com/pantacor/pvr/compare/043...044) (2024-12-18)
 
 ### Repolib
 
 * skip exporting dupes of objects to tar
+
+
+<a name="043"></a>
+## [043](https://gitlab.com/pantacor/pvr/compare/042...043) (2024-10-14)
+
+### Feature
+
+* delete device command
 
 
 <a name="042"></a>
@@ -81,15 +144,15 @@
 
 
 <a name="038"></a>
-## [038](https://gitlab.com/pantacor/pvr/compare/041...038) (2024-04-29)
-
-
-<a name="041"></a>
-## [041](https://gitlab.com/pantacor/pvr/compare/041-rev001...041) (2024-04-17)
+## [038](https://gitlab.com/pantacor/pvr/compare/041-rev001...038) (2024-04-29)
 
 
 <a name="041-rev001"></a>
-## [041-rev001](https://gitlab.com/pantacor/pvr/compare/037...041-rev001) (2024-04-17)
+## [041-rev001](https://gitlab.com/pantacor/pvr/compare/041...041-rev001) (2024-04-17)
+
+
+<a name="041"></a>
+## [041](https://gitlab.com/pantacor/pvr/compare/037...041) (2024-04-17)
 
 ### Feature
 
