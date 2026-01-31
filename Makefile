@@ -73,7 +73,7 @@ build-%:
 	else \
 		GOOS=$(GOOS) GOARCH=$(GOARCH) GOARM=$(GOARM) $(CGO) $(GOBUILD) -o $(OUTPUT_DIR)/$(PKG_NAME) $(GCFLAGS) $(LDFLAGS) -trimpath -v -mod=vendor ./cmd/pvr; \
 	fi
-	@if [ "$(OPTIMIZE)" == "1" ]; then make optimize-$(GOOSARCH); fi
+	@if [ "$(OPTIMIZE)" = "1" ]; then make optimize-$(GOOSARCH); fi
 
 # Optimize the binary for all platforms
 optimize:
@@ -89,11 +89,23 @@ optimize-%:
 	@echo "optimizing for $(GOOSARCH) with GOOS=$(GOOS) and GOARCH=$(GOARCH) and GOARM=$(GOARM)"
 	@if [ -z "$(OUTPUT_DIR)" ]; then \
 		case " $(SUPPORT_OPTIMIZATION) " in \
-			*" $(GOOSARCH) "*) upx $(UPXMODE) $(BUILD_DIR)/$(GOOS)_$(GOARCH)$(GOARM)/$(PKG_NAME) ;; \
+			*" $(GOOSARCH) "*) \
+				if command -v upx >/dev/null 2>&1; then \
+					upx $(UPXMODE) $(BUILD_DIR)/$(GOOS)_$(GOARCH)$(GOARM)/$(PKG_NAME); \
+				else \
+					echo "upx not found, skipping optimization"; \
+				fi \
+			;; \
 		esac \
 	else \
 		case " $(SUPPORT_OPTIMIZATION) " in \
-			*" $(GOOSARCH) "*) upx $(UPXMODE) $(OUTPUT_DIR)/$(PKG_NAME) ;; \
+			*" $(GOOSARCH) "*) \
+				if command -v upx >/dev/null 2>&1; then \
+					upx $(UPXMODE) $(OUTPUT_DIR)/$(PKG_NAME); \
+				else \
+					echo "upx not found, skipping optimization"; \
+				fi \
+			;; \
 		esac \
 	fi
 
