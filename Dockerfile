@@ -29,6 +29,8 @@ RUN make build-linux-amd64
 # build arm linux static
 FROM src AS linux_arm
 
+
+
 RUN apk update; apk add git
 RUN make build-linux-arm
 
