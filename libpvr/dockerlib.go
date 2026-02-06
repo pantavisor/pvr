@@ -111,6 +111,7 @@ type DockerImage struct {
 func getDaemonOptions() []daemon.Option {
 	cli, err := dockerclient.NewClientWithOpts(
 		dockerclient.FromEnv,
+		dockerclient.WithVersion("1.46"),
 		dockerclient.WithAPIVersionNegotiation(),
 	)
 	if err != nil {

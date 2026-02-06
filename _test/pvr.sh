@@ -623,5 +623,128 @@ test_app_update_with_source_override() {
     assertEquals "docker_tag should be preserved" "3.19" "$updated_tag"
 }
 
+## Test that pvr generates root.squashfs from docker layers (remote source) and
+## produces the same sha256 when generated from the same image twice.
+## Also verifies root.squashfs.docker-digest matches docker_digest in src.json.
+test_squashfs_generation_from_layers_is_reproducible() {
+    clean_results
+    cd $dir/results/
+
+    mkdir device1
+    cd device1
+
+    $pvr init --objects $dir/objects
+
+    # Add an app from a docker image — this pulls layers and generates root.squashfs
+    $pvr app add --from alpine:3.19 --platform linux/amd64 alpine-squash 2>&1
+    assertEquals "pvr app add should succeed (device1)" "0" "$?"
+
+    # Verify root.squashfs was actually generated
+    test -f alpine-squash/root.squashfs
+    assertEquals "root.squashfs should exist (device1)" "0" "$?"
+
+    # Verify docker-digest file was generated and matches src.json
+    test -f alpine-squash/root.squashfs.docker-digest
+    assertEquals "root.squashfs.docker-digest should exist (device1)" "0" "$?"
+
+    digest_file1="$(cat alpine-squash/root.squashfs.docker-digest)"
+    src_digest1="$(cat alpine-squash/src.json | jq -r .docker_digest)"
+    assertEquals "docker-digest file should match src.json docker_digest (device1)" "$src_digest1" "$digest_file1"
+
+    squashfs_sha1="$(sha256sum alpine-squash/root.squashfs | awk '{print $1}')"
+    assertNotNull "root.squashfs sha should not be empty (device1)" "$squashfs_sha1"
+
+    # Now do the same in a second directory
+    cd $dir/results/
+
+    mkdir device2
+    cd device2
+
+    $pvr init --objects $dir/objects
+
+    $pvr app add --from alpine:3.19 --platform linux/amd64 alpine-squash 2>&1
+    assertEquals "pvr app add should succeed (device2)" "0" "$?"
+
+    test -f alpine-squash/root.squashfs
+    assertEquals "root.squashfs should exist (device2)" "0" "$?"
+
+    # Verify docker-digest file was generated and matches src.json
+    test -f alpine-squash/root.squashfs.docker-digest
+    assertEquals "root.squashfs.docker-digest should exist (device2)" "0" "$?"
+
+    digest_file2="$(cat alpine-squash/root.squashfs.docker-digest)"
+    src_digest2="$(cat alpine-squash/src.json | jq -r .docker_digest)"
+    assertEquals "docker-digest file should match src.json docker_digest (device2)" "$src_digest2" "$digest_file2"
+
+    squashfs_sha2="$(sha256sum alpine-squash/root.squashfs | awk '{print $1}')"
+    assertNotNull "root.squashfs sha should not be empty (device2)" "$squashfs_sha2"
+
+    # The same image layers should produce the exact same squashfs
+    assertEquals "root.squashfs sha should match between both generations" "$squashfs_sha1" "$squashfs_sha2"
+}
+
+## Test that pvr generates root.squashfs from local docker layers and
+## produces the same sha256 when generated from the same image twice.
+## Also verifies root.squashfs.docker-digest matches docker_digest in src.json.
+test_squashfs_generation_from_local_layers_is_reproducible() {
+    clean_results
+    cd $dir/results/
+
+    # Pull image so it's available locally
+    docker pull alpine:3.19 >/dev/null 2>&1
+
+    mkdir device1
+    cd device1
+
+    $pvr init --objects $dir/objects
+
+    # Add app from local docker daemon
+    $pvr app add --from alpine:3.19 --platform linux/amd64 --source local alpine-squash 2>&1
+    assertEquals "pvr app add should succeed (device1)" "0" "$?"
+
+    # Verify root.squashfs was actually generated
+    test -f alpine-squash/root.squashfs
+    assertEquals "root.squashfs should exist (device1)" "0" "$?"
+
+    # Verify docker-digest file was generated and matches src.json
+    test -f alpine-squash/root.squashfs.docker-digest
+    assertEquals "root.squashfs.docker-digest should exist (device1)" "0" "$?"
+
+    digest_file1="$(cat alpine-squash/root.squashfs.docker-digest)"
+    src_digest1="$(cat alpine-squash/src.json | jq -r .docker_digest)"
+    assertEquals "docker-digest file should match src.json docker_digest (device1)" "$src_digest1" "$digest_file1"
+
+    squashfs_sha1="$(sha256sum alpine-squash/root.squashfs | awk '{print $1}')"
+    assertNotNull "root.squashfs sha should not be empty (device1)" "$squashfs_sha1"
+
+    # Now do the same in a second directory
+    cd $dir/results/
+
+    mkdir device2
+    cd device2
+
+    $pvr init --objects $dir/objects
+
+    $pvr app add --from alpine:3.19 --platform linux/amd64 --source local alpine-squash 2>&1
+    assertEquals "pvr app add should succeed (device2)" "0" "$?"
+
+    test -f alpine-squash/root.squashfs
+    assertEquals "root.squashfs should exist (device2)" "0" "$?"
+
+    # Verify docker-digest file was generated and matches src.json
+    test -f alpine-squash/root.squashfs.docker-digest
+    assertEquals "root.squashfs.docker-digest should exist (device2)" "0" "$?"
+
+    digest_file2="$(cat alpine-squash/root.squashfs.docker-digest)"
+    src_digest2="$(cat alpine-squash/src.json | jq -r .docker_digest)"
+    assertEquals "docker-digest file should match src.json docker_digest (device2)" "$src_digest2" "$digest_file2"
+
+    squashfs_sha2="$(sha256sum alpine-squash/root.squashfs | awk '{print $1}')"
+    assertNotNull "root.squashfs sha should not be empty (device2)" "$squashfs_sha2"
+
+    # The same local image layers should produce the exact same squashfs
+    assertEquals "root.squashfs sha should match between both local generations" "$squashfs_sha1" "$squashfs_sha2"
+}
+
 # Load shUnit2.
 . _test/lib/shunit2
