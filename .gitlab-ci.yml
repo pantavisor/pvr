@@ -165,10 +165,13 @@ package-deploy:
     sh -c "cd $tempdir/bin/windows_amd64/; zip pvr.windows.x64.zip pvr.exe"
     cp $tempdir/bin/windows_amd64/pvr.windows.x64.zip .
     cp $tempdir/pvr-vendor.tar.gz .
-    for file in $(find . -maxdepth 1 -type f -name "*.tar.gz" -o -name "*.zip"); do
+    for file in $(find . -maxdepth 1 -type f \( -name "*.tar.gz" -o -name "*.zip" \)); do
       filename=$(basename $file)
       ARCH=$(echo $filename | cut -d '.' -f 2,3)
-      extension=$(echo $filename | cut -d '.' -f 4,5)
+      extension=${filename##*.}
+      if [[ "$filename" == *.tar.gz ]]; then
+        extension="tar.gz"
+      fi
       if [ "$filename" == "pvr-vendor.tar.gz" ]; then
         ARCH="vendor"
         extension="tar.gz"
