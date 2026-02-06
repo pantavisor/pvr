@@ -465,8 +465,8 @@ func (p *Pvr) GenerateApplicationTemplateFiles(appname string, dockerConfig map[
 	}
 
 	configValues["EffectiveGroup"] = appManifest.TemplateArgs["PV_GROUP"]
-	if configValues["EffectiveGroup"] != nil && !p.HasGroup(configValues["EffectiveGroup"].(string)) {
-		fmt.Fprintln(os.Stderr, "WARN: group does not exist in groups.json")
+	if configValues["EffectiveGroup"] != nil && p.HasGroups() && !p.HasGroup(configValues["EffectiveGroup"].(string)) {
+		fmt.Fprintf(os.Stderr, "WARN: group \"%s\" does not exist in groups.json\n", configValues["EffectiveGroup"].(string))
 	}
 
 	if configValues["EffectiveGroup"] == nil && appManifest.TemplateArgs["PV_RUNLEVEL"] == nil {

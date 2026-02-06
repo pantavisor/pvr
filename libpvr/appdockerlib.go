@@ -159,7 +159,24 @@ func UpdateDockerApp(p *Pvr, app *AppData, appManifest *Source) (err error) {
 
 	for k, v := range appManifest.DockerConfig {
 		if v == nil {
-			delete(app.RemoteImage.DockerConfig, k)
+			delete(app.LocalImage.DockerConfig, k)
+		}
+	}
+
+	// Save docker_config and docker_digest from the found image so they are cached in src.json
+	if app.LocalImage.Exists {
+		appManifest.DockerConfig = app.LocalImage.DockerConfig
+		if app.DoOverlay {
+			appManifest.DockerOvlDigest = app.LocalImage.DockerDigest
+		} else {
+			appManifest.DockerDigest = app.LocalImage.DockerDigest
+		}
+	} else if app.RemoteImage.Exists {
+		appManifest.DockerConfig = app.RemoteImage.DockerConfig
+		if app.DoOverlay {
+			appManifest.DockerOvlDigest = app.RemoteImage.DockerDigest
+		} else {
+			appManifest.DockerDigest = app.RemoteImage.DockerDigest
 		}
 	}
 
@@ -210,7 +227,7 @@ func InstallDockerApp(p *Pvr, app *AppData, appManifest *Source) error {
 			return err
 		}
 
-		fmt.Println("WARNING: The src.json for " + appManifest.Name + " has been genrated by old pvr; run pvr update " + appManifest.Name + " to get rid of this warning.")
+		fmt.Fprintln(os.Stderr, "WARN: docker_config not cached in "+app.Appname+"/src.json; fetching from registry.")
 		//	Exists flag is true only if the image got loaded which will depend on
 		//  priority order provided in --source=local,remote
 		if app.LocalImage.Exists {

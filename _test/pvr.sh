@@ -746,5 +746,90 @@ test_squashfs_generation_from_local_layers_is_reproducible() {
     assertEquals "root.squashfs sha should match between both local generations" "$squashfs_sha1" "$squashfs_sha2"
 }
 
+## Test that pvr app update caches docker_config in src.json
+## When src.json has no docker_config, update should fetch it and save it
+test_app_update_caches_docker_config() {
+    clean_results
+    cd $dir/results/
+
+    $pvr init --objects $dir/objects
+
+    # Add app (AddDockerApp caches docker_config)
+    $pvr app add --from alpine:3.19 --platform linux/amd64 alpine-cache-test >/dev/null 2>&1
+    test -d alpine-cache-test
+    assertEquals "0" "$?"
+
+    # Verify docker_config is present after add
+    docker_config_after_add=$(cat alpine-cache-test/src.json | jq -r '.docker_config')
+    assertNotEquals "docker_config should be set after add" "null" "$docker_config_after_add"
+
+    # Remove docker_config from src.json to simulate a manually created or old src.json
+    cat alpine-cache-test/src.json | jq 'del(.docker_config)' >alpine-cache-test/src.json.tmp
+    mv alpine-cache-test/src.json.tmp alpine-cache-test/src.json
+
+    # Verify docker_config is gone
+    docker_config_removed=$(cat alpine-cache-test/src.json | jq -r '.docker_config')
+    assertEquals "docker_config should be removed" "null" "$docker_config_removed"
+
+    # Run pvr app update - should fetch and cache docker_config
+    $pvr app update alpine-cache-test >/dev/null 2>&1
+    assertEquals "pvr app update should succeed" "0" "$?"
+
+    # Verify docker_config is now cached in src.json
+    docker_config_after_update=$(cat alpine-cache-test/src.json | jq -r '.docker_config')
+    assertNotEquals "docker_config should be cached after update" "null" "$docker_config_after_update"
+}
+
+## Test that pvr app update does not emit the old "genrated by old pvr" warning
+## when docker_config is missing from src.json
+test_app_update_no_old_pvr_warning() {
+    clean_results
+    cd $dir/results/
+
+    $pvr init --objects $dir/objects
+
+    # Add app
+    $pvr app add --from alpine:3.19 --platform linux/amd64 alpine-warn-test >/dev/null 2>&1
+
+    # Remove docker_config to trigger the fallback codepath in InstallDockerApp
+    cat alpine-warn-test/src.json | jq 'del(.docker_config)' >alpine-warn-test/src.json.tmp
+    mv alpine-warn-test/src.json.tmp alpine-warn-test/src.json
+
+    # Remove squashfs so install actually runs the generation path
+    rm -f alpine-warn-test/root.squashfs alpine-warn-test/root.squashfs.docker-digest
+
+    # Run pvr app update and capture all output (stdout + stderr)
+    output=$($pvr app update alpine-warn-test 2>&1)
+
+    # Verify the old misleading warning is NOT present
+    echo "$output" | grep -q "genrated by old pvr" && fail "Should not emit 'genrated by old pvr' warning" || true
+    echo "$output" | grep -q "WARNING: The src.json for" && fail "Should not emit old WARNING about src.json" || true
+}
+
+## Test that no group warning is emitted when groups.json does not exist
+## even when PV_GROUP is set in src.json args
+test_no_group_warning_without_groups_json() {
+    clean_results
+    cd $dir/results/
+
+    $pvr init --objects $dir/objects
+
+    # Add app
+    $pvr app add --from alpine:3.19 --platform linux/amd64 alpine-group-test >/dev/null 2>&1
+
+    # Add PV_GROUP to args in src.json (simulating user's src.json with "PV_GROUP": "root")
+    cat alpine-group-test/src.json | jq '.args.PV_GROUP = "root"' >alpine-group-test/src.json.tmp
+    mv alpine-group-test/src.json.tmp alpine-group-test/src.json
+
+    # Ensure no groups.json exists in the repo
+    rm -f groups.json
+
+    # Run pvr app update and capture stderr
+    output=$($pvr app update alpine-group-test 2>&1)
+
+    # Verify the group warning is NOT present (no groups.json means warning should not fire)
+    echo "$output" | grep -q "group does not exist in groups.json" && fail "Should not warn about group when groups.json does not exist" || true
+}
+
 # Load shUnit2.
 . _test/lib/shunit2
