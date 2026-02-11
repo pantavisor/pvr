@@ -7,7 +7,7 @@
 # make build-linux-amd64  # compile linux amd64 binary
 # make build-linux-arm  # compile linux arm binary
 # make build-linux-arm64  # compile linux arm64 binary
-# make build-linux-riscv64  # compile linux arm64 binary
+# make build-linux-riscv64  # compile linux riscv64 binary
 # make build-windows-386  # compile windows 386 binary
 # make build-windows-amd64  # compile windows amd64 binary
 # make build-darwin-amd64  # compile darwin amd64 binary
@@ -18,7 +18,9 @@
 # make optimize-linux-arm64  # optimize linux arm64 binary
 # make optimize-windows-386  # optimize windows 386 binary
 # make optimize-windows-amd64  # optimize windows amd64 binary
-.PHONY = all clean build build-% optimize optimize-%
+# make release      # build and create tar.gz for all platforms
+# make release-linux-amd64  # build and create tar.gz for linux amd64
+.PHONY = all clean build build-% optimize optimize-% release release-%
 
 BINARY_NAME = pvr
 
@@ -31,17 +33,20 @@ UPXMODE ?=
 DEBUG ?= 1
 OPTIMIZE ?= 1
 PRODUCTION ?= 0
+
+VERSION ?= $(shell git describe --tags --abbrev=0 2>/dev/null || echo "dev")
+REVISION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 CGO = CGO_ENABLED=0
 export DEBUG OPTIMIZE
 
 ifeq ($(DEBUG), 1)
     BUILD_TYPE = debug
     GCFLAGS = -gcflags="all=-N -l"
-    LDFLAGS = -ldflags="-extldflags=-static"
+    LDFLAGS = -ldflags="-X 'gitlab.com/pantacor/pvr/cmd.Version=$(VERSION)' -X 'gitlab.com/pantacor/pvr/cmd.Revision=$(REVISION)' -extldflags=-static"
 else
     BUILD_TYPE = release
     GCFLAGS = -gcflags="all=-N -l"
-    LDFLAGS = -ldflags="-s -w -extldflags=-static"
+    LDFLAGS = -ldflags="-s -w -X 'gitlab.com/pantacor/pvr/cmd.Version=$(VERSION)' -X 'gitlab.com/pantacor/pvr/cmd.Revision=$(REVISION)' -extldflags=-static"
 endif
 
 BUILD_DIR ?= build
@@ -71,7 +76,7 @@ build-%:
 	else \
 		GOOS=$(GOOS) GOARCH=$(GOARCH) GOARM=$(GOARM) $(CGO) $(GOBUILD) -o $(OUTPUT_DIR)/$(PKG_NAME) $(GCFLAGS) $(LDFLAGS) -trimpath -v -mod=vendor ./cmd/pvr; \
 	fi
-	@if [ "$(OPTIMIZE)" == "1" ]; then make optimize-$(GOOSARCH); fi
+	@if [ "$(OPTIMIZE)" = "1" ]; then make optimize-$(GOOSARCH); fi
 
 # Optimize the binary for all platforms
 optimize:
@@ -86,18 +91,49 @@ optimize-%:
 	$(eval PKG_NAME := $(if $(filter-out windows,$(GOOS)), $(BINARY_NAME), $(BINARY_NAME).exe))
 	@echo "optimizing for $(GOOSARCH) with GOOS=$(GOOS) and GOARCH=$(GOARCH) and GOARM=$(GOARM)"
 	@if [ -z "$(OUTPUT_DIR)" ]; then \
-		if [[ " $(SUPPORT_OPTIMIZATION) " =~ " $(GOOSARCH) " ]]; then \
-			upx $(UPXMODE) $(BUILD_DIR)/$(GOOS)_$(GOARCH)$(GOARM)/$(PKG_NAME); \
-		fi \
+		case " $(SUPPORT_OPTIMIZATION) " in \
+			*" $(GOOSARCH) "*) \
+				if command -v upx >/dev/null 2>&1; then \
+					upx $(UPXMODE) $(BUILD_DIR)/$(GOOS)_$(GOARCH)$(GOARM)/$(PKG_NAME); \
+				else \
+					echo "upx not found, skipping optimization"; \
+				fi \
+			;; \
+		esac \
 	else \
-		if [[ " $(SUPPORT_OPTIMIZATION) " =~ " $(GOOSARCH) " ]]; then \
-			upx $(UPXMODE) $(OUTPUT_DIR)/$(PKG_NAME); \
-		fi \
+		case " $(SUPPORT_OPTIMIZATION) " in \
+			*" $(GOOSARCH) "*) \
+				if command -v upx >/dev/null 2>&1; then \
+					upx $(UPXMODE) $(OUTPUT_DIR)/$(PKG_NAME); \
+				else \
+					echo "upx not found, skipping optimization"; \
+				fi \
+			;; \
+		esac \
 	fi
+
+RELEASE_DIR ?= release
+
+# Release all supported platforms
+release:
+	$(foreach platform,$(SUPPORTED_PLATFORMS), $(MAKE) release-$(platform);)
+
+# Release for a specific platform (builds and creates tar.gz)
+release-%: build-%
+	$(eval GOOSARCH := $*)
+	$(eval GOOS := $(firstword $(subst -, ,$(GOOSARCH))))
+	$(eval GOARCH := $(word 2,$(subst -, ,$(GOOSARCH))))
+	$(eval GOARM := $(word 3,$(subst -, ,$(GOOSARCH))))
+	$(eval PKG_NAME := $(if $(filter-out windows,$(GOOS)), $(BINARY_NAME), $(BINARY_NAME).exe))
+	$(eval RELEASE_NAME := $(BINARY_NAME)-$(VERSION)-$(GOOS)-$(GOARCH)$(GOARM))
+	@echo "creating release archive for $(GOOSARCH)"
+	@mkdir -p $(RELEASE_DIR)
+	@tar -czvf $(RELEASE_DIR)/$(RELEASE_NAME).tar.gz -C $(BUILD_DIR)/$(GOOS)_$(GOARCH)$(GOARM) $(PKG_NAME)
+	@echo "release archive created: $(RELEASE_DIR)/$(RELEASE_NAME).tar.gz"
 
 # Clean target
 clean:
-	rm -rf build/
+	rm -rf build/ release/
 
 # Test target
 test:

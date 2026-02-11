@@ -420,25 +420,40 @@ const page = `
 </html>
 `
 
+type CLIInitResponse struct {
+	AuthCode     string `json:"auth_code"`
+	SessionID    string `json:"session_id"`
+	AuthorizeURL string `json:"authorize_url"`
+	ExpiresIn    int    `json:"expires_in"`
+	Interval     int    `json:"interval"`
+}
+
+type PollTokenResponse struct {
+	Token        string `json:"token"`
+	RefreshToken string `json:"refresh_token"`
+	TokenType    string `json:"token_type"`
+	ExpiresIn    int64  `json:"expires_in"`
+	Error        string `json:"error,omitempty"`
+	ErrorDesc    string `json:"error_description,omitempty"`
+}
+
 func handlePKCELogin(apiURL string) (token string, refreshToken string, err error) {
 	// Step 1: Generate code_verifier and code_challenge
 	codeVerifierBytes := make([]byte, 32)
 	_, err = rand.Read(codeVerifierBytes)
 	if err != nil {
-		return token, refreshToken, fmt.Errorf("Error generating code_verifier: %v", err)
+		return "", "", fmt.Errorf("error generating code_verifier: %v", err)
 	}
 	codeVerifier := base64.RawURLEncoding.EncodeToString(codeVerifierBytes)
 
 	sha256Hasher := sha256.New()
 	sha256Hasher.Write([]byte(codeVerifier))
-	codeChallengeBytes := sha256Hasher.Sum(nil)
-	codeChallenge := base64.RawURLEncoding.EncodeToString(codeChallengeBytes)
+	codeChallenge := base64.RawURLEncoding.EncodeToString(sha256Hasher.Sum(nil))
 
-	// Step 2: Initiate Authorization Request (Browser Redirect)
-	// Find an available port for the local callback server
+	// Step 2: Start local callback server
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
-		return token, refreshToken, fmt.Errorf("Error finding available port: %v", err)
+		return "", "", fmt.Errorf("error finding available port: %v", err)
 	}
 	defer listener.Close()
 	redirectPort := listener.Addr().(*net.TCPAddr).Port
@@ -447,102 +462,193 @@ func handlePKCELogin(apiURL string) (token string, refreshToken string, err erro
 	stateBytes := make([]byte, 16)
 	_, err = rand.Read(stateBytes)
 	if err != nil {
-		return token, refreshToken, fmt.Errorf("Error generating random state: %v", err)
+		return "", "", fmt.Errorf("error generating random state: %v", err)
 	}
 	state := base64.RawURLEncoding.EncodeToString(stateBytes)
 
-	authURL := fmt.Sprintf(
-		"%s/auth/oauth/authorize?response_type=code&client_id=%s&redirect_uri=%s&scope=%s&code_challenge=%s&code_challenge_method=S256&state=%s",
-		apiURL,
-		clientID,
-		url.QueryEscape(redirectURI),
-		url.QueryEscape("prn:pantahub.com:apis:/base/all"),
-		url.QueryEscape(codeChallenge),
-		url.QueryEscape(state))
+	// Step 3: Initialize PKCE session with API (NEW - no auth required)
+	cliInitURL := fmt.Sprintf("%s/auth/oauth/pkce/init", apiURL)
+	initPayload := map[string]string{
+		"client_id":             clientID,
+		"scope":                 "prn:pantahub.com:apis:/base/all",
+		"redirect_uri":          redirectURI,
+		"code_challenge":        codeChallenge,
+		"code_challenge_method": "S256",
+		"state":                 state,
+	}
 
-	fmt.Printf("Opening browser for login. Please complete the authentication in your browser.\n")
-	fmt.Printf("If your browser does not open automatically, please navigate to: %s\n", authURL)
+	resp, err := resty.R().
+		SetHeader("Content-Type", "application/json").
+		SetBody(initPayload).
+		Post(cliInitURL)
+
+	if err != nil {
+		return "", "", fmt.Errorf("failed to initiate PKCE session: %v", err)
+	}
+	if resp.StatusCode() != http.StatusOK {
+		return "", "", fmt.Errorf("PKCE init failed with status %d: %s",
+			resp.StatusCode(), string(resp.Body()))
+	}
+
+	var initResp CLIInitResponse
+	if err := json.Unmarshal(resp.Body(), &initResp); err != nil {
+		return "", "", fmt.Errorf("failed to parse PKCE init response: %v", err)
+	}
+
+	// Step 4: Display authorization URL and open browser
+	fmt.Printf("Opening browser for login...\n")
+	fmt.Printf("If the browser doesn't open, visit this URL:\n\n")
+	fmt.Printf("  %s\n\n", initResp.AuthorizeURL)
+
 	go func() {
-		open.Run(authURL)
+		open.Run(initResp.AuthorizeURL)
 	}()
 
-	codeCh := make(chan string)
+	// Step 5: Race callback vs polling
+	callbackCh := make(chan string, 1)
+	pollResultCh := make(chan PollTokenResponse, 1)
+	doneCh := make(chan struct{})
+
+	// Start callback server
 	server := &http.Server{
 		Addr: fmt.Sprintf(":%d", redirectPort),
 		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			queryState := r.URL.Query().Get("state")
-			if queryState != state {
-				errStr := "Invalid state parameter"
-				http.Error(w, errStr, http.StatusBadRequest)
+			if r.URL.Query().Get("state") != state {
+				http.Error(w, "Invalid state parameter", http.StatusBadRequest)
 				return
 			}
 			code := r.URL.Query().Get("code")
 			if code == "" {
-				errStr := "Authorization code not found"
-				http.Error(w, errStr, http.StatusBadRequest)
+				http.Error(w, "Authorization code not found", http.StatusBadRequest)
 				return
 			}
 			fmt.Fprintf(w, page)
-			codeCh <- code
+			select {
+			case callbackCh <- code:
+			default:
+			}
 		}),
 	}
 
 	go func() {
-		fmt.Printf("Starting local callback server on 127.0.0.1:%d\n", redirectPort)
 		if err := server.Serve(listener); err != nil && err != http.ErrServerClosed {
 			fmt.Printf("Local callback server error: %v\n", err)
 		}
 	}()
 
-	var authCode string
+	// Start polling goroutine (NEW)
+	go func() {
+		tokenURL := fmt.Sprintf("%s/auth/oauth/token", apiURL)
+		pollPayload := map[string]string{
+			"grant_type":    "pkce_poll",
+			"code":          initResp.AuthCode,
+			"client_id":     clientID,
+			"code_verifier": codeVerifier,
+		}
+
+		interval := time.Duration(initResp.Interval) * time.Second
+		if interval < 5*time.Second {
+			interval = 5 * time.Second
+		}
+
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-doneCh:
+				return
+			case <-ticker.C:
+				resp, err := resty.R().
+					SetHeader("Content-Type", "application/json").
+					SetBody(pollPayload).
+					Post(tokenURL)
+
+				if err != nil {
+					continue
+				}
+
+				var tokenResp PollTokenResponse
+				if err := json.Unmarshal(resp.Body(), &tokenResp); err != nil {
+					continue
+				}
+
+				if tokenResp.Error == "" && tokenResp.Token != "" {
+					select {
+					case pollResultCh <- tokenResp:
+					default:
+					}
+					return
+				}
+
+				if tokenResp.Error == "slow_down" {
+					interval += 5 * time.Second
+					ticker.Reset(interval)
+				}
+			}
+		}
+	}()
+
+	// Step 6: Wait for first completion
+	var resultToken, resultRefreshToken string
+
 	select {
-	case authCode = <-codeCh:
-	case <-time.After(5 * time.Minute):
+	case authCode := <-callbackCh:
+		// Callback received - exchange code for token (existing PKCE flow)
+		close(doneCh)
 		_ = server.Shutdown(context.Background())
-		return token, refreshToken, fmt.Errorf("Timed out waiting for authorization code")
+
+		tokenURL := fmt.Sprintf("%s/auth/oauth/token", apiURL)
+		tokenPayload := map[string]string{
+			"grant_type":    "authorization_code",
+			"client_id":     clientID,
+			"redirect_uri":  redirectURI,
+			"access-code":   authCode,
+			"code_verifier": codeVerifier,
+			"scope":         "prn:pantahub.com:apis:/base/all",
+		}
+
+		resp, err := resty.R().
+			SetHeader("Content-Type", "application/json").
+			SetBody(tokenPayload).
+			Post(tokenURL)
+
+		if err != nil {
+			return "", "", fmt.Errorf("error exchanging code for token: %v", err)
+		}
+		if resp.StatusCode() != http.StatusOK {
+			return "", "", fmt.Errorf("token exchange failed with status %d: %s",
+				resp.StatusCode(), string(resp.Body()))
+		}
+
+		var pkceResp PkceResponse
+		if err := json.Unmarshal(resp.Body(), &pkceResp); err != nil {
+			return "", "", fmt.Errorf("error parsing token response: %v", err)
+		}
+
+		if pkceResp.Token == "" {
+			return "", "", fmt.Errorf("token exchange succeeded but returned empty token: %s", string(resp.Body()))
+		}
+
+		resultToken = pkceResp.Token
+		resultRefreshToken = pkceResp.Token
+
+	case pollResult := <-pollResultCh:
+		// Polling succeeded - got token directly
+		close(doneCh)
+		_ = server.Shutdown(context.Background())
+
+		resultToken = pollResult.Token
+		resultRefreshToken = pollResult.RefreshToken
+
+	case <-time.After(time.Duration(initResp.ExpiresIn) * time.Second):
+		close(doneCh)
+		_ = server.Shutdown(context.Background())
+		return "", "", fmt.Errorf("timed out waiting for authorization")
 	}
 
-	_ = server.Shutdown(context.Background())
-
-	// Step 3: Client Exchanges Authorization Code for Access Token
-
-	tokenURL := fmt.Sprintf("%s/auth/oauth/token", apiURL)
-	tokenPayload := map[string]string{
-		"grant_type":    "authorization_code",
-		"client_id":     clientID,
-		"redirect_uri":  redirectURI,
-		"access-code":   authCode,
-		"code_verifier": codeVerifier,
-		"scope":         "prn:pantahub.com:apis:/base/all",
-	}
-
-	var body []byte // Declare body here to match original structure
-
-	restyResp, err := resty.R().
-		SetHeader("Content-Type", "application/json").
-		SetBody(tokenPayload).
-		Post(tokenURL)
-
-	if err != nil {
-		return token, refreshToken, fmt.Errorf("Error making token exchange request: %v", err)
-	}
-
-	// resty handles closing the response body, so no explicit defer is needed.
-	// The body is readily available from the response object.
-	body = restyResp.Body()
-
-	if restyResp.StatusCode() != http.StatusOK {
-		return token, refreshToken, fmt.Errorf("Token exchange failed with status %d: %s", restyResp.StatusCode(), string(body))
-	}
-
-	response := PkceResponse{}
-	err = json.Unmarshal(body, &response)
-	if err != nil {
-		return token, refreshToken, fmt.Errorf("Error unmarshalling token response: %v", err)
-	}
-
-	response.ExpiresIn = time.Now().Add(time.Duration(response.ExpiresIn) * time.Second).Unix()
-	return response.Token, response.Token, nil
+	fmt.Printf("Authorization complete!\n")
+	return resultToken, resultRefreshToken, nil
 }
 
 func newDefaultAuthConfig(filePath string) *PvrAuthConfig {

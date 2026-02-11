@@ -24,15 +24,28 @@ import (
 	"github.com/urfave/cli"
 )
 
+var (
+	Version  = "NA"
+	Revision = "NA"
+)
+
+func init() {
+	cli.VersionPrinter = func(c *cli.Context) {
+		fmt.Printf("pvr version: %s\n", c.App.Version)
+		fmt.Printf("  go version: %s\n", strings.ReplaceAll(runtime.Version(), "go", ""))
+		if Revision != "NA" {
+			fmt.Printf("  revision: %s\n", Revision)
+		}
+	}
+}
+
 func CommandVersion() cli.Command {
 	return cli.Command{
 		Name:        "version",
 		Usage:       "pvr version",
 		Description: "Get pvr version",
 		Action: func(c *cli.Context) error {
-			fmt.Println(c.App.Version)
-			fmt.Printf("  go version: %s\n", strings.ReplaceAll(runtime.Version(), "go", ""))
-
+			cli.VersionPrinter(c)
 			return nil
 		},
 	}
