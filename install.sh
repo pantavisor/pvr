@@ -116,7 +116,7 @@ download_pvr() {
 			extract_cmd="unzip"
 		fi
 	else
-		filename="pvr.${version}.${os}.${arch}.tar.gz"
+		filename="pvr.${version}.${os}.${arch}.gz"
 		extract_cmd="tar -xzf"
 	fi
 
