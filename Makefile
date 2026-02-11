@@ -33,17 +33,20 @@ UPXMODE ?=
 DEBUG ?= 1
 OPTIMIZE ?= 1
 PRODUCTION ?= 0
+
+VERSION ?= $(shell git describe --tags --abbrev=0 2>/dev/null || echo "dev")
+REVISION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 CGO = CGO_ENABLED=0
 export DEBUG OPTIMIZE
 
 ifeq ($(DEBUG), 1)
     BUILD_TYPE = debug
     GCFLAGS = -gcflags="all=-N -l"
-    LDFLAGS = -ldflags="-extldflags=-static"
+    LDFLAGS = -ldflags="-X 'gitlab.com/pantacor/pvr/cmd.Version=$(VERSION)' -X 'gitlab.com/pantacor/pvr/cmd.Revision=$(REVISION)' -extldflags=-static"
 else
     BUILD_TYPE = release
     GCFLAGS = -gcflags="all=-N -l"
-    LDFLAGS = -ldflags="-s -w -extldflags=-static"
+    LDFLAGS = -ldflags="-s -w -X 'gitlab.com/pantacor/pvr/cmd.Version=$(VERSION)' -X 'gitlab.com/pantacor/pvr/cmd.Revision=$(REVISION)' -extldflags=-static"
 endif
 
 BUILD_DIR ?= build
@@ -110,7 +113,6 @@ optimize-%:
 	fi
 
 RELEASE_DIR ?= release
-VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 
 # Release all supported platforms
 release:

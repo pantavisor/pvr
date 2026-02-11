@@ -80,7 +80,7 @@ func main() {
 	cliApp.EnableBashCompletion = true
 	cliApp.Name = "pvr"
 	cliApp.Usage = "PantaVisor Repo"
-	cliApp.Version = VERSION
+	cliApp.Version = cmd.Version
 	home := os.Getenv("HOME")
 
 	if home == "" {
