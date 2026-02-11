@@ -92,6 +92,7 @@ func (s *Session) Login(APIURL string, interactiveOnly bool, oauth bool) (*resty
 	if err != nil {
 		return nil, err
 	}
+	s.GetApp().Metadata["PVR_AUTH"] = ""
 	method := NoneCallMethod
 	if interactiveOnly {
 		method = InteractiveCallMethod
@@ -181,12 +182,15 @@ func (s *Session) DoAuthCall(withAnonToken bool, method CallMethod, fn Wrappable
 		// Execute request with current bearer token
 		req.SetAuthToken(bearer)
 		response, err = req.Execute(req.Method, req.URL)
+		if err != nil {
+			break
+		}
 
 		// we continue looping for 401 and 403 error codes, everything
 		// else are error conditions that need to be handled upstream
-		if err == nil &&
-			response.StatusCode() != http.StatusUnauthorized &&
+		if response.StatusCode() != http.StatusUnauthorized &&
 			response.StatusCode() != http.StatusForbidden {
+			err = nil
 			break
 		}
 
