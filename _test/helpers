@@ -10,10 +10,10 @@ dir=$(sh -c "cd $(dirname $cmd); pwd")
 pvr="$dir/pvr"
 
 clean_results() {
-  rm -rf $dir/results/* > /dev/null 2>&1
-  rm -rf $dir/results/.pv > /dev/null 2>&1
-  rm -rf $dir/results/.pvr > /dev/null 2>&1
-  rm -rf $dir/objects/ > /dev/null 2>&1
+    rm -rf $dir/results/* >/dev/null 2>&1
+    rm -rf $dir/results/.pv >/dev/null 2>&1
+    rm -rf $dir/results/.pvr >/dev/null 2>&1
+    rm -rf $dir/objects/ >/dev/null 2>&1
 }
 
 # Docker image caching: pre-cache images locally to avoid Docker Hub rate limits
@@ -30,7 +30,7 @@ ensure_docker_image() {
         cache_key="${image}__${platform}"
     fi
     local cache_file="$DOCKER_CACHE_DIR/$(echo "$cache_key" | tr '/:' '__').tar"
-    
+
     # Check if image exists locally (with platform-specific inspect if needed)
     if [ -n "$platform" ]; then
         if docker manifest inspect "$image" --verbose 2>/dev/null | grep -q "\"architecture\": \"$(echo "$platform" | cut -d/ -f2)\""; then
@@ -40,14 +40,14 @@ ensure_docker_image() {
     if docker image inspect "$image" >/dev/null 2>&1; then
         return 0
     fi
-    
+
     # Try to load from cache
     if [ -f "$cache_file" ] && [ -s "$cache_file" ]; then
-        if docker load < "$cache_file" >/dev/null 2>&1; then
+        if docker load <"$cache_file" >/dev/null 2>&1; then
             return 0
         fi
     fi
-    
+
     # Pull the image
     rm -f "$cache_file"
     local pull_args=""
@@ -58,10 +58,10 @@ ensure_docker_image() {
         echo "WARNING: failed to pull $image" >&2
         return 1
     fi
-    
+
     # Save to cache
     mkdir -p "$DOCKER_CACHE_DIR"
-    if ! docker save "$image" > "$cache_file" 2>&1; then
+    if ! docker save "$image" >"$cache_file" 2>&1; then
         rm -f "$cache_file"
         echo "WARNING: failed to save $image to cache" >&2
     fi
@@ -69,11 +69,26 @@ ensure_docker_image() {
 
 # Use local docker daemon by default to avoid Docker Hub rate limits.
 # Tests that need remote access explicitly pass --source remote.
-export PVR_SOURCE=local
+# In CI environments (GitLab CI, etc.), use remote by default since DinD
+# doesn't provide access to all layer blobs for local export.
+if [ -n "${CI:-}" ] || [ -n "${GITLAB_CI:-}" ]; then
+    export PVR_SOURCE=remote
+else
+    export PVR_SOURCE=local
+fi
 
 # Detect host platform in Docker format (linux/amd64 or linux/arm64)
 case "$(uname -m)" in
-    x86_64)  HOST_PLATFORM="linux/amd64"; OTHER_PLATFORM="linux/arm64" ;;
-    aarch64) HOST_PLATFORM="linux/arm64"; OTHER_PLATFORM="linux/amd64" ;;
-    *)       HOST_PLATFORM="linux/$(uname -m)"; OTHER_PLATFORM="linux/amd64" ;;
+x86_64)
+    HOST_PLATFORM="linux/amd64"
+    OTHER_PLATFORM="linux/arm64"
+    ;;
+aarch64)
+    HOST_PLATFORM="linux/arm64"
+    OTHER_PLATFORM="linux/amd64"
+    ;;
+*)
+    HOST_PLATFORM="linux/$(uname -m)"
+    OTHER_PLATFORM="linux/amd64"
+    ;;
 esac

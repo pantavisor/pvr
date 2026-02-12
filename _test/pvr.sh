@@ -309,7 +309,7 @@ test_app_add_from_docker_sources() {
 
     # Local source test: ensure image is available locally (from cache or pull)
     ensure_docker_image "registry.gitlab.com/pantacor/pantavisor-web-status:master"
-    $pvr app add --from registry.gitlab.com/pantacor/pantavisor-web-status:master --source local webstatus-local 2>&1 || echo "DEBUG: pvr app add exit code: $?"
+    $pvr app add --from registry.gitlab.com/pantacor/pantavisor-web-status:master webstatus-local 2>&1 || echo "DEBUG: pvr app add exit code: $?"
     test -d webstatus-local
     assertEquals "0" "$?"
 
@@ -335,7 +335,7 @@ test_app_add_with_platform() {
     $pvr init --objects $dir/objects
 
     # Add host platform version (use remote,local to allow pulling platform-specific variant)
-    $pvr app add --from $TEST_IMAGE_DEFAULT --platform $HOST_PLATFORM --source local webstatus-host 2>&1 || echo "DEBUG: pvr app add exit code: $?"
+    $pvr app add --from $TEST_IMAGE_DEFAULT --platform $HOST_PLATFORM webstatus-host 2>&1 || echo "DEBUG: pvr app add exit code: $?"
     test -d webstatus-host
     assertEquals "0" "$?"
 
@@ -343,7 +343,7 @@ test_app_add_with_platform() {
     assertEquals "$HOST_PLATFORM" "$platform_host"
 
     # Add other platform version (needs remote for cross-arch image)
-    $pvr app add --from $TEST_IMAGE_DEFAULT --platform $OTHER_PLATFORM --source local webstatus-other >/dev/null 2>&1
+    $pvr app add --from $TEST_IMAGE_DEFAULT --platform $OTHER_PLATFORM webstatus-other >/dev/null 2>&1
     test -d webstatus-other
     assertEquals "0" "$?"
 
@@ -369,7 +369,7 @@ test_app_add_without_platform_or_hostconfig() {
     rm -f _hostconfig/pvr/docker.json
 
     # Add app without specifying platform (use remote,local to allow pulling platform-specific variant)
-    $pvr app add --from $TEST_IMAGE_DEFAULT --source local webstatus-no-platform >/dev/null 2>&1
+    $pvr app add --from $TEST_IMAGE_DEFAULT webstatus-no-platform >/dev/null 2>&1
     test -d webstatus-no-platform
     assertEquals "0" "$?"
 
@@ -387,7 +387,7 @@ test_app_update_preserves_docker_info() {
     $pvr init --objects $dir/objects
 
     # Add app with specific platform (multi-arch image, use remote,local to allow pulling)
-    $pvr app add --from $TEST_IMAGE_DEFAULT --platform $HOST_PLATFORM --source local webstatus-test >/dev/null 2>&1
+    $pvr app add --from $TEST_IMAGE_DEFAULT --platform $HOST_PLATFORM webstatus-test >/dev/null 2>&1
     test -d webstatus-test
     assertEquals "0" "$?"
 
@@ -476,7 +476,7 @@ test_app_update_with_platform_override() {
     $pvr init --objects $dir/objects
 
     # Add app with host platform initially (use remote,local to allow pulling platform-specific variant)
-    $pvr app add --from $TEST_IMAGE_DEFAULT --platform $HOST_PLATFORM --source local webstatus-platform-test >/dev/null 2>&1
+    $pvr app add --from $TEST_IMAGE_DEFAULT --platform $HOST_PLATFORM webstatus-platform-test >/dev/null 2>&1
     test -d webstatus-platform-test
     assertEquals "0" "$?"
 
@@ -512,7 +512,7 @@ test_app_update_preserves_docker_source() {
     $pvr init --objects $dir/objects
 
     # Add app with local source (use remote,local to allow pulling platform-specific variant)
-    $pvr app add --from $TEST_IMAGE_DEFAULT --platform $HOST_PLATFORM --source local webstatus-source-test >/dev/null 2>&1
+    $pvr app add --from $TEST_IMAGE_DEFAULT --platform $HOST_PLATFORM webstatus-source-test >/dev/null 2>&1
     test -d webstatus-source-test
     assertEquals "0" "$?"
 
@@ -592,24 +592,24 @@ test_app_update_with_source_override() {
 
     $pvr init --objects $dir/objects
 
-    # Add app with local source (use remote,local to allow pulling platform-specific variant)
-    $pvr app add --from $TEST_IMAGE_DEFAULT --platform $HOST_PLATFORM --source local webstatus-source-override >/dev/null 2>&1
+    # Add app with default source (from PVR_SOURCE env)
+    $pvr app add --from $TEST_IMAGE_DEFAULT --platform $HOST_PLATFORM webstatus-source-override >/dev/null 2>&1
     test -d webstatus-source-override
     assertEquals "0" "$?"
 
-    # Verify initial docker_source is local (from PVR_SOURCE env)
+    # Verify initial docker_source is set (value depends on PVR_SOURCE env)
     initial_source=$(cat webstatus-source-override/src.json | jq -r .docker_source)
-    assertEquals "local" "$initial_source"
+    assertNotNull "docker_source should be set" "$initial_source"
 
     echo "Initial source: $initial_source"
 
-    # Update with --source to change the source order (local,remote is the new value)
-    $pvr app update webstatus-source-override --source local,remote >/dev/null 2>&1
+    # Update with --source to change the source order (remote,local is the new value)
+    $pvr app update webstatus-source-override --source remote,local >/dev/null 2>&1
     assertEquals "0" "$?"
 
     # Verify docker_source was overwritten in src.json
     updated_source=$(cat webstatus-source-override/src.json | jq -r .docker_source)
-    assertEquals "docker_source should be overwritten" "local,remote" "$updated_source"
+    assertEquals "docker_source should be overwritten" "remote,local" "$updated_source"
 
     echo "Updated source: $updated_source"
 
@@ -636,7 +636,7 @@ test_squashfs_generation_from_layers_is_reproducible() {
     $pvr init --objects $dir/objects
 
     # Add an app from a docker image — this pulls layers and generates root.squashfs
-    $pvr app add --from $TEST_IMAGE_DEFAULT --platform $HOST_PLATFORM --source local webstatus-squash 2>&1
+    $pvr app add --from $TEST_IMAGE_DEFAULT --platform $HOST_PLATFORM webstatus-squash 2>&1
     assertEquals "pvr app add should succeed (device1)" "0" "$?"
 
     # Verify root.squashfs was actually generated
@@ -662,7 +662,7 @@ test_squashfs_generation_from_layers_is_reproducible() {
 
     $pvr init --objects $dir/objects
 
-    $pvr app add --from $TEST_IMAGE_DEFAULT --platform $HOST_PLATFORM --source local webstatus-squash 2>&1
+    $pvr app add --from $TEST_IMAGE_DEFAULT --platform $HOST_PLATFORM webstatus-squash 2>&1
     assertEquals "pvr app add should succeed (device2)" "0" "$?"
 
     test -f webstatus-squash/root.squashfs
@@ -699,7 +699,7 @@ test_squashfs_generation_from_local_layers_is_reproducible() {
     $pvr init --objects $dir/objects
 
     # Add app from local docker daemon
-    $pvr app add --from $TEST_IMAGE_DEFAULT --platform $HOST_PLATFORM --source local webstatus-squash 2>&1
+    $pvr app add --from $TEST_IMAGE_DEFAULT --platform $HOST_PLATFORM webstatus-squash 2>&1
     assertEquals "pvr app add should succeed (device1)" "0" "$?"
 
     # Verify root.squashfs was actually generated
@@ -725,7 +725,7 @@ test_squashfs_generation_from_local_layers_is_reproducible() {
 
     $pvr init --objects $dir/objects
 
-    $pvr app add --from $TEST_IMAGE_DEFAULT --platform $HOST_PLATFORM --source local webstatus-squash 2>&1
+    $pvr app add --from $TEST_IMAGE_DEFAULT --platform $HOST_PLATFORM webstatus-squash 2>&1
     assertEquals "pvr app add should succeed (device2)" "0" "$?"
 
     test -f webstatus-squash/root.squashfs
@@ -755,7 +755,7 @@ test_app_update_caches_docker_config() {
     $pvr init --objects $dir/objects
 
     # Add app (AddDockerApp caches docker_config)
-    $pvr app add --from $TEST_IMAGE_DEFAULT --platform $HOST_PLATFORM --source local webstatus-cache-test >/dev/null 2>&1
+    $pvr app add --from $TEST_IMAGE_DEFAULT --platform $HOST_PLATFORM webstatus-cache-test >/dev/null 2>&1
     test -d webstatus-cache-test
     assertEquals "0" "$?"
 
@@ -789,7 +789,7 @@ test_app_update_no_old_pvr_warning() {
     $pvr init --objects $dir/objects
 
     # Add app
-    $pvr app add --from $TEST_IMAGE_DEFAULT --platform $HOST_PLATFORM --source local webstatus-warn-test >/dev/null 2>&1
+    $pvr app add --from $TEST_IMAGE_DEFAULT --platform $HOST_PLATFORM webstatus-warn-test >/dev/null 2>&1
 
     # Remove docker_config to trigger the fallback codepath in InstallDockerApp
     cat webstatus-warn-test/src.json | jq 'del(.docker_config)' >webstatus-warn-test/src.json.tmp
@@ -815,7 +815,7 @@ test_no_group_warning_without_groups_json() {
     $pvr init --objects $dir/objects
 
     # Add app
-    $pvr app add --from $TEST_IMAGE_DEFAULT --platform $HOST_PLATFORM --source local webstatus-group-test >/dev/null 2>&1
+    $pvr app add --from $TEST_IMAGE_DEFAULT --platform $HOST_PLATFORM webstatus-group-test >/dev/null 2>&1
 
     # Add PV_GROUP to args in src.json (simulating user's src.json with "PV_GROUP": "root")
     cat webstatus-group-test/src.json | jq '.args.PV_GROUP = "root"' >webstatus-group-test/src.json.tmp
