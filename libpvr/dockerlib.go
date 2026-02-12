@@ -106,17 +106,25 @@ type DockerImage struct {
 }
 
 // getDaemonOptions returns daemon options with a Docker client configured
-// with API version negotiation. This is needed for compatibility with
-// Docker-in-Docker setups where the client connects via TCP (DOCKER_HOST).
+// for the local Docker daemon's API version.
 func getDaemonOptions() []daemon.Option {
+	ctx := context.Background()
 	cli, err := dockerclient.NewClientWithOpts(
 		dockerclient.FromEnv,
-		dockerclient.WithAPIVersionNegotiation(),
 	)
 	if err != nil {
-		// Fall back to default client if we can't create one
 		return nil
 	}
+
+	// Manual version negotiation: Docker client v24's NegotiateAPIVersion()
+	// only DOWNGRADES from DefaultVersion (1.43), never upgrades.
+	// Docker 28+ requires minimum API version 1.44, so we ping the daemon
+	// directly and adopt its reported API version.
+	ping, err := cli.Ping(ctx)
+	if err == nil && ping.APIVersion != "" {
+		_ = dockerclient.WithVersion(ping.APIVersion)(cli)
+	}
+
 	return []daemon.Option{daemon.WithClient(cli)}
 }
 
