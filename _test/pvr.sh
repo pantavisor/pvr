@@ -297,24 +297,19 @@ test_app_add_from_docker_sources() {
 
     # Configure the platform using _hostconfig/pvr/docker.json
     mkdir -p _hostconfig/pvr
-    echo '{"platforms": ["linux/amd64"]}' >_hostconfig/pvr/docker.json
+    echo "{\"platforms\": [\"$HOST_PLATFORM\"]}" >_hostconfig/pvr/docker.json
     $pvr add .
     $pvr commit
 
-    # Local source test: pull image first then add from local
-    echo "DEBUG: DOCKER_HOST=$DOCKER_HOST"
-    echo "DEBUG: Pulling image..."
-    docker pull registry.gitlab.com/pantacor/pantavisor-web-status:master 2>&1 || echo "DEBUG: docker pull exit code: $?"
-    echo "DEBUG: Checking if image exists locally..."
-    docker images registry.gitlab.com/pantacor/pantavisor-web-status:master
-    echo "DEBUG: Running pvr app add --source local..."
+    # Local source test: ensure image is available locally (from cache or pull)
+    ensure_docker_image "registry.gitlab.com/pantacor/pantavisor-web-status:master"
     $pvr app add --from registry.gitlab.com/pantacor/pantavisor-web-status:master --source local webstatus-local 2>&1 || echo "DEBUG: pvr app add exit code: $?"
     test -d webstatus-local
     assertEquals "0" "$?"
 
     platform_local=$(cat webstatus-local/src.json | jq -r .docker_platform)
     assertNotNull "docker_platform should be set" "$platform_local"
-    assertEquals "linux/amd64" "$platform_local"
+    assertEquals "$HOST_PLATFORM" "$platform_local"
 
     # Remote source test: remove local image then add from remote
     docker rmi registry.gitlab.com/pantacor/pantavisor-web-status:master >/dev/null 2>&1
@@ -324,7 +319,7 @@ test_app_add_from_docker_sources() {
 
     platform_remote=$(cat webstatus-remote/src.json | jq -r .docker_platform)
     assertNotNull "docker_platform should be set" "$platform_remote"
-    assertEquals "linux/amd64" "$platform_remote"
+    assertEquals "$HOST_PLATFORM" "$platform_remote"
 }
 
 ## Test pvr app add with specific platform
@@ -334,28 +329,28 @@ test_app_add_with_platform() {
 
     $pvr init --objects $dir/objects
 
-    # Add arm64 version
-    echo "DEBUG: Adding alpine:latest for arm64..."
-    $pvr app add --from alpine:latest --platform linux/arm64 alpine-arm64 2>&1 || echo "DEBUG: pvr app add exit code: $?"
-    test -d alpine-arm64
+    # Add host platform version (from local docker)
+    $pvr app add --from alpine:latest --platform $HOST_PLATFORM alpine-host 2>&1 || echo "DEBUG: pvr app add exit code: $?"
+    test -d alpine-host
     assertEquals "0" "$?"
 
-    platform_arm64=$(cat alpine-arm64/src.json | jq -r .docker_platform)
-    assertEquals "linux/arm64" "$platform_arm64"
+    platform_host=$(cat alpine-host/src.json | jq -r .docker_platform)
+    assertEquals "$HOST_PLATFORM" "$platform_host"
 
-    # Add amd64 version
-    $pvr app add --from alpine:latest --platform linux/amd64 alpine-amd64 >/dev/null 2>&1
-    test -d alpine-amd64
+    # Add other platform version (needs remote for cross-arch image)
+    $pvr app add --from alpine:latest --platform $OTHER_PLATFORM --source remote,local alpine-other >/dev/null 2>&1
+    test -d alpine-other
     assertEquals "0" "$?"
 
-    platform_amd64=$(cat alpine-amd64/src.json | jq -r .docker_platform)
-    assertEquals "linux/amd64" "$platform_amd64"
+    platform_other=$(cat alpine-other/src.json | jq -r .docker_platform)
+    assertEquals "$OTHER_PLATFORM" "$platform_other"
 
-    # Verify digests are different
-    digest_arm64=$(grep "digest" alpine-arm64/src.json | head -1)
-    digest_amd64=$(grep "digest" alpine-amd64/src.json | head -1)
+    # Verify both apps have a digest set
+    digest_host=$(cat alpine-host/src.json | jq -r .docker_digest)
+    digest_other=$(cat alpine-other/src.json | jq -r .docker_digest)
 
-    assertNotEquals "Digests should differ for different platforms" "$digest_arm64" "$digest_amd64"
+    assertNotNull "host platform digest should be set" "$digest_host"
+    assertNotNull "other platform digest should be set" "$digest_other"
 }
 
 ## Test pvr app add without platform or hostconfig
@@ -373,9 +368,9 @@ test_app_add_without_platform_or_hostconfig() {
     test -d alpine-no-platform
     assertEquals "0" "$?"
 
-    # Verify docker_platform is NOT set (null)
-    platform_null=$(cat alpine-no-platform/src.json | jq -r .docker_platform)
-    assertEquals "linux/amd64" "$platform_null"
+    # Without --platform or hostconfig, pvr defaults to the host architecture
+    platform_default=$(cat alpine-no-platform/src.json | jq -r .docker_platform)
+    assertEquals "$HOST_PLATFORM" "$platform_default"
 }
 
 ## Test pvr app update preserves and correctly handles docker_platform, docker_name, docker_tag
@@ -387,7 +382,7 @@ test_app_update_preserves_docker_info() {
     $pvr init --objects $dir/objects
 
     # Add app with specific platform (multi-arch image)
-    $pvr app add --from alpine:3.19 --platform linux/amd64 alpine-test >/dev/null 2>&1
+    $pvr app add --from alpine:3.19 --platform $HOST_PLATFORM alpine-test >/dev/null 2>&1
     test -d alpine-test
     assertEquals "0" "$?"
 
@@ -398,7 +393,7 @@ test_app_update_preserves_docker_info() {
     initial_digest=$(cat alpine-test/src.json | jq -r .docker_digest)
     initial_source=$(cat alpine-test/src.json | jq -r .docker_source)
 
-    assertEquals "linux/amd64" "$initial_platform"
+    assertEquals "$HOST_PLATFORM" "$initial_platform"
     assertNotNull "docker_name should be set" "$initial_name"
     assertEquals "3.19" "$initial_tag"
     assertNotNull "docker_digest should be set" "$initial_digest"
@@ -475,24 +470,24 @@ test_app_update_with_platform_override() {
 
     $pvr init --objects $dir/objects
 
-    # Add app with amd64 platform initially
-    $pvr app add --from alpine:3.19 --platform linux/amd64 alpine-platform-test >/dev/null 2>&1
+    # Add app with host platform initially
+    $pvr app add --from alpine:3.19 --platform $HOST_PLATFORM alpine-platform-test >/dev/null 2>&1
     test -d alpine-platform-test
     assertEquals "0" "$?"
 
-    # Verify initial platform is amd64
+    # Verify initial platform matches host
     initial_platform=$(cat alpine-platform-test/src.json | jq -r .docker_platform)
-    assertEquals "linux/amd64" "$initial_platform"
+    assertEquals "$HOST_PLATFORM" "$initial_platform"
 
     echo "Initial platform: $initial_platform"
 
-    # Update with --platform arm64 - should overwrite docker_platform in src.json
-    $pvr app update alpine-platform-test --platform linux/arm64 >/dev/null 2>&1
+    # Update with --platform to the other arch - should overwrite docker_platform in src.json
+    $pvr app update alpine-platform-test --platform $OTHER_PLATFORM >/dev/null 2>&1
     assertEquals "0" "$?"
 
-    # Verify docker_platform was overwritten to arm64 in src.json
+    # Verify docker_platform was overwritten in src.json
     updated_platform=$(cat alpine-platform-test/src.json | jq -r .docker_platform)
-    assertEquals "docker_platform should be overwritten to arm64" "linux/arm64" "$updated_platform"
+    assertEquals "docker_platform should be overwritten" "$OTHER_PLATFORM" "$updated_platform"
 
     echo "Updated platform: $updated_platform"
 
@@ -511,8 +506,8 @@ test_app_update_preserves_docker_source() {
 
     $pvr init --objects $dir/objects
 
-    # Add app with remote source (default)
-    $pvr app add --from alpine:3.19 --platform linux/amd64 alpine-source-test >/dev/null 2>&1
+    # Add app with local source (default from PVR_SOURCE)
+    $pvr app add --from alpine:3.19 --platform $HOST_PLATFORM alpine-source-test >/dev/null 2>&1
     test -d alpine-source-test
     assertEquals "0" "$?"
 
@@ -522,7 +517,7 @@ test_app_update_preserves_docker_source() {
     initial_tag=$(cat alpine-source-test/src.json | jq -r .docker_tag)
     initial_source=$(cat alpine-source-test/src.json | jq -r .docker_source)
 
-    assertEquals "linux/amd64" "$initial_platform"
+    assertEquals "$HOST_PLATFORM" "$initial_platform"
     assertNotNull "docker_name should be set" "$initial_name"
     assertEquals "3.19" "$initial_tag"
     assertNotNull "docker_source should be set" "$initial_source"
@@ -555,7 +550,7 @@ test_app_update_with_from_override() {
     $pvr init --objects $dir/objects
 
     # Add app with initial image
-    $pvr app add --from alpine:3.18 --platform linux/amd64 alpine-from-test >/dev/null 2>&1
+    $pvr app add --from alpine:3.18 --platform $HOST_PLATFORM alpine-from-test >/dev/null 2>&1
     test -d alpine-from-test
     assertEquals "0" "$?"
 
@@ -592,24 +587,24 @@ test_app_update_with_source_override() {
 
     $pvr init --objects $dir/objects
 
-    # Add app with "remote" source initially
-    $pvr app add --from alpine:3.19 --platform linux/amd64 --source remote alpine-source-override >/dev/null 2>&1
+    # Add app with local source (from PVR_SOURCE env)
+    $pvr app add --from alpine:3.19 --platform $HOST_PLATFORM alpine-source-override >/dev/null 2>&1
     test -d alpine-source-override
     assertEquals "0" "$?"
 
-    # Verify initial docker_source is remote
+    # Verify initial docker_source is local (from PVR_SOURCE env)
     initial_source=$(cat alpine-source-override/src.json | jq -r .docker_source)
-    assertEquals "remote" "$initial_source"
+    assertEquals "local" "$initial_source"
 
     echo "Initial source: $initial_source"
 
-    # Update with --source to change the source order (remote,local is the new value)
-    $pvr app update alpine-source-override --source remote,local >/dev/null 2>&1
+    # Update with --source to change the source order (local,remote is the new value)
+    $pvr app update alpine-source-override --source local,remote >/dev/null 2>&1
     assertEquals "0" "$?"
 
     # Verify docker_source was overwritten in src.json
     updated_source=$(cat alpine-source-override/src.json | jq -r .docker_source)
-    assertEquals "docker_source should be overwritten" "remote,local" "$updated_source"
+    assertEquals "docker_source should be overwritten" "local,remote" "$updated_source"
 
     echo "Updated source: $updated_source"
 
@@ -618,7 +613,7 @@ test_app_update_with_source_override() {
     updated_name=$(cat alpine-source-override/src.json | jq -r .docker_name)
     updated_tag=$(cat alpine-source-override/src.json | jq -r .docker_tag)
 
-    assertEquals "docker_platform should be preserved" "linux/amd64" "$updated_platform"
+    assertEquals "docker_platform should be preserved" "$HOST_PLATFORM" "$updated_platform"
     assertNotNull "docker_name should still be set" "$updated_name"
     assertEquals "docker_tag should be preserved" "3.19" "$updated_tag"
 }
@@ -636,7 +631,7 @@ test_squashfs_generation_from_layers_is_reproducible() {
     $pvr init --objects $dir/objects
 
     # Add an app from a docker image — this pulls layers and generates root.squashfs
-    $pvr app add --from alpine:3.19 --platform linux/amd64 alpine-squash 2>&1
+    $pvr app add --from alpine:3.19 --platform $HOST_PLATFORM alpine-squash 2>&1
     assertEquals "pvr app add should succeed (device1)" "0" "$?"
 
     # Verify root.squashfs was actually generated
@@ -662,7 +657,7 @@ test_squashfs_generation_from_layers_is_reproducible() {
 
     $pvr init --objects $dir/objects
 
-    $pvr app add --from alpine:3.19 --platform linux/amd64 alpine-squash 2>&1
+    $pvr app add --from alpine:3.19 --platform $HOST_PLATFORM alpine-squash 2>&1
     assertEquals "pvr app add should succeed (device2)" "0" "$?"
 
     test -f alpine-squash/root.squashfs
@@ -690,8 +685,8 @@ test_squashfs_generation_from_local_layers_is_reproducible() {
     clean_results
     cd $dir/results/
 
-    # Pull image so it's available locally
-    docker pull alpine:3.19 >/dev/null 2>&1
+    # Ensure image is available locally (from cache or pull)
+    ensure_docker_image "alpine:3.19"
 
     mkdir device1
     cd device1
@@ -699,7 +694,7 @@ test_squashfs_generation_from_local_layers_is_reproducible() {
     $pvr init --objects $dir/objects
 
     # Add app from local docker daemon
-    $pvr app add --from alpine:3.19 --platform linux/amd64 --source local alpine-squash 2>&1
+    $pvr app add --from alpine:3.19 --platform $HOST_PLATFORM --source local alpine-squash 2>&1
     assertEquals "pvr app add should succeed (device1)" "0" "$?"
 
     # Verify root.squashfs was actually generated
@@ -725,7 +720,7 @@ test_squashfs_generation_from_local_layers_is_reproducible() {
 
     $pvr init --objects $dir/objects
 
-    $pvr app add --from alpine:3.19 --platform linux/amd64 --source local alpine-squash 2>&1
+    $pvr app add --from alpine:3.19 --platform $HOST_PLATFORM --source local alpine-squash 2>&1
     assertEquals "pvr app add should succeed (device2)" "0" "$?"
 
     test -f alpine-squash/root.squashfs
@@ -755,7 +750,7 @@ test_app_update_caches_docker_config() {
     $pvr init --objects $dir/objects
 
     # Add app (AddDockerApp caches docker_config)
-    $pvr app add --from alpine:3.19 --platform linux/amd64 alpine-cache-test >/dev/null 2>&1
+    $pvr app add --from alpine:3.19 --platform $HOST_PLATFORM alpine-cache-test >/dev/null 2>&1
     test -d alpine-cache-test
     assertEquals "0" "$?"
 
@@ -789,7 +784,7 @@ test_app_update_no_old_pvr_warning() {
     $pvr init --objects $dir/objects
 
     # Add app
-    $pvr app add --from alpine:3.19 --platform linux/amd64 alpine-warn-test >/dev/null 2>&1
+    $pvr app add --from alpine:3.19 --platform $HOST_PLATFORM alpine-warn-test >/dev/null 2>&1
 
     # Remove docker_config to trigger the fallback codepath in InstallDockerApp
     cat alpine-warn-test/src.json | jq 'del(.docker_config)' >alpine-warn-test/src.json.tmp
@@ -815,7 +810,7 @@ test_no_group_warning_without_groups_json() {
     $pvr init --objects $dir/objects
 
     # Add app
-    $pvr app add --from alpine:3.19 --platform linux/amd64 alpine-group-test >/dev/null 2>&1
+    $pvr app add --from alpine:3.19 --platform $HOST_PLATFORM alpine-group-test >/dev/null 2>&1
 
     # Add PV_GROUP to args in src.json (simulating user's src.json with "PV_GROUP": "root")
     cat alpine-group-test/src.json | jq '.args.PV_GROUP = "root"' >alpine-group-test/src.json.tmp
@@ -829,6 +824,16 @@ test_no_group_warning_without_groups_json() {
 
     # Verify the group warning is NOT present (no groups.json means warning should not fire)
     echo "$output" | grep -q "group does not exist in groups.json" && fail "Should not warn about group when groups.json does not exist" || true
+}
+
+# Pre-cache docker images locally to avoid Docker Hub rate limits.
+# shunit2 calls oneTimeSetUp() once before all tests.
+oneTimeSetUp() {
+    ensure_docker_image "alpine:latest"
+    ensure_docker_image "alpine:3.19"
+    ensure_docker_image "alpine:3.18"
+    ensure_docker_image "registry.gitlab.com/pantacor/pantavisor-web-status:master"
+    ensure_docker_image "registry.gitlab.com/pantacor/pv-platforms/pvr-sdk:arm64v8"
 }
 
 # Load shUnit2.

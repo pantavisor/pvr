@@ -7,4 +7,5 @@ _test/results
 _test/objects
 vendor
 _test/pvr
+_test/docker-cache
 release

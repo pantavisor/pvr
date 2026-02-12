@@ -15,3 +15,32 @@ clean_results() {
   rm -rf $dir/results/.pvr > /dev/null 2>&1
   rm -rf $dir/objects/ > /dev/null 2>&1
 }
+
+# Docker image caching: pre-cache images locally to avoid Docker Hub rate limits
+DOCKER_CACHE_DIR="$dir/docker-cache"
+
+ensure_docker_image() {
+    local image="$1"
+    local cache_file="$DOCKER_CACHE_DIR/$(echo "$image" | tr '/:' '__').tar"
+    if docker image inspect "$image" >/dev/null 2>&1; then
+        return 0
+    fi
+    if [ -f "$cache_file" ]; then
+        docker load < "$cache_file" >/dev/null 2>&1
+    else
+        docker pull "$image" >/dev/null 2>&1
+        mkdir -p "$DOCKER_CACHE_DIR"
+        docker save "$image" > "$cache_file"
+    fi
+}
+
+# Use local docker daemon by default to avoid Docker Hub rate limits.
+# Tests that need remote access explicitly pass --source remote.
+export PVR_SOURCE=local
+
+# Detect host platform in Docker format (linux/amd64 or linux/arm64)
+case "$(uname -m)" in
+    x86_64)  HOST_PLATFORM="linux/amd64"; OTHER_PLATFORM="linux/arm64" ;;
+    aarch64) HOST_PLATFORM="linux/arm64"; OTHER_PLATFORM="linux/amd64" ;;
+    *)       HOST_PLATFORM="linux/$(uname -m)"; OTHER_PLATFORM="linux/amd64" ;;
+esac
