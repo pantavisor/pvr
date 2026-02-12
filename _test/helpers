@@ -19,18 +19,51 @@ clean_results() {
 # Docker image caching: pre-cache images locally to avoid Docker Hub rate limits
 DOCKER_CACHE_DIR="$dir/docker-cache"
 
+# ensure_docker_image pulls and caches docker images
+# Usage: ensure_docker_image <image> [platform]
+# If platform is specified, pulls that platform variant specifically
 ensure_docker_image() {
     local image="$1"
-    local cache_file="$DOCKER_CACHE_DIR/$(echo "$image" | tr '/:' '__').tar"
+    local platform="${2:-}"
+    local cache_key="$image"
+    if [ -n "$platform" ]; then
+        cache_key="${image}__${platform}"
+    fi
+    local cache_file="$DOCKER_CACHE_DIR/$(echo "$cache_key" | tr '/:' '__').tar"
+    
+    # Check if image exists locally (with platform-specific inspect if needed)
+    if [ -n "$platform" ]; then
+        if docker manifest inspect "$image" --verbose 2>/dev/null | grep -q "\"architecture\": \"$(echo "$platform" | cut -d/ -f2)\""; then
+            return 0
+        fi
+    fi
     if docker image inspect "$image" >/dev/null 2>&1; then
         return 0
     fi
-    if [ -f "$cache_file" ]; then
-        docker load < "$cache_file" >/dev/null 2>&1
-    else
-        docker pull "$image" >/dev/null 2>&1
-        mkdir -p "$DOCKER_CACHE_DIR"
-        docker save "$image" > "$cache_file"
+    
+    # Try to load from cache
+    if [ -f "$cache_file" ] && [ -s "$cache_file" ]; then
+        if docker load < "$cache_file" >/dev/null 2>&1; then
+            return 0
+        fi
+    fi
+    
+    # Pull the image
+    rm -f "$cache_file"
+    local pull_args=""
+    if [ -n "$platform" ]; then
+        pull_args="--platform $platform"
+    fi
+    if ! docker pull $pull_args "$image" 2>&1; then
+        echo "WARNING: failed to pull $image" >&2
+        return 1
+    fi
+    
+    # Save to cache
+    mkdir -p "$DOCKER_CACHE_DIR"
+    if ! docker save "$image" > "$cache_file" 2>&1; then
+        rm -f "$cache_file"
+        echo "WARNING: failed to save $image to cache" >&2
     fi
 }
 
