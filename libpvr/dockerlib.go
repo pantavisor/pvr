@@ -111,7 +111,6 @@ type DockerImage struct {
 func getDaemonOptions() []daemon.Option {
 	cli, err := dockerclient.NewClientWithOpts(
 		dockerclient.FromEnv,
-		dockerclient.WithVersion("1.46"),
 		dockerclient.WithAPIVersionNegotiation(),
 	)
 	if err != nil {
@@ -491,7 +490,6 @@ func LoadLocalImage(app *AppData) error {
 	}
 
 	fmt.Printf("Repo exists in local docker\n")
-	app.LocalImage.Exists = true
 
 	// Get the digest
 	digest, err := img.Digest()
@@ -520,6 +518,7 @@ func LoadLocalImage(app *AppData) error {
 		app.LocalImage.DockerPlatform = fmt.Sprintf("%s/%s", configFile.OS, configFile.Architecture)
 	}
 
+	app.LocalImage.Exists = true
 	return nil
 }
 

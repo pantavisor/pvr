@@ -17,4 +17,4 @@ if [ -d "$HOME/.docker" ]; then
 fi
 
 docker build -f Dockerfile.test -t pvr-test .
-docker run --rm -v /var/run/docker.sock:/var/run/docker.sock $DOCKER_CONFIG_MOUNT pvr-test
+docker run --name pvr-test-runner --rm -v /var/run/docker.sock:/var/run/docker.sock $DOCKER_CONFIG_MOUNT pvr-test
