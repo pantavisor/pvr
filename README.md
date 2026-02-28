@@ -31,6 +31,12 @@ One-line installation that automatically detects your OS and architecture:
 curl -sL https://gitlab.com/pantacor/pvr/-/raw/master/install.sh | bash
 ```
 
+For Windows users (PowerShell):
+
+```powershell
+Invoke-WebRequest -Uri https://gitlab.com/pantacor/pvr/-/raw/master/install.ps1 -OutFile install.ps1; .\install.ps1
+```
+
 ---
 
 Pre-built binaries are also available for various architectures on the GitLab package registry.
@@ -74,12 +80,18 @@ If you prefer to build `pvr` from source, follow these steps:
 
 ### Using the Install Script
 
-For a quick and automated installation, you can use the `install.sh` script. This script will automatically detect your operating system and architecture, find the latest stable version of `pvr` from the GitLab package registry, download it, and install it to `~/.local/bin`.
+For a quick and automated installation, you can use the `install.sh` script (or `install.ps1` on Windows). This script will automatically detect your operating system and architecture, find the latest stable version of `pvr` from the GitLab package registry, download it, and install it to `~/.local/bin` (or `$HOME\.local\bin` on Windows).
 
 #### Install the latest stable version:
 
 ```bash
 curl -sL https://gitlab.com/pantacor/pvr/-/raw/master/install.sh | bash
+```
+
+For Windows users (PowerShell):
+
+```powershell
+Invoke-WebRequest -Uri https://gitlab.com/pantacor/pvr/-/raw/master/install.ps1 -OutFile install.ps1; .\install.ps1
 ```
 
 #### Install a specific version:
@@ -88,16 +100,31 @@ curl -sL https://gitlab.com/pantacor/pvr/-/raw/master/install.sh | bash
 PVR_VERSION=046 bash <(curl -sL https://gitlab.com/pantacor/pvr/-/raw/master/install.sh)
 ```
 
+For Windows:
+```powershell
+$env:PVR_VERSION="046"; .\install.ps1
+```
+
 #### Install from the develop channel:
 
 ```bash
 PVR_CHANNEL=develop bash <(curl -sL https://gitlab.com/pantacor/pvr/-/raw/master/install.sh)
 ```
 
+For Windows:
+```powershell
+$env:PVR_CHANNEL="develop"; .\install.ps1
+```
+
 #### Install to a custom directory:
 
 ```bash
 PVR_INSTALL_DIR=/usr/local/bin bash <(curl -sL https://gitlab.com/pantacor/pvr/-/raw/master/install.sh)
+```
+
+For Windows:
+```powershell
+$env:PVR_INSTALL_DIR="C:\tools\pvr"; .\install.ps1
 ```
 
 #### Environment Variables:
