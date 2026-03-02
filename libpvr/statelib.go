@@ -27,9 +27,14 @@ import (
 )
 
 func copyState(state map[string]interface{}) map[string]interface{} {
-	result := map[string]interface{}{}
-	for k, v := range state {
-		result[k] = v
+	data, err := json.Marshal(state)
+	if err != nil {
+		return state
+	}
+	var result map[string]interface{}
+	err = json.Unmarshal(data, &result)
+	if err != nil {
+		return state
 	}
 	return result
 }

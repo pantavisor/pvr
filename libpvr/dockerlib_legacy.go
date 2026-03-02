@@ -868,6 +868,7 @@ func FindWhiteoutsFromLayer(layerPath string) ([]string, error) {
 	if err != nil {
 		return whiteoutPaths, err
 	}
+	defer tarFile.Close()
 	contentType, err := GetFileContentType(layerPath)
 	if err != nil {
 		return whiteoutPaths, err

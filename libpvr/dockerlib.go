@@ -790,7 +790,7 @@ func (p *Pvr) GenerateApplicationSquashFS(app *AppData, appManifest *Source) err
 	fmt.Println("Stripping qemu files...")
 	for _, file := range stripFilesList {
 		fileToDelete := filepath.Join(extractPath, file)
-		Remove(fileToDelete)
+		err = Remove(fileToDelete)
 		if err != nil {
 			return err
 		}
@@ -898,6 +898,7 @@ func FindWhiteoutsFromLayer(layerPath string) ([]string, error) {
 	if err != nil {
 		return whiteoutPaths, err
 	}
+	defer tarFile.Close()
 	contentType, err := GetFileContentType(layerPath)
 	if err != nil {
 		return whiteoutPaths, err

@@ -58,12 +58,12 @@ func CommandJson() cli.Command {
 			if c.Bool("canonical") {
 				resultF, err = libpvr.FormatJsonC(result)
 				if err != nil {
-					cli.NewExitError(err, 4)
+					return cli.NewExitError(err, 4)
 				}
 			} else {
 				resultF, err = libpvr.FormatJson(result)
 				if err != nil {
-					cli.NewExitError(err, 4)
+					return cli.NewExitError(err, 4)
 				}
 			}
 

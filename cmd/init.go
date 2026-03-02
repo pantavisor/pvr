@@ -60,7 +60,7 @@ func CommandInit() cli.Command {
 			err = pvr.InitCustom(initJson, objectsDir)
 
 			if err != nil {
-				cli.NewExitError(err, 3)
+				return cli.NewExitError(err, 3)
 			}
 			return nil
 		},

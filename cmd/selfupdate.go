@@ -52,7 +52,7 @@ func CommandSelfUpgrade() cli.Command {
 			err = pvr.UpdatePvr(username, password, false, true)
 			if err != nil {
 				fmt.Println(err.Error())
-				cli.NewExitError(err.Error(), 2)
+				return cli.NewExitError(err.Error(), 2)
 			}
 			return nil
 		},

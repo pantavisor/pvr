@@ -79,12 +79,12 @@ func CommandInspect() cli.Command {
 			if c.Bool("canonical") {
 				jsonData, err = libpvr.FormatJsonC(jsonData)
 				if err != nil {
-					cli.NewExitError(err, 4)
+					return cli.NewExitError(err, 4)
 				}
 			} else {
 				jsonData, err = libpvr.FormatJson(jsonData)
 				if err != nil {
-					cli.NewExitError(err, 4)
+					return cli.NewExitError(err, 4)
 				}
 			}
 

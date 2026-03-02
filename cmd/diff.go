@@ -56,7 +56,7 @@ func CommandDiff() cli.Command {
 			jsonDiffF, err := libpvr.FormatJson(*jsonDiff)
 
 			if err != nil {
-				cli.NewExitError(err, 4)
+				return cli.NewExitError(err, 4)
 			}
 			fmt.Println(string(jsonDiffF))
 

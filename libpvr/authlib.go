@@ -149,7 +149,7 @@ func (p *PvrAuthConfig) Save() error {
 	_, err := os.Stat(configPath)
 	if os.IsNotExist(err) {
 		d := filepath.Dir(configPath)
-		dInfo, err := os.Stat(configPath)
+		dInfo, err := os.Stat(d)
 		if os.IsNotExist(err) {
 			// lets mkdir a personal dir if it does not exists.
 			err = os.MkdirAll(d, 0700)

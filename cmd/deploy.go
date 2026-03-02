@@ -86,7 +86,7 @@ func CommandDeploy() cli.Command {
 				initJSON := fmt.Sprintf("{ \"#spec\": \"%s\" }", sourceSpec)
 				err = deployPvr.InitCustom(initJSON, objectsDir)
 				if err != nil {
-					cli.NewExitError(err, 3)
+					return cli.NewExitError(err, 3)
 				}
 
 				deployPvr, err = libpvr.NewPvr(session, deployDir)
