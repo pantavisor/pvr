@@ -33,8 +33,14 @@ ensure_docker_image() {
 
     # Check if image exists locally (with platform-specific inspect if needed)
     if [ -n "$platform" ]; then
-        if docker manifest inspect "$image" --verbose 2>/dev/null | grep -q "\"architecture\": \"$(echo "$platform" | cut -d/ -f2)\""; then
-            return 0
+        # Check if the specific platform variant is available locally
+        # This is a bit tricky with docker image inspect if we don't know the exact ID,
+        # but usually pulling it with the tag and platform is sufficient.
+        # If we already have the image name/tag, let's see if it matches the platform.
+        if docker image inspect "$image" >/dev/null 2>&1; then
+            if docker image inspect "$image" --format '{{.Architecture}}' | grep -q "$(echo "$platform" | cut -d/ -f2)"; then
+                return 0
+            fi
         fi
     fi
     if docker image inspect "$image" >/dev/null 2>&1; then

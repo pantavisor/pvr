@@ -3,7 +3,7 @@ FROM golang:1.24-alpine
 WORKDIR /app
 COPY . .
 
-RUN apk add --no-cache jq docker-cli fakeroot squashfs-tools
+RUN apk add --no-cache jq docker-cli fakeroot squashfs-tools file
 
 RUN go build -o _test/pvr . && _test/pvr sig download
 

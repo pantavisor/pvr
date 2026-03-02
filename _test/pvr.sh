@@ -831,6 +831,67 @@ test_no_group_warning_without_groups_json() {
     echo "$output" | grep -q "group does not exist in groups.json" && fail "Should not warn about group when groups.json does not exist" || true
 }
 
+## Test that pvr app add from different platforms (remote and local)
+## produces a squashfs with the correct binary architecture.
+test_app_architecture_validation() {
+    clean_results
+    cd $dir/results/
+
+    $pvr init --objects $dir/objects
+
+    # Configure the platform using _hostconfig/pvr/docker.json
+    mkdir -p _hostconfig/pvr
+    echo "{\"platforms\": [\"$HOST_PLATFORM\"]}" >_hostconfig/pvr/docker.json
+    $pvr add .
+    $pvr commit
+
+    local img="registry.gitlab.com/pantacor/pvwificonnect:main"
+
+    # 1. Test arm64 app (remote source)
+    $pvr app add --from "$img" --platform linux/arm64 --source remote app-arm64 >/dev/null 2>&1
+    test -f app-arm64/root.squashfs
+    assertEquals "root.squashfs should exist for app-arm64" "0" "$?"
+
+    unsquashfs -d app-arm64-extracted app-arm64/root.squashfs >/dev/null 2>&1
+    # pvwificonnect is at app/pvwificonnect
+    local test_bin="app/pvwificonnect"
+
+    arch_info=$(file "app-arm64-extracted/$test_bin")
+    echo "$arch_info" | grep -qiE "aarch64|arm64"
+    assertEquals "Binary ($test_bin) should be aarch64: $arch_info" "0" "$?"
+
+    # 2. Test amd64 app (remote source)
+    $pvr app add --from "$img" --platform linux/amd64 --source remote app-amd64 >/dev/null 2>&1
+    test -f app-amd64/root.squashfs
+    assertEquals "root.squashfs should exist for app-amd64" "0" "$?"
+
+    unsquashfs -d app-amd64-extracted app-amd64/root.squashfs >/dev/null 2>&1
+    test_bin="app/pvwificonnect"
+
+    arch_info=$(file "app-amd64-extracted/$test_bin")
+    echo "$arch_info" | grep -qiE "x86-64"
+    assertEquals "Binary ($test_bin) should be x86-64: $arch_info" "0" "$?"
+
+    # 3. Test host platform (local source)
+    # Ensure image is available locally for local source test
+    ensure_docker_image "$img" "$HOST_PLATFORM"
+
+    $pvr app add --from "$img" --platform "$HOST_PLATFORM" --source local app-host-local >/dev/null 2>&1
+    test -f app-host-local/root.squashfs
+    assertEquals "root.squashfs should exist for app-host-local" "0" "$?"
+
+    unsquashfs -d app-host-local-extracted app-host-local/root.squashfs >/dev/null 2>&1
+    test_bin="app/pvwificonnect"
+
+    arch_info=$(file "app-host-local-extracted/$test_bin")
+    if [ "$HOST_PLATFORM" = "linux/arm64" ]; then
+        echo "$arch_info" | grep -qiE "aarch64|arm64"
+    else
+        echo "$arch_info" | grep -qiE "x86-64"
+    fi
+    assertEquals "Binary ($test_bin) should match host arch ($HOST_PLATFORM): $arch_info" "0" "$?"
+}
+
 # Pre-cache docker images locally to avoid Docker Hub rate limits.
 # shunit2 calls oneTimeSetUp() once before all tests.
 oneTimeSetUp() {
@@ -839,6 +900,8 @@ oneTimeSetUp() {
     ensure_docker_image "$TEST_IMAGE_DEFAULT" "$OTHER_PLATFORM"
     ensure_docker_image "$TEST_IMAGE_TAG1"
     ensure_docker_image "$TEST_IMAGE_TAG2"
+    ensure_docker_image "registry.gitlab.com/pantacor/pvwificonnect:main" "linux/arm64"
+    ensure_docker_image "registry.gitlab.com/pantacor/pvwificonnect:main" "linux/amd64"
 }
 
 # Load shUnit2.
