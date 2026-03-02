@@ -31,20 +31,28 @@ ensure_docker_image() {
     fi
     local cache_file="$DOCKER_CACHE_DIR/$(echo "$cache_key" | tr '/:' '__').tar"
 
-    # Check if image exists locally (with platform-specific inspect if needed)
     if [ -n "$platform" ]; then
-        # Check if the specific platform variant is available locally
-        # This is a bit tricky with docker image inspect if we don't know the exact ID,
-        # but usually pulling it with the tag and platform is sufficient.
-        # If we already have the image name/tag, let's see if it matches the platform.
-        if docker image inspect "$image" >/dev/null 2>&1; then
-            if docker image inspect "$image" --format '{{.Architecture}}' | grep -q "$(echo "$platform" | cut -d/ -f2)"; then
-                return 0
-            fi
+        # For platform-specific requests, verify the tag points to the correct platform.
+        # Docker 28+ with containerd store may store a multi-arch index under the tag
+        # (Architecture="" in inspect) when multiple platforms were pulled. In that case
+        # daemon.Image()/docker-save can't export the image, so we must rmi and re-pull
+        # to get a single-platform tag.
+        local arch
+        arch=$(docker image inspect "$image" --format '{{.Architecture}}' 2>/dev/null) || arch=""
+        local wanted_arch
+        wanted_arch=$(echo "$platform" | cut -d/ -f2)
+        if [ "$arch" = "$wanted_arch" ]; then
+            return 0
         fi
-    fi
-    if docker image inspect "$image" >/dev/null 2>&1; then
-        return 0
+        if [ -n "$arch" ] || docker image inspect "$image" >/dev/null 2>&1; then
+            # Tag exists but points to wrong arch or multi-arch index (empty arch).
+            # Remove it so the subsequent pull creates a single-platform tag.
+            docker rmi "$image" >/dev/null 2>&1 || true
+        fi
+    else
+        if docker image inspect "$image" >/dev/null 2>&1; then
+            return 0
+        fi
     fi
 
     # Try to load from cache

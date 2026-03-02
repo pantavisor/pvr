@@ -342,8 +342,8 @@ test_app_add_with_platform() {
     platform_host=$(cat webstatus-host/src.json | jq -r .docker_platform)
     assertEquals "$HOST_PLATFORM" "$platform_host"
 
-    # Add other platform version (needs remote for cross-arch image)
-    $pvr app add --from $TEST_IMAGE_DEFAULT --platform $OTHER_PLATFORM webstatus-other >/dev/null 2>&1
+    # Add other platform version (needs remote — local tag points to host arch only)
+    $pvr app add --from $TEST_IMAGE_DEFAULT --platform $OTHER_PLATFORM --source remote webstatus-other >/dev/null 2>&1
     test -d webstatus-other
     assertEquals "0" "$?"
 
@@ -487,7 +487,8 @@ test_app_update_with_platform_override() {
     echo "Initial platform: $initial_platform"
 
     # Update with --platform to the other arch - should overwrite docker_platform in src.json
-    $pvr app update webstatus-platform-test --platform $OTHER_PLATFORM >/dev/null 2>&1
+    # Use --source remote since local tag only holds host platform
+    $pvr app update webstatus-platform-test --platform $OTHER_PLATFORM --source remote >/dev/null 2>&1
     assertEquals "0" "$?"
 
     # Verify docker_platform was overwritten in src.json
@@ -831,6 +832,90 @@ test_no_group_warning_without_groups_json() {
     echo "$output" | grep -q "group does not exist in groups.json" && fail "Should not warn about group when groups.json does not exist" || true
 }
 
+## Test that pvr can pull a docker image exclusively from a remote registry
+## and generate the app correctly. This validates remote registry access works
+## (catches issues like MANIFEST_UNKNOWN errors seen in CI).
+test_app_add_remote_only() {
+    clean_results
+    cd $dir/results/
+
+    $pvr init --objects $dir/objects
+
+    local img="registry.gitlab.com/pantacor/pvwificonnect:v1.5.5-5-g5848e59"
+
+    # Pull from remote only (no local docker fallback)
+    $pvr app add --from "$img" --platform $HOST_PLATFORM --source remote app-remote-test 2>&1
+    assertEquals "pvr app add --source remote should succeed" "0" "$?"
+
+    # Verify app directory was created
+    test -d app-remote-test
+    assertEquals "app directory should exist" "0" "$?"
+
+    # Verify root.squashfs was generated
+    test -f app-remote-test/root.squashfs
+    assertEquals "root.squashfs should exist" "0" "$?"
+
+    # Verify src.json has the correct docker info
+    docker_name=$(cat app-remote-test/src.json | jq -r .docker_name)
+    docker_tag=$(cat app-remote-test/src.json | jq -r .docker_tag)
+    docker_source=$(cat app-remote-test/src.json | jq -r .docker_source)
+    docker_digest=$(cat app-remote-test/src.json | jq -r .docker_digest)
+
+    assertEquals "docker_name should match" "registry.gitlab.com/pantacor/pvwificonnect" "$docker_name"
+    assertEquals "docker_tag should match pinned version" "v1.5.5-5-g5848e59" "$docker_tag"
+    assertEquals "docker_source should be remote" "remote" "$docker_source"
+    assertNotNull "docker_digest should be set" "$docker_digest"
+
+    # Verify docker-digest file exists and matches src.json
+    test -f app-remote-test/root.squashfs.docker-digest
+    assertEquals "root.squashfs.docker-digest should exist" "0" "$?"
+
+    digest_file=$(cat app-remote-test/root.squashfs.docker-digest)
+    assertEquals "docker-digest file should match src.json" "$docker_digest" "$digest_file"
+}
+
+## Test that pvr app update works with remote source when the image exists
+## This validates the update codepath that reads docker info from src.json
+## and re-fetches from remote registry.
+test_app_update_remote_only() {
+    clean_results
+    cd $dir/results/
+
+    $pvr init --objects $dir/objects
+
+    local img="registry.gitlab.com/pantacor/pvwificonnect:v1.5.5-5-g5848e59"
+
+    # First add the app from remote
+    $pvr app add --from "$img" --platform $HOST_PLATFORM --source remote app-update-remote 2>&1
+    assertEquals "pvr app add should succeed" "0" "$?"
+
+    # Capture initial tag and digest — with a pinned version these must not change after update
+    initial_tag=$(cat app-update-remote/src.json | jq -r .docker_tag)
+    initial_digest=$(cat app-update-remote/src.json | jq -r .docker_digest)
+    assertEquals "initial docker_tag should match pinned version" "v1.5.5-5-g5848e59" "$initial_tag"
+    assertNotNull "initial docker_digest should be set" "$initial_digest"
+
+    # Run pvr app update with --source remote (PVR_SOURCE env can override src.json value,
+    # so we explicitly pass --source remote to ensure remote registry is used)
+    $pvr app update app-update-remote --source remote 2>&1
+    assertEquals "pvr app update should succeed" "0" "$?"
+
+    # Verify the app still has valid docker info after update
+    updated_name=$(cat app-update-remote/src.json | jq -r .docker_name)
+    updated_tag=$(cat app-update-remote/src.json | jq -r .docker_tag)
+    updated_source=$(cat app-update-remote/src.json | jq -r .docker_source)
+    updated_digest=$(cat app-update-remote/src.json | jq -r .docker_digest)
+
+    assertEquals "docker_name should be preserved" "registry.gitlab.com/pantacor/pvwificonnect" "$updated_name"
+    assertEquals "docker_tag must be same pinned version after update" "$initial_tag" "$updated_tag"
+    assertEquals "docker_source should be preserved as remote" "remote" "$updated_source"
+    assertEquals "docker_digest must be identical after update of pinned version" "$initial_digest" "$updated_digest"
+
+    # Verify root.squashfs still exists after update
+    test -f app-update-remote/root.squashfs
+    assertEquals "root.squashfs should exist after update" "0" "$?"
+}
+
 ## Test that pvr app add from different platforms (remote and local)
 ## produces a squashfs with the correct binary architecture.
 test_app_architecture_validation() {
@@ -845,7 +930,7 @@ test_app_architecture_validation() {
     $pvr add .
     $pvr commit
 
-    local img="registry.gitlab.com/pantacor/pvwificonnect:main"
+    local img="registry.gitlab.com/pantacor/pvwificonnect:v1.5.5-5-g5848e59"
 
     # 1. Test arm64 app (remote source)
     $pvr app add --from "$img" --platform linux/arm64 --source remote app-arm64 >/dev/null 2>&1
@@ -895,13 +980,16 @@ test_app_architecture_validation() {
 # Pre-cache docker images locally to avoid Docker Hub rate limits.
 # shunit2 calls oneTimeSetUp() once before all tests.
 oneTimeSetUp() {
-    # Cache multi-arch images with specific platform variants
-    ensure_docker_image "$TEST_IMAGE_DEFAULT" "$HOST_PLATFORM"
-    ensure_docker_image "$TEST_IMAGE_DEFAULT" "$OTHER_PLATFORM"
+    # Pull platform-specific images. With Docker 28+ containerd store a tag can
+    # only point to one platform at a time, so we must pull HOST_PLATFORM last
+    # to leave the tag usable for local-source tests.
+    # Cross-arch tests (OTHER_PLATFORM) use --source remote and don't need a
+    # local image, so we no longer pre-pull OTHER_PLATFORM here.
     ensure_docker_image "$TEST_IMAGE_TAG1"
     ensure_docker_image "$TEST_IMAGE_TAG2"
-    ensure_docker_image "registry.gitlab.com/pantacor/pvwificonnect:main" "linux/arm64"
-    ensure_docker_image "registry.gitlab.com/pantacor/pvwificonnect:main" "linux/amd64"
+    ensure_docker_image "registry.gitlab.com/pantacor/pvwificonnect:v1.5.5-5-g5848e59" "$OTHER_PLATFORM"
+    ensure_docker_image "registry.gitlab.com/pantacor/pvwificonnect:v1.5.5-5-g5848e59" "$HOST_PLATFORM"
+    ensure_docker_image "$TEST_IMAGE_DEFAULT" "$HOST_PLATFORM"
 }
 
 # Load shUnit2.
