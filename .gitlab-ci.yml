@@ -25,7 +25,7 @@ run-test:
     script:
         - docker pull $CONTAINER_IMAGE:test-latest || true
         - docker build -f Dockerfile.test --cache-from $CONTAINER_IMAGE:test-latest --tag $CONTAINER_IMAGE:test-$CI_COMMIT_SHORT_SHA --tag $CONTAINER_IMAGE:test-latest .
-        - docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v $HOME/.docker:/root/.docker:ro $CONTAINER_IMAGE:test-$CI_COMMIT_SHORT_SHA
+        - docker run --rm -e CI=true -v /var/run/docker.sock:/var/run/docker.sock -v $HOME/.docker:/root/.docker:ro $CONTAINER_IMAGE:test-$CI_COMMIT_SHORT_SHA
         - docker push $CONTAINER_IMAGE:test-$CI_COMMIT_SHORT_SHA
         - docker push $CONTAINER_IMAGE:test-latest
 
