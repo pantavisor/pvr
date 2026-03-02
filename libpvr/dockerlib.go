@@ -687,7 +687,18 @@ func (p *Pvr) GenerateApplicationSquashFS(app *AppData, appManifest *Source) err
 	} else if app.RemoteImage.Exists {
 		// Download layers from remote using go-containerregistry
 		auth := p.AuthConfig(app.Username, app.Password, "")
-		img, err := p.GetRemoteImage(app.From, auth)
+		var img v1.Image
+		platform := app.GetPlatform(p)
+		if platform != "" {
+			parts := strings.SplitN(platform, "/", 3)
+			plat := v1.Platform{OS: parts[0], Architecture: parts[1]}
+			if len(parts) == 3 {
+				plat.Variant = parts[2]
+			}
+			img, err = p.GetRemoteImageForPlatform(app.From, plat, auth)
+		} else {
+			img, err = p.GetRemoteImage(app.From, auth)
+		}
 		if err != nil {
 			return err
 		}

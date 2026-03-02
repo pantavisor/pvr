@@ -1,4 +1,4 @@
-FROM registry.gitlab.com/pantacor/pvr:develop as pvr
+FROM registry.gitlab.com/pantacor/pvr:develop AS pvr
 
 FROM alpine:3.18
 
@@ -8,4 +8,3 @@ COPY --from=pvr /pkg/bin/linux_${TARGETARCH}/pvr /usr/local/bin/pvr
 RUN apk update && apk add --no-cache jq cryptsetup make git curl squashfs-tools fakeroot && rm -rf /var/cache/apk/*
 
 RUN pvr sig download
-
