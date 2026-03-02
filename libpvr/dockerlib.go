@@ -345,6 +345,10 @@ func (p *Pvr) LoadRemoteImage(app *AppData) error {
 	var dockerPlatform string
 	var platforms []interface{}
 
+	if strings.HasPrefix(image.Reference(), "sha256:") {
+		repoDigest = image.Reference()
+	}
+
 	if app.Platform == "" {
 		dockerJsonI, ok := p.PristineJsonMap["_hostconfig/pvr/docker.json"]
 
@@ -357,48 +361,90 @@ func (p *Pvr) LoadRemoteImage(app *AppData) error {
 		}
 	} else {
 		platforms = append(platforms, app.Platform)
+		if repoDigest != "" {
+			dockerPlatform = app.Platform
+		}
 	}
 
 	// we go down the multiarch path if we have seen a platform
 	// restriction in pvr-docker.json
-	if platforms != nil {
-		manifestList, err := dockerRegistry.ManifestList(context.Background(),
-			image.Path, image.Reference())
-
+	if repoDigest == "" && platforms != nil {
+		// Custom manifest list retrieval to support OCI index
+		uri := fmt.Sprintf("%s/v2/%s/manifests/%s", dockerRegistry.URL, image.Path, image.Reference())
+		req, err := http.NewRequest("GET", uri, nil)
 		if err != nil {
 			return err
 		}
+		req.Header.Add("Accept", "application/vnd.docker.distribution.manifest.list.v2+json")
+		req.Header.Add("Accept", "application/vnd.oci.image.index.v1+json")
 
-		for _, v := range manifestList.Manifests {
-			for _, v1 := range platforms {
-				v1S := v1.(string)
-				p := strings.SplitN(v1S, "/", 3)
-				if v.Platform.Architecture == p[1] &&
-					(len(p) < 3 || p[2] == v.Platform.Variant) {
-					repoDigest = v.Digest.String()
-					app.ManifestType = v.MediaType
-					dockerPlatform = v1S
-					break
+		resp, err := dockerRegistry.Client.Do(req.WithContext(context.Background()))
+		if err == nil {
+			defer resp.Body.Close()
+			if resp.StatusCode == http.StatusOK {
+				var manifestList struct {
+					Manifests []distribution.Descriptor `json:"manifests"`
+				}
+				body, _ := io.ReadAll(resp.Body)
+				err = json.Unmarshal(body, &manifestList)
+				if err == nil {
+					for _, v := range manifestList.Manifests {
+						for _, v1 := range platforms {
+							v1S := v1.(string)
+							parts := strings.SplitN(v1S, "/", 3)
+							match := false
+							arch := v.Platform.Architecture
+							if len(parts) >= 2 {
+								if v.Platform.OS == parts[0] && (arch == parts[1] || (arch == "amd64" && parts[1] == "x86_64") || (arch == "x86_64" && parts[1] == "amd64")) &&
+									(len(parts) < 3 || parts[2] == v.Platform.Variant) {
+									match = true
+								}
+							} else if arch == parts[0] || (arch == "amd64" && parts[0] == "x86_64") || (arch == "x86_64" && parts[0] == "amd64") {
+								match = true
+							}
+
+							if match {
+								repoDigest = v.Digest.String()
+								app.ManifestType = v.MediaType
+								dockerPlatform = v1S
+
+								dm, err := p.GetDockerManifest(image, auth, repoDigest, app.ManifestType)
+								if err != nil {
+									return err
+								}
+								dockerManifest = dm
+
+								fmt.Fprintf(os.Stderr, "Found Manifest for platform %s\n",
+									dockerPlatform)
+
+								break
+							}
+						}
+						if repoDigest != "" {
+							break
+						}
+					}
 				}
 			}
-			if repoDigest != "" {
-				dm, err := p.GetDockerManifest(image, auth, repoDigest, app.ManifestType)
-				if err != nil {
-					return err
-				}
-				dockerManifest = dm
+		}
 
-				fmt.Fprintf(os.Stderr, "Found Manifest for platform %s\n",
-					dockerPlatform)
-
-				break
-			} else {
-				dockerPlatform = ""
-			}
+		if repoDigest == "" && app.Platform != "" {
+			return ReportDockerManifestError(fmt.Errorf("no matching architecture found in manifest list for platforms %v", platforms), app.From)
 		}
 	}
 
+	if dockerManifest == nil && repoDigest != "" {
+		dockerManifest, err = p.GetDockerManifest(image, auth, repoDigest, app.ManifestType)
+		if err != nil {
+			return ReportDockerManifestError(err, app.From)
+		}
+		fmt.Fprintf(os.Stderr, "Found Manifest for digest %s\n", repoDigest)
+	}
+
 	if dockerManifest == nil {
+		if strings.HasPrefix(image.Reference(), "sha256:") {
+			return ReportDockerManifestError(errors.New("could not find manifest for digest"), app.From)
+		}
 		dockerManifest, err = p.GetDockerManifest(image, auth, "", app.ManifestType)
 		if err != nil {
 			manifestErr := ReportDockerManifestError(err, app.From)
