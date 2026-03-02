@@ -6,64 +6,57 @@ WORKDIR /app/
 COPY . .
 
 ARG DOCKERTAG=latest
-RUN apk update; apk add git upx make
-RUN version=`git describe --tags` && sed -i "s/NA/$version/" cmd/pvr/version.go
-RUN version=`git describe --tags` && sed -i "s/NA/$version/" version.go
+RUN apk update; apk add git make
+RUN version=`git describe --tags` && sed -i "s/NA/$version/" cmd/version.go
 
 RUN sed -i "s/defaultDistributionTag = \"develop\"/defaultDistributionTag = \"${DOCKERTAG}\"/" ./libpvr/configurationlib.go
-RUN go mod download && go mod vendor && tar -cvzf "pvr-vendor.tar.gz" ./vendor/
+RUN go mod download && go mod vendor
+
+# create vendor tarball in a separate stage so build stages don't carry it
+FROM src AS vendor-archive
+RUN tar -cvzf "pvr-vendor.tar.gz" ./vendor/
 
 # build riscv64 linux static
 FROM src AS linux_riscv64
 
-RUN apk update; apk add git
 RUN make build-linux-riscv64
 
 
 # build amd64 linux static
 FROM src AS linux_amd64
 
-RUN apk update; apk add git
 RUN make build-linux-amd64
 
 # build arm linux static
 FROM src AS linux_arm
 
-
-
-RUN apk update; apk add git
 RUN make build-linux-arm
 
 # build arm64 linux static
 FROM src AS linux_arm64
 
-RUN apk update; apk add git
 RUN make build-linux-arm64
 
 
 # build windows i386 static
 FROM src AS windows_386
 
-RUN apk update; apk add git
 RUN make build-windows-386
 
 # build windows amd64 static
 FROM src AS windows_amd64
 
-RUN apk update; apk add git
 RUN make build-windows-amd64
 
 # build darwin amd64 static
 FROM src AS darwin_amd64
 
-RUN apk update; apk add git
 RUN make build-darwin-amd64
 
 
 # build darwin arm64 static
 FROM src AS darwin_arm64
 
-RUN apk update; apk add git
 RUN make build-darwin-arm64
 
 
@@ -72,7 +65,7 @@ FROM alpine
 RUN apk update && apk add ca-certificates && rm -rf /var/cache/apk/*
 
 WORKDIR /work
-COPY --from=src /app/pvr-vendor.tar.gz /pkg/pvr-vendor.tar.gz
+COPY --from=vendor-archive /app/pvr-vendor.tar.gz /pkg/pvr-vendor.tar.gz
 COPY --from=linux_amd64 /app/build /pkg/bin
 COPY --from=linux_arm /app/build /pkg/bin
 COPY --from=linux_arm64 /app/build /pkg/bin
