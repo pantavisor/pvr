@@ -791,11 +791,13 @@ func (p *Pvr) GenerateApplicationSquashFS(app *AppData, appManifest *Source) err
 	for _, file := range stripFilesList {
 		fileToDelete := filepath.Join(extractPath, file)
 		err = Remove(fileToDelete)
-		if err != nil {
+		if err != nil && !os.IsNotExist(err) {
 			return err
 		}
 
-		PrintDebugf("Deleted %s file\n", fileToDelete)
+		if err == nil {
+			PrintDebugf("Deleted %s file\n", fileToDelete)
+		}
 	}
 
 	fmt.Println("Adding essential structural dirs to operate RO containers")

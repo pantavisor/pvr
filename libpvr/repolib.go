@@ -170,6 +170,8 @@ func NewPvrInit(s *Session, dir string) (*Pvr, error) {
 		return &pvr, nil
 	}
 
+	pvr.Initialized = true
+
 	jPath := filepath.Join(pvr.Pvrdir, "json")
 	_, err = os.Stat(jPath)
 	// pristine json we keep as string as this will allow users load into

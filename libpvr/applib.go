@@ -492,8 +492,24 @@ func (p *Pvr) GenerateApplicationTemplateFiles(appname string, dockerConfig map[
 		return err
 	}
 
+	// Ensure app directory exists
+	appDir := filepath.Join(p.Dir, appname)
+	err = MkdirAll(appDir, 0755)
+	if err != nil {
+		return err
+	}
+
 	for name, content := range files {
-		err = os.WriteFile(filepath.Join(p.Dir, appname, name), content, 0644)
+		filePath := filepath.Join(appDir, name)
+		// Ensure parent directory exists for nested files
+		fileDir := filepath.Dir(filePath)
+		if fileDir != appDir {
+			err = MkdirAll(fileDir, 0755)
+			if err != nil {
+				return err
+			}
+		}
+		err = os.WriteFile(filePath, content, 0644)
 		if err != nil {
 			return err
 		}

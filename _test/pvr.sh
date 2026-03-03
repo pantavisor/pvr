@@ -117,7 +117,7 @@ test_deploy_selecting_parts() {
 
     $pvr deploy $dir/results \
         $dir/mocks/data/initial_state_01.tar.gz#bsp,_sigs/bsp.json,device.json \
-        $dir/mocks/data/pvwebstatus.tar.gz >/dev/null 2>&1
+        $dir/mocks/data/pvwebstatus.tar.gz
 
     result="$(cat $dir/results/.pvr/json | jq -c)"
     expected="$(cat $dir/expected/test_deploy_selecting_parts.json | jq -c)"
