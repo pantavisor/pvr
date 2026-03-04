@@ -252,6 +252,7 @@ build-utils:
 
 package-deploy:
     stage: deploy
+    dependencies: []
     script: |
         set -ex
         PACKAGE_NAME="pvr"
@@ -291,7 +292,7 @@ package-deploy:
         cp $tempdir_go121/bin/windows_amd64/pvr-go1.21.windows.x64.zip .
         cp $tempdir_go121/pvr-vendor.tar.gz ./pvr-vendor-go1.21.tar.gz
         
-        for file in $(find . -maxdepth 1 -type f -name "*.tar.gz" -o -name "*.zip"); do
+        for file in $(find . -maxdepth 1 -type f \( -name "*.tar.gz" -o -name "*.zip" \)); do
           filename=$(basename $file)
           if [ "$filename" == "pvr-vendor.tar.gz" ]; then
             ARCH="vendor"
@@ -304,22 +305,28 @@ package-deploy:
             EXT="tar.gz"
           elif [[ "$filename" == pvr-go1.21.* ]]; then
             remainder=${filename#pvr-go1.21.}
-            if [[ "$filename" == *.tar.gz ]]; then
-              EXT="tar.gz"
-              ARCH="go1.21.${remainder%.tar.gz}"
-            else
-              EXT="zip"
-              ARCH="go1.21.${remainder%.zip}"
-            fi
+            case "$filename" in
+              *.tar.gz)
+                EXT="tar.gz"
+                ARCH="go1.21.${remainder%.tar.gz}"
+                ;;
+              *.zip)
+                EXT="zip"
+                ARCH="go1.21.${remainder%.zip}"
+                ;;
+            esac
           else
             remainder=${filename#pvr.}
-            if [[ "$filename" == *.tar.gz ]]; then
-              EXT="tar.gz"
-              ARCH="${remainder%.tar.gz}"
-            else
-              EXT="zip"
-              ARCH="${remainder%.zip}"
-            fi
+            case "$filename" in
+              *.tar.gz)
+                EXT="tar.gz"
+                ARCH="${remainder%.tar.gz}"
+                ;;
+              *.zip)
+                EXT="zip"
+                ARCH="${remainder%.zip}"
+                ;;
+            esac
           fi
           curl --header "JOB-TOKEN: $CI_JOB_TOKEN" --upload-file $file "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/${PACKAGE_NAME}/${VERSION_LONG}/${PACKAGE_NAME}.${VERSION_LONG}.${ARCH}.${EXT}"
           curl --header "JOB-TOKEN: $CI_JOB_TOKEN" --upload-file $file "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/${PACKAGE_NAME}/${VERSION_SHORT}/${PACKAGE_NAME}.${VERSION_SHORT}.${ARCH}.${EXT}"
