@@ -179,13 +179,16 @@ package-deploy:
             EXT="tar.gz"
           else
             remainder=${filename#pvr.}
-            if [[ "$filename" == *.tar.gz ]]; then
-              EXT="tar.gz"
-              ARCH="${remainder%.tar.gz}"
-            else
-              EXT="zip"
-              ARCH="${remainder%.zip}"
-            fi
+            case "$filename" in
+              *.tar.gz)
+                EXT="tar.gz"
+                ARCH="${remainder%.tar.gz}"
+                ;;
+              *.zip)
+                EXT="zip"
+                ARCH="${remainder%.zip}"
+                ;;
+            esac
           fi
           curl --header "JOB-TOKEN: $CI_JOB_TOKEN" --upload-file $file "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/${PACKAGE_NAME}/${VERSION_LONG}/${PACKAGE_NAME}.${VERSION_LONG}.${ARCH}.${EXT}"
           curl --header "JOB-TOKEN: $CI_JOB_TOKEN" --upload-file $file "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/${PACKAGE_NAME}/${VERSION_SHORT}/${PACKAGE_NAME}.${VERSION_SHORT}.${ARCH}.${EXT}"
