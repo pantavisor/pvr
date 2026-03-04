@@ -144,6 +144,7 @@ build-utils:
 
 package-deploy:
     stage: deploy
+    dependencies: []
     script: |
         set -ex
         PACKAGE_NAME="pvr"
@@ -168,7 +169,7 @@ package-deploy:
         cp $tempdir/bin/windows_amd64/pvr.windows.x64.zip .
         cp $tempdir/pvr-vendor.tar.gz .
 
-        for file in $(find . -maxdepth 1 -type f -name "*.tar.gz" -o -name "*.zip"); do
+        for file in $(find . -maxdepth 1 -type f \( -name "*.tar.gz" -o -name "*.zip" \)); do
           filename=$(basename $file)
           if [ "$filename" == "pvr-vendor.tar.gz" ]; then
             ARCH="vendor"
