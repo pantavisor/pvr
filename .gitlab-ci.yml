@@ -192,3 +192,4 @@ package-deploy:
     only:
         - tags
         - develop
+        - master
