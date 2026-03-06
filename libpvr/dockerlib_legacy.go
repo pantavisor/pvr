@@ -376,7 +376,8 @@ func (p *Pvr) LoadRemoteImage(app *AppData) error {
 			for _, v1 := range platforms {
 				v1S := v1.(string)
 				p := strings.SplitN(v1S, "/", 3)
-				if v.Platform.Architecture == p[1] &&
+				if len(p) >= 2 &&
+					v.Platform.Architecture == p[1] &&
 					(len(p) < 3 || p[2] == v.Platform.Variant) {
 					repoDigest = v.Digest.String()
 					app.ManifestType = v.MediaType
