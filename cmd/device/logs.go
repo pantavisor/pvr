@@ -143,6 +143,12 @@ func CommandLogs() cli.Command {
 				platforms = c.String("platform")
 			}
 
+			noTail := c.Bool("no-tail")
+			if noTail && to == nil {
+				_t := time.Now()
+				to = &_t
+			}
+
 			logFilter := libpvr.LogFilter{
 				Devices:   strings.Join(devices, ","),
 				Levels:    level,
@@ -202,6 +208,9 @@ func CommandLogs() cli.Command {
 					// if we reach end of cursor we have exhausted it and will sleep
 					// before trying to get new logs starting from last timestamp
 					if len(logEntries) == 0 {
+						if noTail {
+							return nil
+						}
 						time.Sleep(time.Duration(1 * time.Second))
 						break
 					}
@@ -209,6 +218,11 @@ func CommandLogs() cli.Command {
 			}
 		},
 		Flags: []cli.Flag{
+			cli.BoolFlag{
+				Name:   "no-tail,n",
+				Usage:  "Do not tail the log stream; stop when reaching --to time or NOW",
+				EnvVar: "PVR_LOGS_NO_TAIL",
+			},
 			cli.StringFlag{
 				Name:   "from,f",
 				Usage:  "Datetime in RFC3339 format, e.g.: --from=2006-01-02T15:04:05+06:00",
