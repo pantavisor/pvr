@@ -32,7 +32,7 @@ func CommandMerge() cli.Command {
 		Aliases:     []string{"m"},
 		ArgsUsage:   "[repository [target-repository]]",
 		Usage:       "merge content of repository into target-directory",
-		Description: "default target-repository is the local .pvr one. If not <repository> is provided the last one is used.",
+		Description: "default target-repository is the local .pvr one. If not <repository> is provided the last one is used. Supports .gz, .tgz, .zip, and plain .tar files. Zip files must contain a tar/tar.gz with the same base name.",
 		Flags: []cli.Flag{
 			cli.StringFlag{
 				Name:  "platform, p",

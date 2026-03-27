@@ -6,7 +6,7 @@ WORKDIR /app/
 COPY . .
 
 ARG DOCKERTAG=latest
-RUN apk update; apk add git make
+RUN apk update; apk add git upx make
 RUN version=`git describe --tags` && sed -i "s/NA/$version/" cmd/version.go
 
 RUN sed -i "s/defaultDistributionTag = \"develop\"/defaultDistributionTag = \"${DOCKERTAG}\"/" ./libpvr/configurationlib.go

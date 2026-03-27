@@ -31,7 +31,7 @@ func CommandImport() cli.Command {
 		Aliases:     []string{"i"},
 		ArgsUsage:   "<repo-tarball>",
 		Usage:       "import repo tarball (like the one produced by 'pvr export') into pvr in current working dir",
-		Description: "can import files with.gz or .tgz extension as well as plain .tar. Will not do pvr checkout, so working directory stays untouched.",
+		Description: "can import files with .gz, .tgz, or .zip extension as well as plain .tar. Zip files must contain a tar/tar.gz with the same base name. Will not do pvr checkout, so working directory stays untouched.",
 		Action: func(c *cli.Context) error {
 			wd, err := os.Getwd()
 			if err != nil {

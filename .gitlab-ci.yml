@@ -260,7 +260,8 @@ package-deploy:
         VERSION_LONG="$VERSION_SHORT-$CI_COMMIT_SHORT_SHA"
         ROOT_FOLDER="pvr-$VERSION_SHORT"
         tar -czvf src.tar.gz --exclude vendor -C . go.mod go.sum Makefile $(find . -name '*.go' -type f -printf '%P ') --transform "s,^,${ROOT_FOLDER}/,"
-        
+
+
         # Regular build
         docker pull $CONTAINER_IMAGE:$CI_COMMIT_SHORT_SHA || true || true
         tempdir=`mktemp -d`
@@ -276,7 +277,7 @@ package-deploy:
         sh -c "cd $tempdir/bin/windows_amd64/; zip pvr.windows.x64.zip pvr.exe"
         cp $tempdir/bin/windows_amd64/pvr.windows.x64.zip .
         cp $tempdir/pvr-vendor.tar.gz .
-        
+
         # Go 1.21 build
         docker pull $CONTAINER_IMAGE:$CI_COMMIT_SHORT_SHA-go1.21 || true || true
         tempdir_go121=`mktemp -d`
@@ -291,7 +292,8 @@ package-deploy:
         sh -c "cd $tempdir_go121/bin/windows_amd64/; zip pvr-go1.21.windows.x64.zip pvr.exe"
         cp $tempdir_go121/bin/windows_amd64/pvr-go1.21.windows.x64.zip .
         cp $tempdir_go121/pvr-vendor.tar.gz ./pvr-vendor-go1.21.tar.gz
-        
+
+
         for file in $(find . -maxdepth 1 -type f \( -name "*.tar.gz" -o -name "*.zip" \)); do
           filename=$(basename $file)
           if [ "$filename" == "pvr-vendor.tar.gz" ]; then
@@ -335,3 +337,4 @@ package-deploy:
         - tags
         - develop
         - fix/update_docker_library
+        - master
