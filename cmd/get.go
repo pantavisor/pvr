@@ -33,7 +33,7 @@ func CommandGet() cli.Command {
 		Aliases:     []string{"g"},
 		ArgsUsage:   "[<repository>[#<part>] [<target-repository>]] | [<USER_NICK>/<DEVICE_NICK>[#<part>]]",
 		Usage:       "get update target-repository from repository",
-		Description: "default target-repository is the local .pvr one. If not <repository> is provided the last one is used. <part> can be one of 'bsp' or $appname.",
+		Description: "default target-repository is the local .pvr one. If not <repository> is provided the last one is used. Supports .gz, .tgz, .zip, and plain .tar files. Zip files must contain a tar/tar.gz with the same base name. <part> can be one of 'bsp' or $appname.",
 		Flags: []cli.Flag{
 			cli.StringFlag{
 				Name:  "platform, p",

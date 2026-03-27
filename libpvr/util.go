@@ -17,6 +17,7 @@
 package libpvr
 
 import (
+	"archive/zip"
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
@@ -1128,6 +1129,75 @@ func Untar(dst string, src string, options []string) error {
 
 	args = append(args, options...)
 	return ExecCommand(args[0], args[1:]...)
+}
+
+// MaybeUnzip checks if the given path is a zip file. If so, it extracts the
+// inner tar/tar.gz file (which must have the same base name as the zip) to a
+// temp file and returns its path. The caller must call MaybeUnzipCleanup with
+// the returned tempFile path when done. For non-zip files, it returns the
+// original path unchanged and an empty tempFile.
+func MaybeUnzip(filePath string) (resolvedPath string, tempFile string, err error) {
+	if !strings.HasSuffix(strings.ToLower(filePath), ".zip") {
+		return filePath, "", nil
+	}
+
+	zr, err := zip.OpenReader(filePath)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to open zip file: %w", err)
+	}
+	defer zr.Close()
+
+	baseName := strings.TrimSuffix(filepath.Base(filePath), filepath.Ext(filePath))
+	candidates := []string{
+		baseName + ".tar.gz",
+		baseName + ".tgz",
+		baseName + ".tar",
+	}
+
+	var found *zip.File
+	for _, candidate := range candidates {
+		for _, f := range zr.File {
+			if f.Name == candidate || filepath.Base(f.Name) == candidate {
+				found = f
+				break
+			}
+		}
+		if found != nil {
+			break
+		}
+	}
+
+	if found == nil {
+		return "", "", fmt.Errorf("zip file does not contain expected tar file (looked for %s)", strings.Join(candidates, ", "))
+	}
+
+	rc, err := found.Open()
+	if err != nil {
+		return "", "", fmt.Errorf("failed to open %s inside zip: %w", found.Name, err)
+	}
+	defer rc.Close()
+
+	tmpFile, err := os.CreateTemp("", "pvr-unzip-*-"+filepath.Base(found.Name))
+	if err != nil {
+		return "", "", fmt.Errorf("failed to create temp file: %w", err)
+	}
+
+	_, err = io.Copy(tmpFile, rc)
+	tmpFile.Close()
+	if err != nil {
+		os.Remove(tmpFile.Name())
+		return "", "", fmt.Errorf("failed to extract %s from zip: %w", found.Name, err)
+	}
+
+	return tmpFile.Name(), tmpFile.Name(), nil
+}
+
+// MaybeUnzipCleanup removes the temp file created by MaybeUnzip.
+// Safe to call with an empty string (no-op).
+func MaybeUnzipCleanup(tempFile string) {
+	if tempFile != "" {
+		os.Remove(tempFile)
+	}
 }
 
 // GetFileContentType : Get File Content Type of a file

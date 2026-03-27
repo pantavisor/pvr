@@ -1894,8 +1894,13 @@ func (p *Pvr) Post(uri string, envelope string, commitMsg string, rev string, fo
 }
 
 func (p *Pvr) UnpackRepo(repoPath, outDir string, options []string) error {
-	err := Untar(outDir, repoPath, options)
-	return err
+	repoPath, tempFile, err := MaybeUnzip(repoPath)
+	if err != nil {
+		return err
+	}
+	defer MaybeUnzipCleanup(tempFile)
+
+	return Untar(outDir, repoPath, options)
 }
 
 func (p *Pvr) GetStateJson(uri string) (
@@ -2905,6 +2910,12 @@ func (p *Pvr) Export(parts []string, dst string) error {
 }
 
 func (p *Pvr) Import(src string) error {
+	src, tempFile, err := MaybeUnzip(src)
+	if err != nil {
+		return err
+	}
+	defer MaybeUnzipCleanup(tempFile)
+
 	file, err := os.Open(src)
 	if err != nil {
 		return err
