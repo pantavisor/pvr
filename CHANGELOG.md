@@ -1,6 +1,93 @@
 
+<a name="050"></a>
+## [050](https://gitlab.com/pantacor/pvr/compare/049...050) (2026-03-27)
+
+### Feature
+
+* add support to zip files when doing get, merge or import
+* update dockerlib to use new library that supports cli client 1.44
+
+### Fix
+
+* error when reading the _host/config
+* bring master changes into the branch with the go1.21 package too
+* after adding error managment there were new path to handle
+* solve error handle problem
+* get docke image from remote needs to always pass the platform
+* correct go dockerfile.go1.21
+* ci test
+* testing
+* target on utils build, to build on any platform
+* add test to validate binary format
+* use remote on CI
+* testing to use better cache with support to arch
+* use docker cache on pvr test instead of pulling always
+* make sure to read the api version and negociate from there
+* docker lib should negociate without intervention
+* it generate root.squashfs even with old src.json
+* docker negotion needs to start from 1.46
+
+
+<a name="049"></a>
+## [049](https://gitlab.com/pantacor/pvr/compare/049-rc1...049) (2026-03-23)
+
+### Feat
+
+* add device status, steps, and statediff subcommands
+* add --no-tail option to pvr device logs
+
+### Feature
+
+* add windows installer scripts
+
+### Fix
+
+* user correct posix expression
+* donot add the .zip to tar.gz files
+* build package in master
+* don't build tools on master
+* just update the upload of src and vendorr
+* gitlab.ci upload packages
+* make tools on master too
+* docker remote pull was failing for multiarch containers
+* new version schema was failing to build in gitlab-ci
+
+
+<a name="049-rc1"></a>
+## [049-rc1](https://gitlab.com/pantacor/pvr/compare/048...049-rc1) (2026-03-06)
+
+### Feature
+
+* add revision to the pvr version command
+* do polling pkce instead of just redirection callback
+* add make release
+* add release to makefile
+* update dockerlib to use new library that supports cli client 1.44
+
+### Fix
+
+* error when reading the _host/config
+* bring master changes into the branch with the go1.21 package too
+* after adding error managment there were new path to handle
+* solve error handle problem
+* get docke image from remote needs to always pass the platform
+* correct go dockerfile.go1.21
+* ci test
+* testing
+* target on utils build, to build on any platform
+* add test to validate binary format
+* use remote on CI
+* testing to use better cache with support to arch
+* use docker cache on pvr test instead of pulling always
+* make sure to read the api version and negociate from there
+* docker lib should negociate without intervention
+* correct install file name
+* it generate root.squashfs even with old src.json
+* docker negotion needs to start from 1.46
+
+
 <a name="048"></a>
-## [048](https://gitlab.com/pantacor/pvr/compare/047...048) (2026-01-26)
+## [048](https://gitlab.com/pantacor/pvr/compare/047...048) (2026-02-06)
 
 ### Refactor
 
@@ -144,15 +231,15 @@
 
 
 <a name="038"></a>
-## [038](https://gitlab.com/pantacor/pvr/compare/041-rev001...038) (2024-04-29)
-
-
-<a name="041-rev001"></a>
-## [041-rev001](https://gitlab.com/pantacor/pvr/compare/041...041-rev001) (2024-04-17)
+## [038](https://gitlab.com/pantacor/pvr/compare/041...038) (2024-04-29)
 
 
 <a name="041"></a>
-## [041](https://gitlab.com/pantacor/pvr/compare/037...041) (2024-04-17)
+## [041](https://gitlab.com/pantacor/pvr/compare/041-rev001...041) (2024-04-17)
+
+
+<a name="041-rev001"></a>
+## [041-rev001](https://gitlab.com/pantacor/pvr/compare/037...041-rev001) (2024-04-17)
 
 ### Feature
 
