@@ -238,6 +238,7 @@ func main() {
 		cmd.CommandPut(),
 		cmd.CommandPost(),
 		cmd.CommandGet(),
+		cmd.CommandCurl(),
 		cmd.CommandInspect(),
 		cmd.CommandRemoteInfo(),
 		cmd.CommandStepInfo(),

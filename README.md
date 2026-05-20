@@ -881,6 +881,44 @@ sirinibin(prn:::accounts:/5bf2ac9e41b2dd0009a96c97) at https://api.pantahub.com/
 
 ```
 
+#### pvr curl [curl-options] \<URL\>
+
+Thin wrapper around the system `curl(1)` for hitting pantahub (or any
+pvr-auth-aware) REST endpoints with the bearer token pvr has already cached
+for that host. All curl flags pass through unchanged — pvr only injects an
+`Authorization: Bearer …` header before exec'ing curl.
+
+The bearer is resolved through the same auth chain `pvr clone`/`get`/`whoami`
+use: cached access token → refresh token → `.netrc` user/pass → interactive
+OAuth/PKCE login. If you haven't logged in yet, run `pvr login` first.
+
+If you pass your own `-H Authorization:` header, pvr will not override it.
+Requires `curl(1)` in `PATH`.
+
+```bash
+# Fetch object metadata
+$ pvr curl https://api.pantahub.com/objects/<sha256>
+
+# List your trails (pretty-print with jq)
+$ pvr curl -sS https://api.pantahub.com/trails/ | jq .
+
+# POST JSON
+$ pvr curl -X POST \
+    -H 'Content-Type: application/json' \
+    -d '{"foo": 1}' \
+    https://api.pantahub.com/some/endpoint
+
+# Download a signed object URL to disk
+$ pvr curl -sS -o firmware.squashfs <signed-geturl>
+
+# Fail with curl's own exit code on HTTP error
+$ pvr curl -fsS https://api.pantahub.com/does/not/exist; echo $?
+# -> 22
+```
+
+`pvr curl --help` shows curl's own help, since flag parsing is fully
+delegated to the underlying binary.
+
 ### pvr get [remote-or-local-repository[#part1,part2,-unpart]] [target-repository]
 
 Update target-repository from remote or local repository. `pvr get` updates the local repository's pristine state, but not the working copy.
