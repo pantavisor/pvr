@@ -31,6 +31,9 @@ func TestCompileTemplate(t *testing.T) {
 	t.Run("docker entrypointcmd", testLXCContainerConf__Docker_EntrypointCmd2)
 	t.Run("docker workingdir", testLXCContainerConf__Docker_WorkingDir)
 	t.Run("PV_IMPORT_VOLUMES LXC_CONTAINER_CONF", testLXCContainerConf_PV_VOLUME_IMPORTS)
+	t.Run("named volume keeps name", testLXCContainerConf_NamedVolume)
+	t.Run("path volume gets docker prefix", testLXCContainerConf_PathVolume)
+	t.Run("named volume in RUN_JSON", testRunJSON_NamedVolume)
 }
 
 func ErrorIf(t *testing.T, test bool, args ...interface{}) {
@@ -173,4 +176,64 @@ func testLXCContainerConf_PV_VOLUME_IMPORTS(t *testing.T) {
 	if !strings.Contains(string(result), "lxc.mount.entry = /volumes/cont/docker--foo-fol/subdir faldara-sub none bind,ro,create=dir 0 0") {
 		t.Error("mount entry not set properly, but: " + string(result))
 	}
+}
+
+func testLXCContainerConf_NamedVolume(t *testing.T) {
+	result, _ := compileTemplate(LXC_CONTAINER_CONF, map[string]interface{}{
+		"name": "container1",
+		"Source": map[string]interface{}{
+			"name": "cont",
+		},
+		"Docker": map[string]interface{}{
+			"Volumes": map[string]interface{}{
+				"myvol": map[string]interface{}{},
+			},
+		},
+	})
+
+	ErrorIf(t, len(result) == 0, "error when compiling template")
+	ErrorIfNot(t, strings.Contains(string(result), "lxc.mount.entry = /volumes/cont/myvol myvol none bind,rw,create=dir 0 0"),
+		"named volume should be left unchanged, but got: "+string(result))
+	ErrorIf(t, strings.Contains(string(result), "docker-myvol"),
+		"named volume must not get docker- prefix, but got: "+string(result))
+}
+
+func testLXCContainerConf_PathVolume(t *testing.T) {
+	result, _ := compileTemplate(LXC_CONTAINER_CONF, map[string]interface{}{
+		"name": "container1",
+		"Source": map[string]interface{}{
+			"name": "cont",
+		},
+		"Docker": map[string]interface{}{
+			"Volumes": map[string]interface{}{
+				"/data": map[string]interface{}{},
+			},
+		},
+	})
+
+	ErrorIf(t, len(result) == 0, "error when compiling template")
+	ErrorIfNot(t, strings.Contains(string(result), "lxc.mount.entry = /volumes/cont/docker--data data none bind,rw,create=dir 0 0"),
+		"path volume should still be transformed, but got: "+string(result))
+}
+
+func testRunJSON_NamedVolume(t *testing.T) {
+	result, _ := compileTemplate(RUN_JSON, map[string]interface{}{
+		"name": "container1",
+		"Source": map[string]interface{}{
+			"name": "cont",
+			"args": map[string]interface{}{},
+		},
+		"Docker": map[string]interface{}{
+			"Volumes": map[string]interface{}{
+				"myvol": map[string]interface{}{},
+				"/data": map[string]interface{}{},
+			},
+		},
+	})
+
+	ErrorIf(t, len(result) == 0, "error when compiling template")
+	ErrorIfNot(t, strings.Contains(string(result), `"myvol":`),
+		"named volume key should appear unchanged in storage map, but got: "+string(result))
+	ErrorIfNot(t, strings.Contains(string(result), `"docker--data":`),
+		"path volume key should still be transformed in storage map, but got: "+string(result))
 }

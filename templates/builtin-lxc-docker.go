@@ -308,7 +308,7 @@ lxc.mount.entry = /volumes/{{- $source -}}/
 		{{- if ne $scheme "dir" }}
 		"docker{{ $scheme }}-{{ $realkey | trimSuffix "/" | replace "/" "-" -}}": {
 		{{- else }}
-		"docker-{{ $realkey | trimSuffix "/" | replace "/" "-" -}}": {
+		"{{ pvr_dockerVolumeName $realkey -}}": {
 		{{- end }}
 			{{- $length := splitList "@" $value | len }}
 			{{- if eq $length 1 }}
