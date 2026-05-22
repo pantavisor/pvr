@@ -34,6 +34,8 @@ func TestCompileTemplate(t *testing.T) {
 	t.Run("named volume keeps name", testLXCContainerConf_NamedVolume)
 	t.Run("path volume gets docker prefix", testLXCContainerConf_PathVolume)
 	t.Run("named volume in RUN_JSON", testRunJSON_NamedVolume)
+	t.Run("PV_VOLUME_MOUNTS LXC_CONTAINER_CONF", testLXCContainerConf_PV_VOLUME_MOUNTS)
+	t.Run("PV_VOLUME_IMPORTS named origin", testLXCContainerConf_PV_VOLUME_IMPORTS_NamedOrigin)
 }
 
 func ErrorIf(t *testing.T, test bool, args ...interface{}) {
@@ -214,6 +216,73 @@ func testLXCContainerConf_PathVolume(t *testing.T) {
 	ErrorIf(t, len(result) == 0, "error when compiling template")
 	ErrorIfNot(t, strings.Contains(string(result), "lxc.mount.entry = /volumes/cont/docker--data data none bind,rw,create=dir 0 0"),
 		"path volume should still be transformed, but got: "+string(result))
+}
+
+// Source.args.PV_VOLUME_MOUNTS: "<volume>:<mountTarget>,..."
+//
+// Volume names are used as-is — no docker- prefix transformation. Covers
+// both a named volume and a docker-prefixed bind-mount volume, which is
+// how this arg is typically used.
+func testLXCContainerConf_PV_VOLUME_MOUNTS(t *testing.T) {
+	result, _ := compileTemplate(LXC_CONTAINER_CONF, map[string]interface{}{
+		"name": "container1",
+		"Source": map[string]interface{}{
+			"name": "cont",
+			"args": map[string]interface{}{
+				"PV_VOLUME_MOUNTS": "myvol:/data,docker--etc:/etc/foo",
+			},
+		},
+	})
+
+	if len(result) == 0 {
+		t.Error("error when compiling template with empty data")
+	}
+
+	if !strings.Contains(string(result), "lxc.mount.entry = /volumes/cont/myvol /data none bind,rw,create=dir 0 0") {
+		t.Error("named volume mount entry not set properly, but: " + string(result))
+	}
+
+	if !strings.Contains(string(result), "lxc.mount.entry = /volumes/cont/docker--etc /etc/foo none bind,rw,create=dir 0 0") {
+		t.Error("docker-prefixed volume mount entry not set properly, but: " + string(result))
+	}
+}
+
+// Source.args.PV_VOLUME_IMPORTS with a named-volume origin (no leading "/")
+// must leave the origin unchanged — no docker- prefix.
+//
+//	import: <container>:[<subdir>@]<originvolume>:<destdir>[:<mountflags>]
+func testLXCContainerConf_PV_VOLUME_IMPORTS_NamedOrigin(t *testing.T) {
+	result, _ := compileTemplate(LXC_CONTAINER_CONF, map[string]interface{}{
+		"name": "container1",
+		"Source": map[string]interface{}{
+			"args": map[string]interface{}{
+				"PV_VOLUME_IMPORTS": []string{
+					"cont:myvol:/faldara",
+					"cont:subdir@myvol:/faldara-sub",
+					"cont:subdir@myvol:/faldara-sub:ro",
+				},
+			},
+		},
+	})
+	if len(result) == 0 {
+		t.Error("error when compiling template with empty data")
+	}
+
+	if !strings.Contains(string(result), "lxc.mount.entry = /volumes/cont/myvol faldara none bind,rw,create=dir 0 0") {
+		t.Error("named origin mount entry not set properly, but: " + string(result))
+	}
+
+	if !strings.Contains(string(result), "lxc.mount.entry = /volumes/cont/myvol/subdir faldara-sub none bind,rw,create=dir 0 0") {
+		t.Error("named origin with subdir mount entry not set properly, but: " + string(result))
+	}
+
+	if !strings.Contains(string(result), "lxc.mount.entry = /volumes/cont/myvol/subdir faldara-sub none bind,ro,create=dir 0 0") {
+		t.Error("named origin with subdir + ro mount entry not set properly, but: " + string(result))
+	}
+
+	if strings.Contains(string(result), "docker-myvol") {
+		t.Error("named origin must not get docker- prefix, but: " + string(result))
+	}
 }
 
 func testRunJSON_NamedVolume(t *testing.T) {
