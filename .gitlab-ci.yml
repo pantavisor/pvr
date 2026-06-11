@@ -13,7 +13,29 @@ variables:
     CONTAINER_IMAGE: registry.gitlab.com/$CI_PROJECT_PATH
     DOCKER_DRIVER: overlay2
 
+# Auto-retry transient CI infrastructure failures (slow dind startup, runner
+# hiccups, intermittent registry auth blips when pulling dependency images).
+default:
+    retry:
+        max: 2
+        when:
+            - runner_system_failure
+            - stuck_or_timeout_failure
+            - script_failure
+            - api_failure
+            - unknown_failure
+
 before_script:
+    # The docker:dind service can take a while to come up; running a docker
+    # command before the daemon is ready fails with
+    # "Cannot connect to the Docker daemon ...". Wait for it to be ready.
+    - |
+      echo "Waiting for the Docker daemon to be ready..."
+      for i in $(seq 1 60); do
+        docker info >/dev/null 2>&1 && { echo "Docker daemon is up after ${i}s"; break; }
+        sleep 1
+      done
+      docker info >/dev/null 2>&1 || { echo "ERROR: Docker daemon did not become ready in time"; exit 1; }
     - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN registry.gitlab.com
     - apk update
     - apk add --no-cache zip curl tar findutils
