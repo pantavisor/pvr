@@ -17,7 +17,6 @@
 package libpvr
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -27,7 +26,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	cjson "github.com/gibson042/canonicaljson-go"
 	"gitlab.com/pantacor/pvr/utils/pvjson"
 )
 
@@ -60,7 +58,7 @@ func (p *Pvr) dmifySrcJson(container, volume string) error {
 
 	appManifest.DmEnabled[volume] = true
 
-	srcContent, err := json.MarshalIndent(appManifest, " ", " ")
+	srcContent, err := pvjson.Marshal(appManifest, pvjson.MarshalOptions{Prefix: " ", Indent: " "})
 	if err != nil {
 		return err
 	}
@@ -114,7 +112,7 @@ func (p *Pvr) dmifyRunJson(container, volume string) error {
 		return errors.New("volume to dmify not found: " + volume)
 	}
 
-	outB, err := cjson.Marshal(runJson)
+	outB, err := pvjson.Marshal(runJson, pvjson.MarshalOptions{Canonical: true})
 	if err != nil {
 		return err
 	}
@@ -240,7 +238,7 @@ func (p *Pvr) DmCVerityApply(prefix string) error {
 				return err
 			}
 
-			outB, err := cjson.Marshal(vm)
+			outB, err := pvjson.Marshal(vm, pvjson.MarshalOptions{Canonical: true})
 			if err != nil {
 				return err
 			}
@@ -323,7 +321,7 @@ func (p *Pvr) DmCVerityConvert(container string, volume string) error {
 		return err
 	}
 
-	outB, err := cjson.Marshal(manifestMap)
+	outB, err := pvjson.Marshal(manifestMap, pvjson.MarshalOptions{Canonical: true})
 	if err != nil {
 		return err
 	}

@@ -14,13 +14,13 @@
 package libpvr
 
 import (
-	"encoding/json"
 	"os"
 	"reflect"
+	"strings"
 	"testing"
 
-	cjson "github.com/gibson042/canonicaljson-go"
 	"github.com/stretchr/testify/assert"
+	"gitlab.com/pantacor/pvr/utils/pvjson"
 )
 
 type args struct {
@@ -291,13 +291,13 @@ func TestPatchState(t *testing.T) {
 		}
 
 		var wantMap PvrMap
-		err = json.Unmarshal(wantBuff, &wantMap)
+		err = pvjson.Unmarshal(wantBuff, &wantMap)
 		if err != nil {
 			t.Error(err)
 			return
 		}
 
-		want, err := cjson.Marshal(wantMap)
+		want, err := pvjson.Marshal(wantMap, pvjson.MarshalOptions{Canonical: true})
 		if err != nil {
 			t.Error(err)
 			return
@@ -313,7 +313,7 @@ func TestPatchState(t *testing.T) {
 			t.Errorf("PatchState() error = %v, wantErr %v", err, wantErr)
 			return
 		}
-		result, err := cjson.Marshal(got)
+		result, err := pvjson.Marshal(got, pvjson.MarshalOptions{Canonical: true})
 		if (err != nil) != wantErr {
 			t.Errorf("PatchState() error = %v, wantErr %v", err, wantErr)
 			return
@@ -340,13 +340,13 @@ func TestPatchState(t *testing.T) {
 		}
 
 		var wantMap PvrMap
-		err = json.Unmarshal(wantBuff, &wantMap)
+		err = pvjson.Unmarshal(wantBuff, &wantMap)
 		if err != nil {
 			t.Error(err)
 			return
 		}
 
-		want, err := cjson.Marshal(wantMap)
+		want, err := pvjson.Marshal(wantMap, pvjson.MarshalOptions{Canonical: true})
 		if err != nil {
 			t.Error(err)
 			return
@@ -362,12 +362,42 @@ func TestPatchState(t *testing.T) {
 			t.Errorf("PatchState() error = %v, wantErr %v", err, wantErr)
 			return
 		}
-		result, err := cjson.Marshal(got)
+		result, err := pvjson.Marshal(got, pvjson.MarshalOptions{Canonical: true})
 		if (err != nil) != wantErr {
 			t.Errorf("PatchState() error = %v, wantErr %v", err, wantErr)
 			return
 		}
 
 		assert.Equal(t, string(want), string(result))
+	})
+}
+
+// Regression: state diffing (jsondiff/MergePatch) must not round large
+// integers through float64. jsondiff.Operation implements json.Marshaler and
+// canonical encoding used to re-parse its output without UseNumber, which
+// rounded 9000000000000000001 down to 9000000000000000000.
+func TestBigNumberPreservedInStateDiff(t *testing.T) {
+	const bigInt = "9000000000000000001"
+	src := []byte(`{"#spec":"pantavisor-service-system@1"}`)
+	target := []byte(`{"#spec":"pantavisor-service-system@1","test.json":{"uid":` + bigInt + `}}`)
+
+	t.Run("GetStatePatch", func(t *testing.T) {
+		patch, err := GetStatePatch(src, target)
+		if err != nil {
+			t.Fatalf("GetStatePatch: %v", err)
+		}
+		if !strings.Contains(string(*patch), bigInt) {
+			t.Errorf("big integer not preserved in state patch: %s", *patch)
+		}
+	})
+
+	t.Run("MergePatch", func(t *testing.T) {
+		merged, err := MergePatch(src, target)
+		if err != nil {
+			t.Fatalf("MergePatch: %v", err)
+		}
+		if !strings.Contains(string(merged), bigInt) {
+			t.Errorf("big integer not preserved in merged state: %s", merged)
+		}
 	})
 }

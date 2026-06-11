@@ -21,7 +21,6 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -171,7 +170,7 @@ func (p *PvrAuthConfig) Save() error {
 		return err
 	}
 
-	byteJson, err := json.MarshalIndent(p, "", "    ")
+	byteJson, err := pvjson.Marshal(p)
 	if err != nil {
 		return err
 	}
@@ -491,7 +490,7 @@ func handlePKCELogin(apiURL string) (token string, refreshToken string, err erro
 	}
 
 	var initResp CLIInitResponse
-	if err := json.Unmarshal(resp.Body(), &initResp); err != nil {
+	if err := pvjson.Unmarshal(resp.Body(), &initResp); err != nil {
 		return "", "", fmt.Errorf("failed to parse PKCE init response: %v", err)
 	}
 
@@ -569,7 +568,7 @@ func handlePKCELogin(apiURL string) (token string, refreshToken string, err erro
 				}
 
 				var tokenResp PollTokenResponse
-				if err := json.Unmarshal(resp.Body(), &tokenResp); err != nil {
+				if err := pvjson.Unmarshal(resp.Body(), &tokenResp); err != nil {
 					continue
 				}
 
@@ -622,7 +621,7 @@ func handlePKCELogin(apiURL string) (token string, refreshToken string, err erro
 		}
 
 		var pkceResp PkceResponse
-		if err := json.Unmarshal(resp.Body(), &pkceResp); err != nil {
+		if err := pvjson.Unmarshal(resp.Body(), &pkceResp); err != nil {
 			return "", "", fmt.Errorf("error parsing token response: %v", err)
 		}
 

@@ -17,7 +17,6 @@
 package device
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -27,6 +26,7 @@ import (
 	"github.com/pmezard/go-difflib/difflib"
 	"github.com/urfave/cli"
 	"gitlab.com/pantacor/pvr/libpvr"
+	"gitlab.com/pantacor/pvr/utils/pvjson"
 )
 
 func CommandStateDiff() cli.Command {
@@ -86,8 +86,8 @@ func CommandStateDiff() cli.Command {
 				return cli.NewExitError(err.Error(), 4)
 			}
 
-			jsonA, _ := json.MarshalIndent(stateA, "", "    ")
-			jsonB, _ := json.MarshalIndent(stateB, "", "    ")
+			jsonA, _ := pvjson.Marshal(stateA)
+			jsonB, _ := pvjson.Marshal(stateB)
 
 			switch format {
 			case "jsondiff":
@@ -98,7 +98,7 @@ func CommandStateDiff() cli.Command {
 				if len(patch) == 0 {
 					fmt.Println("[]")
 				} else {
-					out, _ := json.MarshalIndent(patch, "", "    ")
+					out, _ := pvjson.Marshal(patch)
 					fmt.Println(string(out))
 				}
 			default:

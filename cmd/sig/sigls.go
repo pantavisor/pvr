@@ -17,7 +17,6 @@
 package sig
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -25,6 +24,7 @@ import (
 
 	"github.com/urfave/cli"
 	"gitlab.com/pantacor/pvr/libpvr"
+	"gitlab.com/pantacor/pvr/utils/pvjson"
 )
 
 func CommandSigLs() cli.Command {
@@ -125,7 +125,7 @@ func CommandSigLs() cli.Command {
 			if !c.Bool("with-sigs") {
 				resultSummary.FullJSONWebSigs = nil
 			}
-			jsonBuf, err := json.MarshalIndent(resultSummary, "", "    ")
+			jsonBuf, err := pvjson.Marshal(resultSummary)
 
 			if err != nil {
 				return cli.NewExitError(err, 13)

@@ -17,11 +17,11 @@
 package libpvr
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 
 	"gitlab.com/pantacor/pantahub-base/logs"
+	"gitlab.com/pantacor/pvr/utils/pvjson"
 )
 
 type LogFormatter interface {
@@ -36,7 +36,7 @@ func (s *LogFormatterJson) Init(format string) error {
 }
 
 func (s *LogFormatterJson) DoLog(m *logs.Entry) error {
-	buf, err := json.Marshal(m)
+	buf, err := pvjson.Marshal(m, pvjson.MarshalOptions{Compact: true})
 	if err != nil {
 		return err
 	}

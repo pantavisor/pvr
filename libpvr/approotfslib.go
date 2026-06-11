@@ -17,7 +17,6 @@
 package libpvr
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
@@ -25,6 +24,7 @@ import (
 	"path/filepath"
 
 	"github.com/opencontainers/go-digest"
+	"gitlab.com/pantacor/pvr/utils/pvjson"
 )
 
 func UpdateRootFSApp(p *Pvr, app *AppData, appManifest *Source) error {
@@ -84,7 +84,7 @@ func UpdateRootFSApp(p *Pvr, app *AppData, appManifest *Source) error {
 	}
 
 	app.Appmanifest.RootFsDigest = rootfsDigest.String()
-	srcContent, err := json.MarshalIndent(app.Appmanifest, " ", " ")
+	srcContent, err := pvjson.Marshal(app.Appmanifest, pvjson.MarshalOptions{Prefix: " ", Indent: " "})
 	if err != nil {
 		return err
 	}
@@ -190,7 +190,7 @@ func AddRootFsApp(p *Pvr, app *AppData) error {
 	}
 
 	src.RootFsDigest = rootfsDigest.String()
-	srcContent, err := json.MarshalIndent(src, " ", " ")
+	srcContent, err := pvjson.Marshal(src, pvjson.MarshalOptions{Prefix: " ", Indent: " "})
 	if err != nil {
 		return err
 	}

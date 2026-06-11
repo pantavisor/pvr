@@ -17,13 +17,13 @@
 package tokens
 
 import (
-	"encoding/json"
 	"os"
 	"strings"
 
 	"github.com/olekukonko/tablewriter"
 	"github.com/urfave/cli"
 	"gitlab.com/pantacor/pvr/libpvr"
+	"gitlab.com/pantacor/pvr/utils/pvjson"
 )
 
 func CommandTokenCreate() cli.Command {
@@ -63,7 +63,7 @@ Creates a new device token
 			table.SetColumnSeparator(" ")
 			table.SetHeader([]string{"id", "nick", "token", "user-meta"})
 
-			userMetaString, _ := json.Marshal(userMeta)
+			userMetaString, _ := pvjson.Marshal(userMeta, pvjson.MarshalOptions{Compact: true})
 
 			table.Append([]string{
 				deviceToken.ID,

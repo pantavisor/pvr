@@ -17,13 +17,13 @@
 package cmd
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 
 	"github.com/urfave/cli"
 	"gitlab.com/pantacor/pvr/libpvr"
+	"gitlab.com/pantacor/pvr/utils/pvjson"
 )
 
 func CommandRemoteInfo() cli.Command {
@@ -71,7 +71,7 @@ func CommandRemoteInfo() cli.Command {
 				return cli.NewExitError(err, 1)
 			}
 
-			jsonData, err := json.MarshalIndent(pvrRemote, "", "    ")
+			jsonData, err := pvjson.Marshal(pvrRemote)
 
 			if err != nil {
 				return cli.NewExitError(err, 1)

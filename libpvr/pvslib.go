@@ -21,7 +21,6 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/base64"
-	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -36,7 +35,6 @@ import (
 	"strings"
 
 	"github.com/bmatcuk/doublestar"
-	cjson "github.com/gibson042/canonicaljson-go"
 	gojose "github.com/go-jose/go-jose/v3"
 	"github.com/go-resty/resty"
 	"gitlab.com/pantacor/pvr/utils/pvjson"
@@ -190,7 +188,7 @@ func selectPayloadBuf(buf []byte, match *PvsMatch) ([]byte, error) {
 		return nil, err
 	}
 
-	resBuf, err := cjson.Marshal(selection.Selected)
+	resBuf, err := pvjson.Marshal(selection.Selected, pvjson.MarshalOptions{Canonical: true})
 
 	if err != nil {
 		return nil, err
@@ -211,7 +209,7 @@ func stripPayloadFromRawJSON(buf []byte) ([]byte, error) {
 
 	delete(m, "payload")
 
-	return cjson.Marshal(m)
+	return pvjson.Marshal(m, pvjson.MarshalOptions{Canonical: true})
 }
 
 func parseCertsFromPEMFile(path string) ([]*x509.Certificate, error) {
@@ -278,7 +276,7 @@ func (p *Pvr) JwsSignPvs(privKeyPath string,
 
 	header := sig.Signatures[0].Protected
 	pvsHeader := header.ExtraHeaders[gojose.HeaderKey("pvs")]
-	jsonBuf, err := json.Marshal(pvsHeader)
+	jsonBuf, err := pvjson.Marshal(pvsHeader, pvjson.MarshalOptions{Compact: true})
 	if err != nil {
 		return err
 	}
@@ -455,7 +453,7 @@ found:
 
 	sigMap["#spec"] = "pvs@2"
 
-	newJson, err := cjson.Marshal(sigMap)
+	newJson, err := pvjson.Marshal(sigMap, pvjson.MarshalOptions{Canonical: true})
 	if err != nil {
 		return err
 	}
@@ -653,7 +651,7 @@ func (p *Pvr) JwsVerifyPvs(keyPath string, caCerts string, pvsPath string, inclu
 	header := sig.Signatures[0].Protected
 	pvsHeader := header.ExtraHeaders[gojose.HeaderKey("pvs")]
 
-	jsonBuf, err := json.Marshal(pvsHeader)
+	jsonBuf, err := pvjson.Marshal(pvsHeader, pvjson.MarshalOptions{Compact: true})
 	if err != nil {
 		return nil, err
 	}
@@ -795,7 +793,7 @@ func getSigMatch(signature PvrMap) (*PvsMatch, error) {
 	header := sig.Signatures[0].Protected
 	pvsHeader := header.ExtraHeaders[gojose.HeaderKey("pvs")]
 
-	jsonBuf, err := json.Marshal(pvsHeader)
+	jsonBuf, err := pvjson.Marshal(pvsHeader, pvjson.MarshalOptions{Compact: true})
 	if err != nil {
 		return nil, err
 	}

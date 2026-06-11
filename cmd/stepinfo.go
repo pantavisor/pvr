@@ -17,7 +17,6 @@
 package cmd
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
@@ -26,6 +25,7 @@ import (
 
 	"github.com/urfave/cli"
 	"gitlab.com/pantacor/pvr/libpvr"
+	"gitlab.com/pantacor/pvr/utils/pvjson"
 )
 
 func CommandStepInfo() cli.Command {
@@ -86,7 +86,7 @@ func CommandStepInfo() cli.Command {
 				return cli.NewExitError(err, 1)
 			}
 
-			jsonData, err := json.MarshalIndent(stateJsonMap, "", "    ")
+			jsonData, err := pvjson.Marshal(stateJsonMap)
 
 			if err != nil {
 				return cli.NewExitError(err, 1)

@@ -17,7 +17,6 @@
 package app
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -27,6 +26,7 @@ import (
 	"gitlab.com/pantacor/pvr/models"
 
 	"github.com/urfave/cli"
+	"gitlab.com/pantacor/pvr/utils/pvjson"
 )
 
 // SourceFlagUsage : Source Flag Usage Description
@@ -107,7 +107,7 @@ func CommandAppAdd() cli.Command {
 				va := strings.SplitN(v, "=", 2)
 				if len(va) == 2 {
 					var value interface{}
-					err := json.Unmarshal([]byte(va[1]), &value)
+					err := pvjson.Unmarshal([]byte(va[1]), &value)
 					if err != nil {
 						value = va[1]
 					}

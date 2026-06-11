@@ -17,7 +17,6 @@
 package device
 
 import (
-	"encoding/json"
 	"errors"
 	"log"
 	"strings"
@@ -25,6 +24,7 @@ import (
 	"github.com/go-resty/resty"
 	"github.com/urfave/cli"
 	"gitlab.com/pantacor/pvr/libpvr"
+	"gitlab.com/pantacor/pvr/utils/pvjson"
 )
 
 func CommandStatus() cli.Command {
@@ -96,14 +96,14 @@ func CommandStatus() cli.Command {
 			}
 
 			var step map[string]interface{}
-			err = json.Unmarshal(response.Body(), &step)
+			err = pvjson.Unmarshal(response.Body(), &step)
 			if err != nil {
 				return cli.NewExitError("Error parsing step response: "+err.Error(), 4)
 			}
 
 			delete(step, "state")
 
-			filtered, err := json.Marshal(step)
+			filtered, err := pvjson.Marshal(step, pvjson.MarshalOptions{Compact: true})
 			if err != nil {
 				return cli.NewExitError("Error marshaling response: "+err.Error(), 4)
 			}

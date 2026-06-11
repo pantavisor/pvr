@@ -17,7 +17,6 @@
 package device
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -26,6 +25,7 @@ import (
 	"github.com/go-resty/resty"
 	"github.com/urfave/cli"
 	"gitlab.com/pantacor/pvr/libpvr"
+	"gitlab.com/pantacor/pvr/utils/pvjson"
 )
 
 func getStepState(session *libpvr.Session, baseURL, deviceNick, rev string) (map[string]interface{}, error) {
@@ -42,7 +42,7 @@ func getStepState(session *libpvr.Session, baseURL, deviceNick, rev string) (map
 		return nil, fmt.Errorf("error getting step %s: %s", rev, string(response.Body()))
 	}
 	var state map[string]interface{}
-	err = json.Unmarshal(response.Body(), &state)
+	err = pvjson.Unmarshal(response.Body(), &state)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing step %s state: %w", rev, err)
 	}
@@ -56,7 +56,7 @@ func getDeviceInfo(session *libpvr.Session, baseURL, deviceNick string) (id stri
 		return "", "", fmt.Errorf("error getting device: %w", err)
 	}
 	var device map[string]interface{}
-	err = json.Unmarshal(deviceResponse.Body(), &device)
+	err = pvjson.Unmarshal(deviceResponse.Body(), &device)
 	if err != nil {
 		return "", "", fmt.Errorf("error parsing device response: %w", err)
 	}
@@ -77,7 +77,7 @@ func getDeviceInfo(session *libpvr.Session, baseURL, deviceNick string) (id stri
 	}
 	rev, ok = revVal.(string)
 	if !ok {
-		revBytes, _ := json.Marshal(revVal)
+		revBytes, _ := pvjson.Marshal(revVal, pvjson.MarshalOptions{Compact: true})
 		rev = string(revBytes)
 	}
 	return id, rev, nil

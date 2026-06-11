@@ -17,7 +17,6 @@
 package libpvr
 
 import (
-	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -77,7 +76,7 @@ func WriteConfiguration(filePath string, config *PvrGlobalConfig) error {
 		}
 	}
 
-	configurationJSON, err := json.Marshal(config)
+	configurationJSON, err := pvjson.Marshal(config, pvjson.MarshalOptions{Compact: true})
 	if err != nil {
 		return err
 	}
@@ -92,7 +91,7 @@ func (pvr *Pvr) SetConfiguration(arguments []string) (*PvrGlobalConfig, error) {
 	re := regexp.MustCompile(`^(.*)=(.*)$`)
 
 	var configMap map[string]interface{}
-	inrec, _ := json.Marshal(pvr.Session.Configuration)
+	inrec, _ := pvjson.Marshal(pvr.Session.Configuration, pvjson.MarshalOptions{Compact: true})
 	pvjson.Unmarshal(inrec, &configMap)
 
 	for _, variable := range arguments {

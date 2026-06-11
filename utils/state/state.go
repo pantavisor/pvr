@@ -14,14 +14,12 @@ package state
 
 import (
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"regexp"
 	"strings"
 
 	jsonpatch "github.com/asac/json-patch"
-	cjson "github.com/gibson042/canonicaljson-go"
 	gojose "github.com/go-jose/go-jose/v3"
 	"github.com/highercomve/jsondiff"
 	"gitlab.com/pantacor/pvr/utils/pvjson"
@@ -57,12 +55,12 @@ type JwsVerifySummary struct {
 type SignedParts map[string]map[string]bool
 
 func copyState(state map[string]interface{}) map[string]interface{} {
-	data, err := json.Marshal(state)
+	data, err := pvjson.Marshal(state, pvjson.MarshalOptions{Compact: true})
 	if err != nil {
 		return state
 	}
 	var result map[string]interface{}
-	err = json.Unmarshal(data, &result)
+	err = pvjson.Unmarshal(data, &result)
 	if err != nil {
 		return state
 	}
@@ -107,7 +105,7 @@ func AddFragsToState(srcState, patchState map[string]interface{}, frags string) 
 // signed parts referenced by sigs in src.
 func ExpandFragmentsWithSignedParts(src PvrMap, fragments string) (string, error) {
 	result := strings.Split(fragments, ",")
-	srcBuf, err := json.Marshal(src)
+	srcBuf, err := pvjson.Marshal(src, pvjson.MarshalOptions{Compact: true})
 	if err != nil {
 		return "", err
 	}
@@ -208,12 +206,12 @@ func PatchState(srcBuff, patchBuff []byte, srcFrags, patchFrag string, merge boo
 	var srcState PvrMap
 	var patchState PvrMap
 
-	err := cjson.Unmarshal(srcBuff, &srcState)
+	err := pvjson.Unmarshal(srcBuff, &srcState)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	err = cjson.Unmarshal(patchBuff, &patchState)
+	err = pvjson.Unmarshal(patchBuff, &patchState)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -242,12 +240,12 @@ func PatchState(srcBuff, patchBuff []byte, srcFrags, patchFrag string, merge boo
 			return nil, nil, err
 		}
 
-		srcJsonMap, err := cjson.Marshal(pJSONMap)
+		srcJsonMap, err := pvjson.Marshal(pJSONMap, pvjson.MarshalOptions{Canonical: true})
 		if err != nil {
 			return nil, nil, err
 		}
 
-		jsonDataSelect, err := cjson.Marshal(patchState)
+		jsonDataSelect, err := pvjson.Marshal(patchState, pvjson.MarshalOptions{Canonical: true})
 		if err != nil {
 			return nil, nil, err
 		}
@@ -258,7 +256,7 @@ func PatchState(srcBuff, patchBuff []byte, srcFrags, patchFrag string, merge boo
 		}
 	} else {
 		jsonMap := AddFragsToState(srcState, patchState, srcFrags)
-		jsonMerged, err = cjson.Marshal(jsonMap)
+		jsonMerged, err = pvjson.Marshal(jsonMap, pvjson.MarshalOptions{Canonical: true})
 		if err != nil {
 			return nil, nil, err
 		}
@@ -268,7 +266,7 @@ func PatchState(srcBuff, patchBuff []byte, srcFrags, patchFrag string, merge boo
 		patchState["#spec"] = "pantavisor-service-system@1"
 	}
 
-	err = cjson.Unmarshal(jsonMerged, &patchState)
+	err = pvjson.Unmarshal(jsonMerged, &patchState)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -283,7 +281,7 @@ func PatchState(srcBuff, patchBuff []byte, srcFrags, patchFrag string, merge boo
 		}
 	}
 
-	jsonMerged, err = cjson.Marshal(&patchState)
+	jsonMerged, err = pvjson.Marshal(&patchState, pvjson.MarshalOptions{Canonical: true})
 	if err != nil {
 		return nil, nil, err
 	}
@@ -294,18 +292,18 @@ func PatchState(srcBuff, patchBuff []byte, srcFrags, patchFrag string, merge boo
 // GetStatePatch returns the JSON-patch diff between initialState and endState.
 func GetStatePatch(initialState, endState []byte) (*[]byte, error) {
 	var diffbytes []byte
-	diffJson := []interface{}{}
 	diff, err := jsondiff.CompareJSON(initialState, endState)
 	if err != nil {
 		return nil, err
 	}
 
 	if diff != nil {
-		diffbytes, err = cjson.Marshal(diff)
-		if err != nil {
-			return nil, err
-		}
-		err = pvjson.Unmarshal(diffbytes, &diffJson)
+		// The diff is an intermediate RFC6902 patch that gets applied
+		// downstream, so it must not be canonicalized: jsondiff.Operation
+		// implements json.Marshaler and canonical encoding re-parses that
+		// output without UseNumber, rounding large integers through float64.
+		// A plain (compact) encode preserves json.Number exactly.
+		diffbytes, err = pvjson.Marshal(diff, pvjson.MarshalOptions{Compact: true})
 		if err != nil {
 			return nil, err
 		}
@@ -338,17 +336,17 @@ func MergePatch(srcData, target []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	err = cjson.Unmarshal(srcData, &srcState)
+	err = pvjson.Unmarshal(srcData, &srcState)
 	if err != nil {
 		return nil, err
 	}
 
-	err = cjson.Unmarshal(target, &targetState)
+	err = pvjson.Unmarshal(target, &targetState)
 	if err != nil {
 		return nil, err
 	}
 
-	err = cjson.Unmarshal(patchData, &patchState)
+	err = pvjson.Unmarshal(patchData, &patchState)
 	if err != nil {
 		return nil, err
 	}
@@ -358,12 +356,12 @@ func MergePatch(srcData, target []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	srcData, err = cjson.Marshal(srcState)
+	srcData, err = pvjson.Marshal(srcState, pvjson.MarshalOptions{Canonical: true})
 	if err != nil {
 		return nil, err
 	}
 
-	target, err = cjson.Marshal(targetState)
+	target, err = pvjson.Marshal(targetState, pvjson.MarshalOptions{Canonical: true})
 	if err != nil {
 		return nil, err
 	}
@@ -423,7 +421,7 @@ func CleanRemovedSignatures(initialState, finalState *PvrMap, initialStateBuf []
 // CleanPatchSignedPkg removes signed-package leftovers from src/patch/target.
 func CleanPatchSignedPkg(src, patch, target *PvrMap) (err error) {
 	deleted := []string{}
-	srcBuf, err := json.Marshal(*src)
+	srcBuf, err := pvjson.Marshal(*src, pvjson.MarshalOptions{Compact: true})
 	if err != nil {
 		return err
 	}
@@ -493,7 +491,7 @@ func appendToSignedExpression(signedExpresions []*regexp.Regexp, key string, val
 		return signedExpresions, err
 	}
 
-	err = cjson.Unmarshal(decodedBuff, &tmpDecoded)
+	err = pvjson.Unmarshal(decodedBuff, &tmpDecoded)
 	if err != nil {
 		return signedExpresions, err
 	}
@@ -691,7 +689,7 @@ func getSigMatch(signature PvrMap) (*PvsMatch, error) {
 	header := sig.Signatures[0].Protected
 	pvsHeader := header.ExtraHeaders[gojose.HeaderKey("pvs")]
 
-	jsonBuf, err := json.Marshal(pvsHeader)
+	jsonBuf, err := pvjson.Marshal(pvsHeader, pvjson.MarshalOptions{Compact: true})
 	if err != nil {
 		return nil, err
 	}

@@ -52,6 +52,30 @@ test_pvr_support_big_numbers() {
     assertEquals "$expected" "$(cat json)"
 }
 
+## Regression: the add+commit path used to round large integers through
+## float64 (in the jsondiff/MergePatch state diffing), so committing an inline
+## json with a huge integer corrupted it in .pvr/json. Ensure it is preserved.
+test_pvr_big_numbers_add_commit() {
+    clean_results
+    cd $dir/results/
+
+    $pvr init --objects $dir/objects
+
+    mkdir -p _config/big_numbers
+    printf '{\n  "id": 90000000000000000010000000000000000001\n}\n' \
+        >_config/big_numbers/config.json
+
+    $pvr add >/dev/null 2>&1
+    $pvr commit >/dev/null 2>&1
+
+    result="$(cat $dir/results/.pvr/json | jq -c)"
+    expected="$(cat $dir/expected/test_big_numbers.json | jq -c)"
+    assertEquals "$expected" "$result"
+
+    # jq-independent check that the exact integer literal survived the commit.
+    assertEquals "1" "$(grep -c '90000000000000000010000000000000000001' $dir/results/.pvr/json)"
+}
+
 ## Remove the pv-avahi signature, this should remove the whole pv-avahi package
 test_signature_removal() {
     clean_results

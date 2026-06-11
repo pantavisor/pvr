@@ -24,7 +24,6 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -523,7 +522,7 @@ func LoadLocalImage(app *AppData) error {
 	app.LocalImage.DockerPlatform = fmt.Sprintf("%s/%s", inspect.Os, inspect.Architecture)
 
 	//Setting Docker Config values
-	configData, err := json.Marshal(inspect.Config)
+	configData, err := pvjson.Marshal(inspect.Config, pvjson.MarshalOptions{Compact: true})
 	if err != nil {
 		return err
 	}

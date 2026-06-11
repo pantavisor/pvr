@@ -17,7 +17,6 @@
 package libpvr
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -176,7 +175,7 @@ func (p *Session) TokenCreate(baseurl string, usermeta map[string]interface{}) (
 	token := PantahubDevicesJoinToken{
 		DefaultUserMeta: usermeta,
 	}
-	body, err := json.Marshal(token)
+	body, err := pvjson.Marshal(token, pvjson.MarshalOptions{Compact: true})
 	if err != nil {
 		return nil, err
 	}

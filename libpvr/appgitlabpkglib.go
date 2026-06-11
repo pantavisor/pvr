@@ -21,7 +21,6 @@ import (
 	"compress/gzip"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -36,6 +35,7 @@ import (
 
 	"github.com/go-resty/resty"
 	"gitlab.com/pantacor/pvr/models"
+	"gitlab.com/pantacor/pvr/utils/pvjson"
 	"gopkg.in/cheggaaa/pb.v1"
 )
 
@@ -115,7 +115,7 @@ func getGitLabPackages(p *Pvr, projectPath string) ([]GitLabPackage, error) {
 	if resp.StatusCode() != http.StatusOK {
 		return nil, fmt.Errorf("GitLab API returned status %d fetching packages list: %s", resp.StatusCode(), resp.String())
 	}
-	if err := json.Unmarshal(resp.Body(), &packages); err != nil {
+	if err := pvjson.Unmarshal(resp.Body(), &packages); err != nil {
 		return nil, fmt.Errorf("failed to parse GitLab packages list response: %s", err)
 	}
 
@@ -172,7 +172,7 @@ func findBestPackage(packages []GitLabPackage, requestedVersion string, platform
 	files := []GitLabPackageFile{}
 	pkg.Files = []GitLabPackageFile{}
 	// Unmarshal the files response directly into the pkg.Files slice
-	if err := json.Unmarshal(filesResp.Body(), &files); err != nil {
+	if err := pvjson.Unmarshal(filesResp.Body(), &files); err != nil {
 		return nil, fmt.Errorf("failed to parse GitLab package files response for package %d (%s): %s", pkg.ID, pkg.Name, err)
 	}
 

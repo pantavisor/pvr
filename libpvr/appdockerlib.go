@@ -17,13 +17,13 @@
 package libpvr
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 
 	"github.com/urfave/cli"
+	"gitlab.com/pantacor/pvr/utils/pvjson"
 )
 
 func AddDockerApp(p *Pvr, app *AppData) error {
@@ -110,7 +110,7 @@ func AddDockerApp(p *Pvr, app *AppData) error {
 		}
 	}
 
-	srcContent, err := json.MarshalIndent(src, " ", " ")
+	srcContent, err := pvjson.Marshal(src, pvjson.MarshalOptions{Prefix: " ", Indent: " "})
 	if err != nil {
 		return err
 	}
@@ -181,7 +181,7 @@ func UpdateDockerApp(p *Pvr, app *AppData, appManifest *Source) (err error) {
 	}
 
 	appManifest.DockerSource.DockerSource = app.Source
-	srcContent, err := json.MarshalIndent(appManifest, " ", " ")
+	srcContent, err := pvjson.Marshal(appManifest, pvjson.MarshalOptions{Prefix: " ", Indent: " "})
 	if err != nil {
 		return err
 	}

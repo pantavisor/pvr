@@ -38,7 +38,6 @@ import (
 
 	jsonpatch "github.com/asac/json-patch"
 	"github.com/cavaliercoder/grab"
-	cjson "github.com/gibson042/canonicaljson-go"
 	"github.com/go-resty/resty"
 	"github.com/highercomve/jsondiff"
 	"gitlab.com/pantacor/pantahub-base/objects"
@@ -287,7 +286,7 @@ func (p *Pvr) AddFile(globs []string, forceObject bool) error {
 		return err
 	}
 
-	jsonData, err := cjson.Marshal(p.NewFiles)
+	jsonData, err := pvjson.Marshal(p.NewFiles, pvjson.MarshalOptions{Canonical: true})
 	if err != nil {
 		return err
 	}
@@ -304,7 +303,7 @@ func (p *Pvr) AddFile(globs []string, forceObject bool) error {
 }
 
 func (p *Pvr) GetCPristineJson() ([]byte, error) {
-	return cjson.Marshal(p.PristineJsonMap)
+	return pvjson.Marshal(p.PristineJsonMap, pvjson.MarshalOptions{Canonical: true})
 }
 
 func isInlineJson(k string, v interface{}) bool {
@@ -487,7 +486,7 @@ func (p *Pvr) GetWorkingJson() ([]byte, []string, error) {
 		return []byte{}, []string{}, err
 	}
 
-	b, err := cjson.Marshal(workingJson)
+	b, err := pvjson.Marshal(workingJson, pvjson.MarshalOptions{Canonical: true})
 
 	if err != nil {
 		return []byte{}, []string{}, err
@@ -599,7 +598,7 @@ func (p *Pvr) JSONDiff() (*[]byte, error) {
 		pvrdiff[op.Name] = op.Value
 	}
 
-	diffbytes, err := cjson.Marshal(pvrdiff)
+	diffbytes, err := pvjson.Marshal(pvrdiff, pvjson.MarshalOptions{Canonical: true})
 	if err != nil {
 		return nil, err
 	}
@@ -643,18 +642,17 @@ func (p *Pvr) Status() (*PvrStatus, error) {
 	}
 
 	var diffbytes []byte
-	diffJson := []interface{}{}
 	diff, err := jsondiff.CompareJSON(cPristineJson, workingJson)
 	if err != nil {
 		return nil, err
 	}
 
 	if diff != nil {
-		diffbytes, err = cjson.Marshal(diff)
-		if err != nil {
-			return nil, err
-		}
-		err = pvjson.Unmarshal(diffbytes, &diffJson)
+		// Encode the diff plainly (not canonically): jsondiff.Operation
+		// implements json.Marshaler and canonical encoding re-parses that
+		// output without UseNumber, rounding large integers through float64.
+		// A plain (compact) encode preserves json.Number exactly.
+		diffbytes, err = pvjson.Marshal(diff, pvjson.MarshalOptions{Compact: true})
 		if err != nil {
 			return nil, err
 		}
@@ -729,7 +727,7 @@ func (p *Pvr) prepCommitCheckpoint() error {
 	checkpointInfo := map[string]interface{}{
 		"major": time.Now().Format(time.RFC3339),
 	}
-	buf, err := cjson.Marshal(checkpointInfo)
+	buf, err := pvjson.Marshal(checkpointInfo, pvjson.MarshalOptions{Canonical: true})
 	if err != nil {
 		goto exit
 	}
@@ -1696,7 +1694,7 @@ func (p *Pvr) SaveConfig() error {
 	configNew := filepath.Join(p.Pvrdir, "config.new")
 	configPath := filepath.Join(p.Pvrdir, "config")
 
-	byteJson, err := json.MarshalIndent(p.Pvrconfig, "", "	")
+	byteJson, err := pvjson.Marshal(p.Pvrconfig, pvjson.MarshalOptions{Indent: "\t"})
 	if err != nil {
 		return err
 	}
@@ -1759,7 +1757,7 @@ func (p *Pvr) postRemoteJson(remotePvr pvrapi.PvrRemote, pvrMap PvrMap, envelope
 	}
 
 	// marshall as canonical json into []byte so resty does not reformat....
-	data, err := cjson.Marshal(envJSON)
+	data, err := pvjson.Marshal(envJSON, pvjson.MarshalOptions{Canonical: true})
 
 	if err != nil {
 		return nil, err
@@ -2710,9 +2708,9 @@ func (p *Pvr) resetInternal(hardlink bool, canonicalJson bool, state *PvrMap) (e
 			// assume that the user wants the checked out file
 			// to match exactly what is in the pvr json
 			if !hardlink && !canonicalJson {
-				data, err = json.MarshalIndent(v, "", "    ")
+				data, err = pvjson.Marshal(v)
 			} else {
-				data, err = cjson.Marshal(v)
+				data, err = pvjson.Marshal(v, pvjson.MarshalOptions{Canonical: true})
 			}
 			if err != nil {
 				return err
@@ -2871,7 +2869,7 @@ func (p *Pvr) Export(parts []string, dst string) error {
 	defer jsonFile.Close()
 	defer os.Remove(jsonFile.Name())
 
-	buf, err := cjson.Marshal(filteredMap)
+	buf, err := pvjson.Marshal(filteredMap, pvjson.MarshalOptions{Canonical: true})
 
 	if err != nil {
 		return err

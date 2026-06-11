@@ -94,7 +94,7 @@ func resolveDevice(session *libpvr.Session, defaultBaseURL, deviceArg string) (*
 	}
 
 	var remote struct {
-		PostURL   string `json:"post-url"`
+		PostURL    string `json:"post-url"`
 		JSONGetURL string `json:"json-get-url"`
 	}
 	err = pvjson.Unmarshal(response.Body(), &remote)

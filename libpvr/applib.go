@@ -17,7 +17,6 @@
 package libpvr
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
@@ -680,7 +679,7 @@ func (p *Pvr) GetApplicationInfo(appname string) error {
 	if err != nil {
 		return err
 	}
-	jsonData, err := json.MarshalIndent(fileData, "", "    ")
+	jsonData, err := pvjson.Marshal(fileData)
 	if err != nil {
 		return err
 	}

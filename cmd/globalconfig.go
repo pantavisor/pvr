@@ -17,13 +17,13 @@
 package cmd
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
 	"os"
 
 	"github.com/urfave/cli"
 	"gitlab.com/pantacor/pvr/libpvr"
+	"gitlab.com/pantacor/pvr/utils/pvjson"
 )
 
 // CommandGlobalConfig read or set configuration
@@ -57,12 +57,12 @@ func CommandGlobalConfig() cli.Command {
 				}
 			}
 
-			json, err := json.MarshalIndent(config, "", "    ")
+			data, err := pvjson.Marshal(config)
 			if err != nil {
 				log.Fatal(err)
 			}
 
-			fmt.Println(string(json))
+			fmt.Println(string(data))
 			return nil
 		},
 	}

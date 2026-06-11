@@ -23,7 +23,6 @@ import (
 	"bufio"
 	"compress/gzip"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -219,7 +218,7 @@ func GetImageConfig(img v1.Image) (map[string]interface{}, error) {
 	}
 
 	// Convert ConfigFile.Config to map
-	configData, err := json.Marshal(configFile.Config)
+	configData, err := pvjson.Marshal(configFile.Config, pvjson.MarshalOptions{Compact: true})
 	if err != nil {
 		return nil, err
 	}

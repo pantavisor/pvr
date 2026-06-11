@@ -42,7 +42,6 @@ import (
 	"text/template"
 	"time"
 
-	cjson "github.com/gibson042/canonicaljson-go"
 	"github.com/udhos/equalfile"
 	"gitlab.com/pantacor/pvr/utils/pvjson"
 
@@ -260,7 +259,7 @@ func FormatJsonC(data []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	buf, err := cjson.Marshal(value)
+	buf, err := pvjson.Marshal(value, pvjson.MarshalOptions{Canonical: true})
 
 	if err != nil {
 		return nil, err
@@ -484,7 +483,7 @@ func ReportError(err error, knowSolutions ...string) error {
 
 func StructToMap(s interface{}) (map[string]interface{}, error) {
 
-	b, err := json.Marshal(s)
+	b, err := pvjson.Marshal(s, pvjson.MarshalOptions{Compact: true})
 	if err != nil {
 		return nil, err
 	}
@@ -619,7 +618,7 @@ func LogPrettyJSON(content []byte) (ApiError, error) {
 	if err != nil {
 		return apiError, err
 	}
-	b, err := json.MarshalIndent(logData, "", "    ")
+	b, err := pvjson.Marshal(logData)
 	if err != nil {
 		return apiError, err
 	}
@@ -1256,7 +1255,7 @@ type TreeDiff struct {
 }
 
 func (tree *TreeDiff) String() string {
-	res, err := json.MarshalIndent(tree, "", "    ")
+	res, err := pvjson.Marshal(tree)
 	if err != nil {
 		return err.Error()
 	}

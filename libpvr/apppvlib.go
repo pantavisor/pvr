@@ -17,13 +17,13 @@
 package libpvr
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 
 	"github.com/urfave/cli"
+	"gitlab.com/pantacor/pvr/utils/pvjson"
 )
 
 func AddPvApp(p *Pvr, app *AppData) error {
@@ -74,7 +74,7 @@ func AddPvApp(p *Pvr, app *AppData) error {
 
 	srcJson.Persistence = persistence
 
-	srcContent, err := json.MarshalIndent(srcJson, " ", " ")
+	srcContent, err := pvjson.Marshal(srcJson, pvjson.MarshalOptions{Prefix: " ", Indent: " "})
 	if err != nil {
 		return err
 	}
@@ -112,7 +112,7 @@ func UpdatePvApp(p *Pvr, app *AppData, appManifest *Source) error {
 	}
 	app.From = initialFrom
 
-	srcContent, err := json.MarshalIndent(appManifest, " ", " ")
+	srcContent, err := pvjson.Marshal(appManifest, pvjson.MarshalOptions{Prefix: " ", Indent: " "})
 	if err != nil {
 		return err
 	}
