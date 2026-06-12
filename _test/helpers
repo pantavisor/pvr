@@ -16,6 +16,17 @@ clean_results() {
     rm -rf $dir/objects/ >/dev/null 2>&1
 }
 
+# assert_compact_json <message> <file>
+# Asserts the json file is compact: byte-identical to its own jq -c form
+# (no indentation, no spacing around separators).
+assert_compact_json() {
+    local message="$1"
+    local file="$2"
+    local content
+    content="$(cat "$file")"
+    assertEquals "$message" "$(printf %s "$content" | jq -c .)" "$content"
+}
+
 # Docker image caching: pre-cache images locally to avoid Docker Hub rate limits
 DOCKER_CACHE_DIR="$dir/docker-cache"
 

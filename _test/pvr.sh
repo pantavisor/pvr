@@ -76,6 +76,65 @@ test_pvr_big_numbers_add_commit() {
     assertEquals "1" "$(grep -c '90000000000000000010000000000000000001' $dir/results/.pvr/json)"
 }
 
+## Regression: the signature payload is assembled from the state through
+## pvjson canonical marshalling, so any pvjson encode/decode change (e.g. the
+## big integer handling) that alters the canonical form would invalidate
+## signatures. Build a fresh state including a huge integer, sign the whole
+## state, commit, and verify the signature with pvr sig ls.
+test_sig_whole_state_pvjson_roundtrip() {
+    clean_results
+    cd $dir/results/
+
+    $pvr init --objects $dir/objects
+
+    # inline json config with a big integer (the pvjson-sensitive case)
+    mkdir -p _config/big_numbers
+    printf '{\n  "id": 90000000000000000010000000000000000001\n}\n' \
+        >_config/big_numbers/config.json
+
+    # a regular file too, so the payload also covers object (sha) entries
+    mkdir -p awesome
+    echo "hello pvs" >awesome/hello.txt
+
+    $pvr add >/dev/null 2>&1
+    $pvr commit >/dev/null 2>&1
+
+    # sign the whole state: raw mode includes ** (minus src.json and the sig itself)
+    $pvr sig add --raw everything
+    assertEquals "pvr sig add should succeed" "0" "$?"
+
+    $pvr add >/dev/null 2>&1
+    $pvr commit >/dev/null 2>&1
+
+    # sig ls re-assembles the payload from the committed state via pvjson and
+    # verifies the JWS; a non-zero exit means the canonical payload no longer
+    # matches what was signed.
+    summary=$($pvr sig ls)
+    assertEquals "pvr sig ls should verify the signature" "0" "$?"
+
+    echo "$summary" | jq -e '.protected | index("_config/big_numbers/config.json")' >/dev/null
+    assertEquals "big number config should be protected" "0" "$?"
+
+    echo "$summary" | jq -e '.protected | index("awesome/hello.txt")' >/dev/null
+    assertEquals "object file should be protected" "0" "$?"
+
+    # the exact integer literal must survive into the committed state, and the
+    # committed state itself must be stored compact
+    assertEquals "1" "$(grep -c '90000000000000000010000000000000000001' $dir/results/.pvr/json)"
+    assert_compact_json "committed .pvr/json must be compact" $dir/results/.pvr/json
+
+    # the json inside a pvr export must be compact: byte-identical to its own
+    # jq -c form, with no whitespace anywhere (single line, no spaces)
+    $pvr export /tmp/sig_roundtrip_export.tgz
+    rm -rf /tmp/sig_roundtrip_export && mkdir -p /tmp/sig_roundtrip_export
+    tar -xzf /tmp/sig_roundtrip_export.tgz -C /tmp/sig_roundtrip_export json
+
+    assert_compact_json "exported json must be compact" /tmp/sig_roundtrip_export/json
+    assertEquals "exported json must contain no spaces" "0" "$(grep -c ' ' /tmp/sig_roundtrip_export/json || true)"
+    assertEquals "exported json must contain no newlines" "0" "$(wc -l </tmp/sig_roundtrip_export/json)"
+    assertEquals "1" "$(grep -c '90000000000000000010000000000000000001' /tmp/sig_roundtrip_export/json)"
+}
+
 ## Remove the pv-avahi signature, this should remove the whole pv-avahi package
 test_signature_removal() {
     clean_results
