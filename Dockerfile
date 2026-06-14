@@ -6,15 +6,23 @@ WORKDIR /app/
 COPY . .
 
 ARG DOCKERTAG=latest
-RUN apk update; apk add git upx make
+RUN apk update; apk add git upx make tar
 RUN version=`git describe --tags` && sed -i "s/NA/$version/" cmd/version.go
 
 RUN sed -i "s/defaultDistributionTag = \"develop\"/defaultDistributionTag = \"${DOCKERTAG}\"/" ./libpvr/configurationlib.go
 RUN go mod download && go mod vendor
 
-# create vendor tarball in a separate stage so build stages don't carry it
+# create vendor tarball in a separate stage so build stages don't carry it.
+# Build it reproducibly: sorted entries, fixed constant mtime, fixed ownership
+# and gnu format so identical vendored sources always yield the same sha256,
+# independent of commit/date (Yocto recipes pin these checksums). The default
+# mtime is Pantacor Ltd's incorporation date (2016-11-11 UTC = 1478822400);
+# override with SOURCE_DATE_EPOCH if ever needed.
 FROM src AS vendor-archive
-RUN tar -cvzf "pvr-vendor.tar.gz" ./vendor/
+ARG SOURCE_DATE_EPOCH
+RUN LC_ALL=C tar --sort=name --format=gnu --owner=0 --group=0 --numeric-owner \
+        --mtime="@${SOURCE_DATE_EPOCH:-1478822400}" \
+        -czf "pvr-vendor.tar.gz" ./vendor/
 
 # build riscv64 linux static
 FROM src AS linux_riscv64

@@ -281,18 +281,30 @@ package-deploy:
         VERSION_SHORT=${CI_COMMIT_TAG:-$CI_COMMIT_REF_SLUG}
         VERSION_LONG="$VERSION_SHORT-$CI_COMMIT_SHORT_SHA"
         ROOT_FOLDER="pvr-$VERSION_SHORT"
-        tar -czvf src.tar.gz --exclude vendor -C . go.mod go.sum Makefile $(find . -name '*.go' -type f -printf '%P ') --transform "s,^,${ROOT_FOLDER}/,"
+
+        # Reproducible tar helper: sorted entries, fixed constant mtime, fixed
+        # ownership and gnu format so identical inputs always yield the same
+        # sha256, independent of commit/date/build-host (Yocto recipes pin these
+        # checksums). Default mtime is Pantacor Ltd's incorporation date
+        # (2016-11-11 UTC = 1478822400); override with SOURCE_DATE_EPOCH.
+        repro_tar() { LC_ALL=C tar --sort=name --format=gnu --owner=0 --group=0 --numeric-owner --mtime="@${SOURCE_DATE_EPOCH:-1478822400}" "$@"; }
+
+        # src.tar.gz: feed an explicitly sorted file list via -T - because
+        # --sort=name only orders directory traversal, not command-line args.
+        { printf '%s\n' go.mod go.sum Makefile; find . -name '*.go' -type f -not -path './vendor/*' -printf '%P\n'; } \
+          | LC_ALL=C sort -u \
+          | repro_tar -czf src.tar.gz -C . --transform "s,^,${ROOT_FOLDER}/," -T -
 
 
         # Regular build
         docker pull $CONTAINER_IMAGE:$CI_COMMIT_SHORT_SHA || true || true
         tempdir=`mktemp -d`
         docker run --rm $CONTAINER_IMAGE:$CI_COMMIT_SHORT_SHA | tar -C $tempdir -x
-        tar -cvzf pvr.linux.amd64.tar.gz -C $tempdir/bin/linux_amd64 pvr
-        tar -cvzf pvr.linux.arm.tar.gz -C $tempdir/bin/linux_arm pvr
-        tar -cvzf pvr.linux.arm64.tar.gz -C $tempdir/bin/linux_arm64 pvr
-        tar -cvzf pvr.darwin.amd64.tar.gz -C $tempdir/bin/darwin_amd64 pvr
-        tar -cvzf pvr.darwin.arm64.tar.gz -C $tempdir/bin/darwin_arm64 pvr
+        repro_tar -czf pvr.linux.amd64.tar.gz -C $tempdir/bin/linux_amd64 pvr
+        repro_tar -czf pvr.linux.arm.tar.gz -C $tempdir/bin/linux_arm pvr
+        repro_tar -czf pvr.linux.arm64.tar.gz -C $tempdir/bin/linux_arm64 pvr
+        repro_tar -czf pvr.darwin.amd64.tar.gz -C $tempdir/bin/darwin_amd64 pvr
+        repro_tar -czf pvr.darwin.arm64.tar.gz -C $tempdir/bin/darwin_arm64 pvr
         echo CWD `pwd`
         sh -c "cd $tempdir/bin/windows_386/; zip pvr.windows.x32.zip pvr.exe"
         cp $tempdir/bin/windows_386/pvr.windows.x32.zip .
@@ -304,11 +316,11 @@ package-deploy:
         docker pull $CONTAINER_IMAGE:$CI_COMMIT_SHORT_SHA-go1.21 || true || true
         tempdir_go121=`mktemp -d`
         docker run --rm $CONTAINER_IMAGE:$CI_COMMIT_SHORT_SHA-go1.21 | tar -C $tempdir_go121 -x
-        tar -cvzf pvr-go1.21.linux.amd64.tar.gz -C $tempdir_go121/bin/linux_amd64 pvr
-        tar -cvzf pvr-go1.21.linux.arm.tar.gz -C $tempdir_go121/bin/linux_arm pvr
-        tar -cvzf pvr-go1.21.linux.arm64.tar.gz -C $tempdir_go121/bin/linux_arm64 pvr
-        tar -cvzf pvr-go1.21.darwin.amd64.tar.gz -C $tempdir_go121/bin/darwin_amd64 pvr
-        tar -cvzf pvr-go1.21.darwin.arm64.tar.gz -C $tempdir_go121/bin/darwin_arm64 pvr
+        repro_tar -czf pvr-go1.21.linux.amd64.tar.gz -C $tempdir_go121/bin/linux_amd64 pvr
+        repro_tar -czf pvr-go1.21.linux.arm.tar.gz -C $tempdir_go121/bin/linux_arm pvr
+        repro_tar -czf pvr-go1.21.linux.arm64.tar.gz -C $tempdir_go121/bin/linux_arm64 pvr
+        repro_tar -czf pvr-go1.21.darwin.amd64.tar.gz -C $tempdir_go121/bin/darwin_amd64 pvr
+        repro_tar -czf pvr-go1.21.darwin.arm64.tar.gz -C $tempdir_go121/bin/darwin_arm64 pvr
         sh -c "cd $tempdir_go121/bin/windows_386/; zip pvr-go1.21.windows.x32.zip pvr.exe"
         cp $tempdir_go121/bin/windows_386/pvr-go1.21.windows.x32.zip .
         sh -c "cd $tempdir_go121/bin/windows_amd64/; zip pvr-go1.21.windows.x64.zip pvr.exe"
