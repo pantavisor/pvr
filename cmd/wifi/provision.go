@@ -1,5 +1,7 @@
+//go:build go1.24
+
 //
-// Copyright 2017-2025  Pantacor Ltd.
+// Copyright 2017-2026  Pantacor Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -25,6 +27,8 @@ import (
 	"time"
 
 	"github.com/urfave/cli"
+	"gitlab.com/pantacor/pvwificonnect/modules/ble"
+	wificlient "gitlab.com/pantacor/pvwificonnect/pkg/client"
 	"golang.org/x/term"
 )
 
@@ -82,7 +86,7 @@ func CommandProvision() cli.Command {
 }
 
 func runProvision(address, ssid, password string, connectTimeout, stateTimeout time.Duration) error {
-	ctx, cancel := signalContext(context.Background())
+	ctx, cancel := wificlient.SignalContext(context.Background())
 	defer cancel()
 
 	if password == "" {
@@ -93,16 +97,16 @@ func runProvision(address, ssid, password string, connectTimeout, stateTimeout t
 		password = p
 	}
 
-	client, err := connectAndSetup(ctx, address, connectTimeout)
+	client, err := wificlient.ConnectAndSetup(ctx, address, connectTimeout)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = client.Disconnect() }()
 
 	fmt.Fprintf(os.Stderr, "Sending Wi-Fi credentials for %q...\n", ssid)
-	if err := client.SendRPC(RPCPacket{
-		Command: RPCSendWiFi,
-		Data:    EncodeSendWiFi(ssid, password),
+	if err := client.SendRPC(ble.RPCPacket{
+		Command: ble.RPCSendWiFi,
+		Data:    ble.EncodeSendWiFi(ssid, password),
 	}); err != nil {
 		return err
 	}
@@ -111,7 +115,7 @@ func runProvision(address, ssid, password string, connectTimeout, stateTimeout t
 }
 
 // watchProvisioning listens for state transitions after sending Wi-Fi creds.
-func watchProvisioning(ctx context.Context, client *Client, stateTimeout time.Duration) error {
+func watchProvisioning(ctx context.Context, client *wificlient.Client, stateTimeout time.Duration) error {
 	deadline := time.NewTimer(stateTimeout)
 	defer deadline.Stop()
 
@@ -123,29 +127,29 @@ func watchProvisioning(ctx context.Context, client *Client, stateTimeout time.Du
 		case <-deadline.C:
 			return errors.New("timed out waiting for device to finish provisioning")
 		case code := <-client.ErrorEvents():
-			if code != ErrorNone {
+			if code != ble.ErrorNone {
 				lastErr = code
-				fmt.Fprintf(os.Stderr, "Device error: 0x%02x (%s)\n", code, errorName(code))
+				fmt.Fprintf(os.Stderr, "Device error: 0x%02x (%s)\n", code, wificlient.ErrorName(code))
 			}
 		case s := <-client.StateEvents():
-			fmt.Fprintf(os.Stderr, "State: %s\n", stateName(s, true))
+			fmt.Fprintf(os.Stderr, "State: %s\n", wificlient.StateName(s, true))
 			switch s {
-			case StateProvisioned:
+			case ble.StateProvisioned:
 				return printProvisionedResult(ctx, client)
-			case StateAuthorized:
-				if lastErr != ErrorNone {
-					return fmt.Errorf("provisioning failed: %s", errorName(lastErr))
+			case ble.StateAuthorized:
+				if lastErr != ble.ErrorNone {
+					return fmt.Errorf("provisioning failed: %s", wificlient.ErrorName(lastErr))
 				}
 			}
 		case pkt := <-client.ResultEvents():
-			if pkt.Command == RPCSendWiFi {
+			if pkt.Command == ble.RPCSendWiFi {
 				return printRedirect(pkt)
 			}
 		}
 	}
 }
 
-func printProvisionedResult(ctx context.Context, client *Client) error {
+func printProvisionedResult(ctx context.Context, client *wificlient.Client) error {
 	// The redirect URL is delivered via RPC Result; wait briefly for it.
 	wait := time.After(3 * time.Second)
 	for {
@@ -156,15 +160,15 @@ func printProvisionedResult(ctx context.Context, client *Client) error {
 			fmt.Println("Device reports Provisioned. No redirect URL received.")
 			return nil
 		case pkt := <-client.ResultEvents():
-			if pkt.Command == RPCSendWiFi {
+			if pkt.Command == ble.RPCSendWiFi {
 				return printRedirect(pkt)
 			}
 		}
 	}
 }
 
-func printRedirect(pkt RPCPacket) error {
-	items, err := DecodeStringList(pkt.Data)
+func printRedirect(pkt ble.RPCPacket) error {
+	items, err := ble.DecodeStringList(pkt.Data)
 	if err != nil {
 		return err
 	}

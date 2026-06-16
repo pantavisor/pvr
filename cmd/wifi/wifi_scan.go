@@ -1,5 +1,7 @@
+//go:build go1.24
+
 //
-// Copyright 2017-2025  Pantacor Ltd.
+// Copyright 2017-2026  Pantacor Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -26,6 +28,8 @@ import (
 	"time"
 
 	"github.com/urfave/cli"
+	"gitlab.com/pantacor/pvwificonnect/modules/ble"
+	wificlient "gitlab.com/pantacor/pvwificonnect/pkg/client"
 )
 
 // CommandWifiScan : pvr wifi wifi-scan
@@ -58,10 +62,10 @@ func CommandWifiScan() cli.Command {
 }
 
 func runWifiScanCmd(address string, connectTimeout time.Duration) error {
-	ctx, cancel := signalContext(context.Background())
+	ctx, cancel := wificlient.SignalContext(context.Background())
 	defer cancel()
 
-	client, err := connectAndSetup(ctx, address, connectTimeout)
+	client, err := wificlient.ConnectAndSetup(ctx, address, connectTimeout)
 	if err != nil {
 		return err
 	}
@@ -77,9 +81,9 @@ func runWifiScanCmd(address string, connectTimeout time.Duration) error {
 
 // runWifiScan triggers an Improv Wi-Fi scan RPC and collects the per-SSID
 // results. Improv terminates the stream with an empty RPC Result.
-func runWifiScan(ctx context.Context, client *Client) ([]wifiNetwork, error) {
+func runWifiScan(ctx context.Context, client *wificlient.Client) ([]wifiNetwork, error) {
 	fmt.Fprintln(os.Stderr, "Asking device to scan for Wi-Fi networks...")
-	if err := client.SendRPC(RPCPacket{Command: RPCScan}); err != nil {
+	if err := client.SendRPC(ble.RPCPacket{Command: ble.RPCScan}); err != nil {
 		return nil, err
 	}
 
@@ -96,17 +100,17 @@ func runWifiScan(ctx context.Context, client *Client) ([]wifiNetwork, error) {
 			}
 			return sortedNetworks(dedup), nil
 		case code := <-client.ErrorEvents():
-			if code != ErrorNone {
-				return nil, fmt.Errorf("device reported error 0x%02x (%s)", code, errorName(code))
+			if code != ble.ErrorNone {
+				return nil, fmt.Errorf("device reported error 0x%02x (%s)", code, wificlient.ErrorName(code))
 			}
 		case pkt := <-client.ResultEvents():
-			if pkt.Command != RPCScan {
+			if pkt.Command != ble.RPCScan {
 				continue
 			}
 			if len(pkt.Data) == 0 {
 				return sortedNetworks(dedup), nil
 			}
-			items, err := DecodeStringList(pkt.Data)
+			items, err := ble.DecodeStringList(pkt.Data)
 			if err != nil {
 				return nil, err
 			}
@@ -153,6 +157,6 @@ func printNetworks(networks []wifiNetwork) {
 	}
 	fmt.Printf("%-32s %-6s %s\n", "SSID", "RSSI", "AUTH")
 	for _, n := range networks {
-		fmt.Printf("%-32s %-6d %s\n", truncate(n.SSID, 32), n.RSSI, n.Auth)
+		fmt.Printf("%-32s %-6d %s\n", wificlient.Truncate(n.SSID, 32), n.RSSI, n.Auth)
 	}
 }

@@ -1,5 +1,7 @@
+//go:build go1.24
+
 //
-// Copyright 2017-2025  Pantacor Ltd.
+// Copyright 2017-2026  Pantacor Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -25,6 +27,8 @@ import (
 	"time"
 
 	"github.com/urfave/cli"
+	"gitlab.com/pantacor/pvwificonnect/modules/ble"
+	wificlient "gitlab.com/pantacor/pvwificonnect/pkg/client"
 )
 
 // CommandClaimInfo : pvr wifi claim-info
@@ -81,16 +85,16 @@ func CommandClaimInfo() cli.Command {
 }
 
 func runClaimInfo(address string, connectTimeout, retryTimeout, retryInterval time.Duration, jsonOutput bool) error {
-	ctx, cancel := signalContext(context.Background())
+	ctx, cancel := wificlient.SignalContext(context.Background())
 	defer cancel()
 
-	client, err := connectAndSetup(ctx, address, connectTimeout)
+	client, err := wificlient.ConnectAndSetup(ctx, address, connectTimeout)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = client.Disconnect() }()
 
-	if caps, err := client.Capabilities(); err == nil && caps&CapPantavisorClaim == 0 {
+	if caps, err := client.Capabilities(); err == nil && caps&ble.CapPantavisorClaim == 0 {
 		return errors.New("device does not advertise the Pantavisor Claim capability")
 	}
 
@@ -103,18 +107,18 @@ func runClaimInfo(address string, connectTimeout, retryTimeout, retryInterval ti
 
 // fetchClaimInfo sends the Pantavisor Claim RPC and waits for its result,
 // retrying while the device reports that the claim material is not available
-// yet (ErrorUnknown — the device has not reached the hub since boot).
-func fetchClaimInfo(ctx context.Context, client *Client, retryTimeout, retryInterval time.Duration) ([]string, error) {
+// yet (ble.ErrorUnknown — the device has not reached the hub since boot).
+func fetchClaimInfo(ctx context.Context, client *wificlient.Client, retryTimeout, retryInterval time.Duration) ([]string, error) {
 	deadline := time.NewTimer(retryTimeout)
 	defer deadline.Stop()
 
 	for attempt := 1; ; attempt++ {
-		if err := client.SendRPC(RPCPacket{Command: RPCPantavisorClaim}); err != nil {
+		if err := client.SendRPC(ble.RPCPacket{Command: ble.RPCPantavisorClaim}); err != nil {
 			return nil, err
 		}
-		pkt, err := awaitResult(ctx, client, RPCPantavisorClaim, 5*time.Second)
+		pkt, err := wificlient.AwaitResult(ctx, client, ble.RPCPantavisorClaim, 5*time.Second)
 		if err == nil {
-			items, derr := DecodeStringList(pkt.Data)
+			items, derr := ble.DecodeStringList(pkt.Data)
 			if derr != nil {
 				return nil, fmt.Errorf("decode claim result: %w", derr)
 			}

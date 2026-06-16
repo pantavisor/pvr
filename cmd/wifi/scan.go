@@ -1,5 +1,7 @@
+//go:build go1.24
+
 //
-// Copyright 2017-2025  Pantacor Ltd.
+// Copyright 2017-2026  Pantacor Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -29,6 +31,7 @@ import (
 	"time"
 
 	"github.com/urfave/cli"
+	wificlient "gitlab.com/pantacor/pvwificonnect/pkg/client"
 )
 
 // CommandDeviceScan : pvr wifi device-scan
@@ -64,7 +67,7 @@ func CommandDeviceScan() cli.Command {
 }
 
 func runScan(scanTimeout time.Duration, scanJSON bool) error {
-	client, err := NewClient()
+	client, err := wificlient.NewClient()
 	if err != nil {
 		return err
 	}
@@ -78,7 +81,7 @@ func runScan(scanTimeout time.Duration, scanJSON bool) error {
 
 	var (
 		mu      sync.Mutex
-		devices = map[string]ImprovDevice{}
+		devices = map[string]wificlient.ImprovDevice{}
 		printed = map[string]bool{}
 	)
 
@@ -86,7 +89,7 @@ func runScan(scanTimeout time.Duration, scanJSON bool) error {
 		fmt.Fprintf(os.Stderr, "Scanning for Improv devices (press Ctrl+C to stop)...\n")
 	}
 
-	onResult := func(d ImprovDevice) {
+	onResult := func(d wificlient.ImprovDevice) {
 		mu.Lock()
 		devices[d.Address] = d
 		if scanJSON && !printed[d.Address] {
@@ -100,7 +103,7 @@ func runScan(scanTimeout time.Duration, scanJSON bool) error {
 			printed[d.Address] = true
 			mu.Unlock()
 			fmt.Fprintf(os.Stderr, "  found %s (%s) rssi=%d %s\n",
-				d.Address, nameOr(d.Name), d.RSSI, stateHint(d))
+				d.Address, wificlient.NameOr(d.Name), d.RSSI, wificlient.StateHint(d))
 			return
 		}
 		mu.Unlock()
@@ -122,7 +125,7 @@ func runScan(scanTimeout time.Duration, scanJSON bool) error {
 		return nil
 	}
 
-	list := make([]ImprovDevice, 0, len(devices))
+	list := make([]wificlient.ImprovDevice, 0, len(devices))
 	for _, d := range devices {
 		list = append(list, d)
 	}
@@ -133,10 +136,10 @@ func runScan(scanTimeout time.Duration, scanJSON bool) error {
 	for _, d := range list {
 		fmt.Printf("%-19s %-24s %-4d %-12s %s\n",
 			d.Address,
-			truncate(nameOr(d.Name), 24),
+			wificlient.Truncate(wificlient.NameOr(d.Name), 24),
 			d.RSSI,
-			stateName(d.State, d.HasState),
-			strings.Join(capList(d.Capabilities), ", "),
+			wificlient.StateName(d.State, d.HasState),
+			strings.Join(wificlient.CapList(d.Capabilities), ", "),
 		)
 	}
 	return nil
@@ -151,7 +154,7 @@ type jsonDeviceOut struct {
 	Capabilities []string `json:"capabilities,omitempty"`
 }
 
-func jsonDevice(d ImprovDevice) jsonDeviceOut {
+func jsonDevice(d wificlient.ImprovDevice) jsonDeviceOut {
 	out := jsonDeviceOut{
 		Address: d.Address,
 		Name:    d.Name,
@@ -159,72 +162,8 @@ func jsonDevice(d ImprovDevice) jsonDeviceOut {
 	}
 	if d.HasState {
 		out.StateByte = &d.State
-		out.State = stateName(d.State, true)
-		out.Capabilities = capList(d.Capabilities)
+		out.State = wificlient.StateName(d.State, true)
+		out.Capabilities = wificlient.CapList(d.Capabilities)
 	}
 	return out
-}
-
-func nameOr(s string) string {
-	if s == "" {
-		return "(no name)"
-	}
-	return s
-}
-
-func stateHint(d ImprovDevice) string {
-	if !d.HasState {
-		return ""
-	}
-	return "state=" + stateName(d.State, true)
-}
-
-func stateName(b byte, known bool) string {
-	if !known {
-		return "?"
-	}
-	switch b {
-	case StateAuthRequired:
-		return "auth-required"
-	case StateAuthorized:
-		return "authorized"
-	case StateProvisioning:
-		return "provisioning"
-	case StateProvisioned:
-		return "provisioned"
-	}
-	return fmt.Sprintf("0x%02x", b)
-}
-
-func capList(caps byte) []string {
-	if caps == 0 {
-		return nil
-	}
-	var out []string
-	if caps&CapIdentify != 0 {
-		out = append(out, "identify")
-	}
-	if caps&CapDeviceInfo != 0 {
-		out = append(out, "device-info")
-	}
-	if caps&CapScan != 0 {
-		out = append(out, "wifi-scan")
-	}
-	if caps&CapHostname != 0 {
-		out = append(out, "hostname")
-	}
-	if caps&CapPantavisorClaim != 0 {
-		out = append(out, "pantavisor-claim")
-	}
-	return out
-}
-
-func truncate(s string, n int) string {
-	if len(s) <= n {
-		return s
-	}
-	if n < 1 {
-		return ""
-	}
-	return s[:n-1] + "…"
 }

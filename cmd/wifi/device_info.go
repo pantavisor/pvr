@@ -1,5 +1,7 @@
+//go:build go1.24
+
 //
-// Copyright 2017-2025  Pantacor Ltd.
+// Copyright 2017-2026  Pantacor Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,6 +24,8 @@ import (
 	"time"
 
 	"github.com/urfave/cli"
+	"gitlab.com/pantacor/pvwificonnect/modules/ble"
+	wificlient "gitlab.com/pantacor/pvwificonnect/pkg/client"
 )
 
 // CommandDeviceInfo : pvr wifi device-info
@@ -54,23 +58,23 @@ func CommandDeviceInfo() cli.Command {
 }
 
 func runDeviceInfo(address string, connectTimeout time.Duration) error {
-	ctx, cancel := signalContext(context.Background())
+	ctx, cancel := wificlient.SignalContext(context.Background())
 	defer cancel()
 
-	client, err := connectAndSetup(ctx, address, connectTimeout)
+	client, err := wificlient.ConnectAndSetup(ctx, address, connectTimeout)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = client.Disconnect() }()
 
-	if err := client.SendRPC(RPCPacket{Command: RPCDeviceInfo}); err != nil {
+	if err := client.SendRPC(ble.RPCPacket{Command: ble.RPCDeviceInfo}); err != nil {
 		return err
 	}
-	pkt, err := awaitResult(ctx, client, RPCDeviceInfo, 5*time.Second)
+	pkt, err := wificlient.AwaitResult(ctx, client, ble.RPCDeviceInfo, 5*time.Second)
 	if err != nil {
 		return err
 	}
-	items, err := DecodeStringList(pkt.Data)
+	items, err := ble.DecodeStringList(pkt.Data)
 	if err != nil {
 		return fmt.Errorf("decode device-info: %w", err)
 	}

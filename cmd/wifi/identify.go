@@ -1,5 +1,7 @@
+//go:build go1.24
+
 //
-// Copyright 2017-2025  Pantacor Ltd.
+// Copyright 2017-2026  Pantacor Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,6 +25,8 @@ import (
 	"time"
 
 	"github.com/urfave/cli"
+	"gitlab.com/pantacor/pvwificonnect/modules/ble"
+	wificlient "gitlab.com/pantacor/pvwificonnect/pkg/client"
 )
 
 // CommandIdentify : pvr wifi identify
@@ -55,20 +59,20 @@ func CommandIdentify() cli.Command {
 }
 
 func runIdentify(address string, connectTimeout time.Duration) error {
-	ctx, cancel := signalContext(context.Background())
+	ctx, cancel := wificlient.SignalContext(context.Background())
 	defer cancel()
 
-	client, err := connectAndSetup(ctx, address, connectTimeout)
+	client, err := wificlient.ConnectAndSetup(ctx, address, connectTimeout)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = client.Disconnect() }()
 
 	fmt.Fprintln(os.Stderr, "Sending Identify...")
-	if err := client.SendRPC(RPCPacket{Command: RPCIdentify}); err != nil {
+	if err := client.SendRPC(ble.RPCPacket{Command: ble.RPCIdentify}); err != nil {
 		return err
 	}
-	if _, err := awaitResult(ctx, client, RPCIdentify, 5*time.Second); err != nil {
+	if _, err := wificlient.AwaitResult(ctx, client, ble.RPCIdentify, 5*time.Second); err != nil {
 		return err
 	}
 	fmt.Println("Identify acknowledged.")

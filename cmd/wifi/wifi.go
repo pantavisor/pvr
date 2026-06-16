@@ -1,5 +1,5 @@
 //
-// Copyright 2017-2025  Pantacor Ltd.
+// Copyright 2017-2026  Pantacor Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -33,15 +33,7 @@ func CommandWifi() cli.Command {
 			"5.Get or set the device hostname\n" +
 			"6.Scan for Wi-Fi networks from the device\n" +
 			"7.Read Pantavisor claim material",
-		Subcommands: []cli.Command{
-			CommandDeviceScan(),
-			CommandProvision(),
-			CommandIdentify(),
-			CommandDeviceInfo(),
-			CommandHostname(),
-			CommandWifiScan(),
-			CommandClaimInfo(),
-		},
+		Subcommands: wifiSubcommands(),
 	}
 	return cmd
 }
