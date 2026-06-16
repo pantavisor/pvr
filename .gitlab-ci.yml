@@ -12,6 +12,11 @@ services:
 variables:
     CONTAINER_IMAGE: registry.gitlab.com/$CI_PROJECT_PATH
     DOCKER_DRIVER: overlay2
+    # buildkit wraps even single-platform builds in an OCI image index with a
+    # provenance attestation. pvr self-upgrade reads plain image manifests only
+    # (libpvr/dockerlib_legacy.go), so the index makes it fail with
+    # "image not found". Disable the default attestations -> plain manifest.
+    BUILDX_NO_DEFAULT_ATTESTATIONS: "1"
 
 # Auto-retry transient CI infrastructure failures (slow dind startup, runner
 # hiccups, intermittent registry auth blips when pulling dependency images).
@@ -55,11 +60,10 @@ build-tags:
     stage: build
     script:
         - docker pull $CONTAINER_IMAGE:stable || true
-        - docker build --build-arg DOCKERTAG=stable --cache-from $CONTAINER_IMAGE:stable --tag $CONTAINER_IMAGE:$CI_COMMIT_SHORT_SHA --tag $CONTAINER_IMAGE:stable .
-        - test -n "$CI_COMMIT_TAG" && docker tag $CONTAINER_IMAGE:$CI_COMMIT_TAG || true
+        - docker build --build-arg DOCKERTAG=stable --cache-from $CONTAINER_IMAGE:stable --tag $CONTAINER_IMAGE:$CI_COMMIT_SHORT_SHA --tag $CONTAINER_IMAGE:stable --tag $CONTAINER_IMAGE:$CI_COMMIT_TAG .
         - docker push $CONTAINER_IMAGE:$CI_COMMIT_SHORT_SHA
         - docker push $CONTAINER_IMAGE:stable
-        - test -n "$CI_COMMIT_TAG" && docker push $CONTAINER_IMAGE:$CI_COMMIT_TAG || true
+        - docker push $CONTAINER_IMAGE:$CI_COMMIT_TAG
         - tempdir=`mktemp -d`
         - docker run --rm $CONTAINER_IMAGE:$CI_COMMIT_SHORT_SHA| tar -C $tempdir -x
         - tar -cvzf pvr-$CI_COMMIT_TAG.linux.amd64.tar.gz -C $tempdir/bin/linux_amd64 pvr

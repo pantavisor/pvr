@@ -1,4 +1,4 @@
-//go:build !go1.22
+//go:build !go1.22 || !linux
 
 //
 // Copyright 2017-2026  Pantacor Ltd.
@@ -30,7 +30,7 @@ func wifiSubcommands() []cli.Command {
 			Name:   "wifi",
 			Hidden: true,
 			Action: func(c *cli.Context) error {
-				return errors.New("pvr wifi requires Go 1.22 or later")
+				return errors.New("pvr wifi is only available on Linux builds (Go 1.22+)")
 			},
 		},
 	}

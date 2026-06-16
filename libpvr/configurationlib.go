@@ -1,5 +1,5 @@
 //
-// Copyright 2017-2023  Pantacor Ltd.
+// Copyright 2017-2026  Pantacor Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -27,8 +27,13 @@ import (
 )
 
 const (
-	defaultDistributionTag = "develop"
+	defaultDistributionTag = "latest"
 	defaultSpec            = "1"
+
+	// legacyDistributionTag is the tag pvr defaulted to before the move to
+	// "latest". Configs still carrying it are migrated transparently so users
+	// that were tracking "develop" follow "latest" from now on.
+	legacyDistributionTag = "develop"
 )
 
 // PvrGlobalConfig define all the posible general configuration for pvr
@@ -56,6 +61,15 @@ func LoadConfiguration(filePath string) (*PvrGlobalConfig, error) {
 		err = pvjson.Unmarshal(*fileContent, &config)
 		if err != nil {
 			return nil, errors.New("JSON Unmarshal error parsing config file in LoadConfiguration (" + filePath + "): " + err.Error())
+		}
+
+		// Migrate the deprecated "develop" tag to "latest" and persist it so
+		// users are durably moved off the develop channel.
+		if config.DistributionTag == legacyDistributionTag {
+			config.DistributionTag = defaultDistributionTag
+			if err = WriteConfiguration(filePath, &config); err != nil {
+				return nil, errors.New("OS error migrating DistributionTag in LoadConfiguration: " + err.Error())
+			}
 		}
 	}
 

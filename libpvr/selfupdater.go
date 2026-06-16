@@ -102,8 +102,21 @@ func UpdateIfNecessary(c *cli.Context) error {
 	return nil
 }
 
-// UpdatePvr Take the username, password and configuration File (aka: ~/.pvr) and update the pvr binary
+// UpdatePvr updates the pvr binary. It downloads from the GitLab generic
+// package registry first (no docker, no auth) and falls back to pulling the
+// docker image if that fails (unsupported platform, network, etc).
 func (pvr *Pvr) UpdatePvr(username, password string, silent, force bool) error {
+	err := pvr.updateFromPackage(silent, force)
+	if err == nil {
+		return nil
+	}
+
+	fmt.Fprintf(os.Stderr, "Package update unavailable (%v); falling back to docker registry...\r\n", err)
+	return pvr.updatePvrFromDocker(username, password, silent, force)
+}
+
+// updatePvrFromDocker takes the username, password and configuration File (aka: ~/.pvr) and update the pvr binary
+func (pvr *Pvr) updatePvrFromDocker(username, password string, silent, force bool) error {
 	currentDigest, previousDigest, img, err := pvr.getDigetsDifference(username, password)
 	if err != nil {
 		return err
@@ -259,7 +272,11 @@ func (pvr *Pvr) getDockerContent(outputDir string, img v1.Image) (string, string
 func updatePvrBinary(extractPath string) error {
 	platform := GetPlatform()
 	binLocation := filepath.Join(extractPath, "/pkg/bin/", platform, pvrCmd)
+	return installBinary(binLocation)
+}
 
+// installBinary swaps the running pvr executable for the one at binLocation.
+func installBinary(binLocation string) error {
 	pvrPath, err := getExecutableFilePath()
 	if err != nil {
 		return err
