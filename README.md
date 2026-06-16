@@ -697,6 +697,111 @@ example7\$ pvr device logs --platform=linux,windows
 
 ```
 
+### PVR WiFi Commands
+
+`pvr wifi` is a cross-platform companion for provisioning devices that speak
+the [Improv Wi-Fi](https://www.improv-wifi.com/ble/) protocol over BLE.
+It runs on Linux (BlueZ), macOS (CoreBluetooth), and Windows (WinRT).
+
+On Linux, access to the Bluetooth adapter usually requires membership in the
+`bluetooth` group, or running as root.
+
+#### pvr wifi device-scan
+
+Scan for nearby BLE devices advertising the Improv Wi-Fi service.
+
+```
+example: $ pvr wifi device-scan
+Scanning for Improv devices (press Ctrl+C to stop)...
+  found AA:BB:CC:DD:EE:FF (pvwifi-kitchen) rssi=-52 state=authorized
+
+ADDRESS             NAME                     RSSI STATE        CAPABILITIES
+AA:BB:CC:DD:EE:FF   pvwifi-kitchen           -52  authorized   identify, device-info, wifi-scan, hostname
+```
+
+Options:
+
+* `--timeout`: stop scanning after this duration (`0` = forever, default `15s`).
+* `--json`: emit one JSON object per discovered device.
+
+#### pvr wifi provision <address> --ssid <SSID>
+
+Provision an Improv BLE device with Wi-Fi credentials.
+
+```
+example: $ pvr wifi provision AA:BB:CC:DD:EE:FF --ssid MyNetwork
+Password for "MyNetwork": ****
+```
+
+Options:
+
+* `--ssid` (required): Wi-Fi SSID to configure.
+* `--password`: Wi-Fi password. If omitted, the password is prompted interactively.
+* `--connect-timeout`: time to wait for BLE connect (default `20s`).
+* `--state-timeout`: time to wait for Wi-Fi connection to complete (default `60s`).
+
+#### pvr wifi identify <address>
+
+Ask a device to identify itself (e.g. blink an LED or beep).
+
+```
+example: $ pvr wifi identify AA:BB:CC:DD:EE:FF
+```
+
+#### pvr wifi device-info <address>
+
+Read firmware and hardware information from the device.
+
+```
+example: $ pvr wifi device-info AA:BB:CC:DD:EE:FF
+firmware:    Pantavisor
+version:     0testpr-7-g39e7165-260224 | Pantavisor Remix Distro (021) (rev 5)
+hardware:    Raspberry Pi 3 Model B Plus Rev 1.4
+device-name: pvwifi-kitchen
+```
+
+#### pvr wifi hostname <address> [name]
+
+Get or set the device hostname. Without `name`, the current hostname is printed.
+
+```
+example: $ pvr wifi hostname AA:BB:CC:DD:EE:FF
+pvwifi-kitchen
+
+example: $ pvr wifi hostname AA:BB:CC:DD:EE:FF kitchen
+```
+
+#### pvr wifi wifi-scan <address>
+
+Ask the device to scan for visible Wi-Fi networks.
+
+```
+example: $ pvr wifi wifi-scan AA:BB:CC:DD:EE:FF
+SSID                             RSSI   AUTH
+MyNetwork                        -42    WPA2
+GuestNetwork                     -67    OPEN
+```
+
+#### pvr wifi claim-info <address>
+
+Read Pantavisor claim material from the device. The material only exists after
+the device's first rendezvous with Pantacor Hub; until then the command retries
+up to `--retry-timeout`.
+
+```
+example: $ pvr wifi claim-info AA:BB:CC:DD:EE:FF
+device-id:   67a0f3c2b1d4e5f60718293a
+challenge:   brave-falcon-1234
+status:      unclaimed
+```
+
+Options:
+
+* `--connect-timeout`: time to wait for BLE connect (default `20s`).
+* `--retry-timeout`: total retry time while claim material is not ready (default `60s`).
+* `--retry-interval`: delay between retries (default `5s`).
+* `--json`: print result as JSON.
+
 ### pvr export <FILENAME.tar.gz>
 
 pvr export : Exports repo into single file (tarball)

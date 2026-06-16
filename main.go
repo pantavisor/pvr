@@ -36,6 +36,7 @@ import (
 	"gitlab.com/pantacor/pvr/cmd/dm"
 	"gitlab.com/pantacor/pvr/cmd/fakeroot"
 	"gitlab.com/pantacor/pvr/cmd/sig"
+	"gitlab.com/pantacor/pvr/cmd/wifi"
 	"gitlab.com/pantacor/pvr/libpvr"
 )
 
@@ -267,6 +268,7 @@ func main() {
 		app.CommandApp(),
 		sig.CommandSig(),
 		fakeroot.CommandFakeroot(),
+		wifi.CommandWifi(),
 	}
 
 	err := cliApp.Run(os.Args)
