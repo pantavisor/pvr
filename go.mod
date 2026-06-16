@@ -30,7 +30,7 @@ require (
 	github.com/udhos/equalfile v0.3.0
 	github.com/urfave/cli v1.22.16
 	gitlab.com/pantacor/pantahub-base v0.0.0-20220922224408-d1e8099e66c0
-	gitlab.com/pantacor/pvwificonnect v1.6.5
+	gitlab.com/pantacor/pvwificonnect v1.7.0
 	go.mongodb.org/mongo-driver v1.9.0
 	golang.org/x/term v0.20.0
 	gopkg.in/cheggaaa/pb.v1 v1.0.28
@@ -182,5 +182,3 @@ replace github.com/docker/cli => github.com/docker/cli v20.10.9+incompatible
 replace github.com/rogpeppe/go-internal => github.com/rogpeppe/go-internal v1.9.0
 
 replace github.com/genuinetools/reg => github.com/pantacor/reg v0.0.0-20240122195051-0126d67d2189
-
-replace gitlab.com/pantacor/pvwificonnect => /home/projects/pantacor/wifi/pvwificonnect
