@@ -1,4 +1,4 @@
-//go:build go1.24
+//go:build go1.22
 
 //
 // Copyright 2017-2026  Pantacor Ltd.
@@ -20,13 +20,10 @@ package wifi
 
 import (
 	"context"
-	"fmt"
-	"os"
 	"time"
 
 	"github.com/urfave/cli"
-	"gitlab.com/pantacor/pvwificonnect/modules/ble"
-	wificlient "gitlab.com/pantacor/pvwificonnect/pkg/client"
+	wificlient "gitlab.com/pantacor/pvwificonnect/modules/client"
 )
 
 // CommandIdentify : pvr wifi identify
@@ -52,29 +49,11 @@ func CommandIdentify() cli.Command {
 			if c.NArg() < 1 {
 				return cli.NewExitError("identify needs BLE address argument. See --help", 2)
 			}
-			return runIdentify(c.Args().First(), identifyConnectWait)
+			return wificlient.Identify(context.Background(), wificlient.IdentifyArgs{
+				Address:        c.Args().First(),
+				ConnectTimeout: identifyConnectWait,
+			})
 		},
 	}
 	return cmd
-}
-
-func runIdentify(address string, connectTimeout time.Duration) error {
-	ctx, cancel := wificlient.SignalContext(context.Background())
-	defer cancel()
-
-	client, err := wificlient.ConnectAndSetup(ctx, address, connectTimeout)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = client.Disconnect() }()
-
-	fmt.Fprintln(os.Stderr, "Sending Identify...")
-	if err := client.SendRPC(ble.RPCPacket{Command: ble.RPCIdentify}); err != nil {
-		return err
-	}
-	if _, err := wificlient.AwaitResult(ctx, client, ble.RPCIdentify, 5*time.Second); err != nil {
-		return err
-	}
-	fmt.Println("Identify acknowledged.")
-	return nil
 }

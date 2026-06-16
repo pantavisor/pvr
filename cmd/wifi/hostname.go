@@ -1,4 +1,4 @@
-//go:build go1.24
+//go:build go1.22
 
 //
 // Copyright 2017-2026  Pantacor Ltd.
@@ -20,13 +20,10 @@ package wifi
 
 import (
 	"context"
-	"fmt"
-	"os"
 	"time"
 
 	"github.com/urfave/cli"
-	"gitlab.com/pantacor/pvwificonnect/modules/ble"
-	wificlient "gitlab.com/pantacor/pvwificonnect/pkg/client"
+	wificlient "gitlab.com/pantacor/pvwificonnect/modules/client"
 )
 
 // CommandHostname : pvr wifi hostname
@@ -57,42 +54,12 @@ func CommandHostname() cli.Command {
 			if c.NArg() >= 2 {
 				name = c.Args().Get(1)
 			}
-			return runHostname(c.Args().First(), name, hostnameConnectWait)
+			return wificlient.Hostname(context.Background(), wificlient.HostnameArgs{
+				Address:        c.Args().First(),
+				Name:           name,
+				ConnectTimeout: hostnameConnectWait,
+			})
 		},
 	}
 	return cmd
-}
-
-func runHostname(address, name string, connectTimeout time.Duration) error {
-	ctx, cancel := wificlient.SignalContext(context.Background())
-	defer cancel()
-
-	client, err := wificlient.ConnectAndSetup(ctx, address, connectTimeout)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = client.Disconnect() }()
-
-	var data []byte
-	if name != "" {
-		fmt.Fprintf(os.Stderr, "Setting hostname to %q...\n", name)
-		data = ble.EncodeStringList([]string{name})
-	}
-	if err := client.SendRPC(ble.RPCPacket{Command: ble.RPCHostname, Data: data}); err != nil {
-		return err
-	}
-	pkt, err := wificlient.AwaitResult(ctx, client, ble.RPCHostname, 5*time.Second)
-	if err != nil {
-		return err
-	}
-	items, err := ble.DecodeStringList(pkt.Data)
-	if err != nil {
-		return fmt.Errorf("decode hostname: %w", err)
-	}
-	if len(items) == 0 {
-		fmt.Println("(no hostname reported)")
-		return nil
-	}
-	fmt.Println(items[0])
-	return nil
 }

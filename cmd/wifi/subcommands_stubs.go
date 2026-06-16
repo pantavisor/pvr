@@ -1,4 +1,4 @@
-//go:build !go1.24
+//go:build !go1.22
 
 //
 // Copyright 2017-2026  Pantacor Ltd.

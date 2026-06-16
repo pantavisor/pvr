@@ -1,4 +1,4 @@
-//go:build go1.24
+//go:build go1.22
 
 //
 // Copyright 2017-2026  Pantacor Ltd.
@@ -20,12 +20,10 @@ package wifi
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/urfave/cli"
-	"gitlab.com/pantacor/pvwificonnect/modules/ble"
-	wificlient "gitlab.com/pantacor/pvwificonnect/pkg/client"
+	wificlient "gitlab.com/pantacor/pvwificonnect/modules/client"
 )
 
 // CommandDeviceInfo : pvr wifi device-info
@@ -51,40 +49,11 @@ func CommandDeviceInfo() cli.Command {
 			if c.NArg() < 1 {
 				return cli.NewExitError("device-info needs BLE address argument. See --help", 2)
 			}
-			return runDeviceInfo(c.Args().First(), deviceInfoConnectWait)
+			return wificlient.DeviceInfo(context.Background(), wificlient.DeviceInfoArgs{
+				Address:        c.Args().First(),
+				ConnectTimeout: deviceInfoConnectWait,
+			})
 		},
 	}
 	return cmd
-}
-
-func runDeviceInfo(address string, connectTimeout time.Duration) error {
-	ctx, cancel := wificlient.SignalContext(context.Background())
-	defer cancel()
-
-	client, err := wificlient.ConnectAndSetup(ctx, address, connectTimeout)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = client.Disconnect() }()
-
-	if err := client.SendRPC(ble.RPCPacket{Command: ble.RPCDeviceInfo}); err != nil {
-		return err
-	}
-	pkt, err := wificlient.AwaitResult(ctx, client, ble.RPCDeviceInfo, 5*time.Second)
-	if err != nil {
-		return err
-	}
-	items, err := ble.DecodeStringList(pkt.Data)
-	if err != nil {
-		return fmt.Errorf("decode device-info: %w", err)
-	}
-	labels := []string{"firmware", "version", "hardware", "device-name"}
-	for i, label := range labels {
-		val := ""
-		if i < len(items) {
-			val = items[i]
-		}
-		fmt.Printf("%-12s %s\n", label+":", val)
-	}
-	return nil
 }

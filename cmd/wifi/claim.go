@@ -1,4 +1,4 @@
-//go:build go1.24
+//go:build go1.22
 
 //
 // Copyright 2017-2026  Pantacor Ltd.
@@ -20,15 +20,10 @@ package wifi
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
-	"fmt"
-	"os"
 	"time"
 
 	"github.com/urfave/cli"
-	"gitlab.com/pantacor/pvwificonnect/modules/ble"
-	wificlient "gitlab.com/pantacor/pvwificonnect/pkg/client"
+	wificlient "gitlab.com/pantacor/pvwificonnect/modules/client"
 )
 
 // CommandClaimInfo : pvr wifi claim-info
@@ -78,92 +73,14 @@ func CommandClaimInfo() cli.Command {
 			if c.NArg() < 1 {
 				return cli.NewExitError("claim-info needs BLE address argument. See --help", 2)
 			}
-			return runClaimInfo(c.Args().First(), claimConnectWait, claimRetryWait, claimRetryInterval, claimJSON)
+			return wificlient.ClaimInfo(context.Background(), wificlient.ClaimInfoArgs{
+				Address:        c.Args().First(),
+				ConnectTimeout: claimConnectWait,
+				RetryTimeout:   claimRetryWait,
+				RetryInterval:  claimRetryInterval,
+				JSON:           claimJSON,
+			})
 		},
 	}
 	return cmd
-}
-
-func runClaimInfo(address string, connectTimeout, retryTimeout, retryInterval time.Duration, jsonOutput bool) error {
-	ctx, cancel := wificlient.SignalContext(context.Background())
-	defer cancel()
-
-	client, err := wificlient.ConnectAndSetup(ctx, address, connectTimeout)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = client.Disconnect() }()
-
-	if caps, err := client.Capabilities(); err == nil && caps&ble.CapPantavisorClaim == 0 {
-		return errors.New("device does not advertise the Pantavisor Claim capability")
-	}
-
-	items, err := fetchClaimInfo(ctx, client, retryTimeout, retryInterval)
-	if err != nil {
-		return err
-	}
-	return printClaimInfo(items, jsonOutput)
-}
-
-// fetchClaimInfo sends the Pantavisor Claim RPC and waits for its result,
-// retrying while the device reports that the claim material is not available
-// yet (ble.ErrorUnknown — the device has not reached the hub since boot).
-func fetchClaimInfo(ctx context.Context, client *wificlient.Client, retryTimeout, retryInterval time.Duration) ([]string, error) {
-	deadline := time.NewTimer(retryTimeout)
-	defer deadline.Stop()
-
-	for attempt := 1; ; attempt++ {
-		if err := client.SendRPC(ble.RPCPacket{Command: ble.RPCPantavisorClaim}); err != nil {
-			return nil, err
-		}
-		pkt, err := wificlient.AwaitResult(ctx, client, ble.RPCPantavisorClaim, 5*time.Second)
-		if err == nil {
-			items, derr := ble.DecodeStringList(pkt.Data)
-			if derr != nil {
-				return nil, fmt.Errorf("decode claim result: %w", derr)
-			}
-			if len(items) == 0 {
-				return nil, errors.New("device returned an empty claim result")
-			}
-			return items, nil
-		}
-		if ctx.Err() != nil {
-			return nil, ctx.Err()
-		}
-
-		fmt.Fprintf(os.Stderr, "Claim material not ready (attempt %d): %v\n", attempt, err)
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		case <-deadline.C:
-			return nil, errors.New("timed out waiting for claim material; has the device reached the hub yet?")
-		case <-time.After(retryInterval):
-		}
-	}
-}
-
-func printClaimInfo(items []string, jsonOutput bool) error {
-	deviceID := items[0]
-	challenge := ""
-	if len(items) > 1 {
-		challenge = items[1]
-	}
-	claimed := challenge == ""
-
-	if jsonOutput {
-		return json.NewEncoder(os.Stdout).Encode(struct {
-			DeviceID  string `json:"device_id"`
-			Challenge string `json:"challenge,omitempty"`
-			Claimed   bool   `json:"claimed"`
-		}{deviceID, challenge, claimed})
-	}
-
-	fmt.Printf("%-12s %s\n", "device-id:", deviceID)
-	if claimed {
-		fmt.Printf("%-12s %s\n", "status:", "already claimed")
-	} else {
-		fmt.Printf("%-12s %s\n", "challenge:", challenge)
-		fmt.Printf("%-12s %s\n", "status:", "unclaimed")
-	}
-	return nil
 }

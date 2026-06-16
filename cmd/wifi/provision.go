@@ -1,4 +1,4 @@
-//go:build go1.24
+//go:build go1.22
 
 //
 // Copyright 2017-2026  Pantacor Ltd.
@@ -20,16 +20,10 @@ package wifi
 
 import (
 	"context"
-	"errors"
-	"fmt"
-	"os"
-	"strings"
 	"time"
 
 	"github.com/urfave/cli"
-	"gitlab.com/pantacor/pvwificonnect/modules/ble"
-	wificlient "gitlab.com/pantacor/pvwificonnect/pkg/client"
-	"golang.org/x/term"
+	wificlient "gitlab.com/pantacor/pvwificonnect/modules/client"
 )
 
 // CommandProvision : pvr wifi provision
@@ -79,127 +73,14 @@ func CommandProvision() cli.Command {
 			if provSSID == "" {
 				return cli.NewExitError("--ssid is required", 2)
 			}
-			return runProvision(c.Args().First(), provSSID, provPassword, provConnectWait, provStateWait)
+			return wificlient.Provision(context.Background(), wificlient.ProvisionArgs{
+				Address:        c.Args().First(),
+				SSID:           provSSID,
+				Password:       provPassword,
+				ConnectTimeout: provConnectWait,
+				StateTimeout:   provStateWait,
+			})
 		},
 	}
 	return cmd
-}
-
-func runProvision(address, ssid, password string, connectTimeout, stateTimeout time.Duration) error {
-	ctx, cancel := wificlient.SignalContext(context.Background())
-	defer cancel()
-
-	if password == "" {
-		p, err := readPasswordPrompt(fmt.Sprintf("Password for %q: ", ssid))
-		if err != nil {
-			return err
-		}
-		password = p
-	}
-
-	client, err := wificlient.ConnectAndSetup(ctx, address, connectTimeout)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = client.Disconnect() }()
-
-	fmt.Fprintf(os.Stderr, "Sending Wi-Fi credentials for %q...\n", ssid)
-	if err := client.SendRPC(ble.RPCPacket{
-		Command: ble.RPCSendWiFi,
-		Data:    ble.EncodeSendWiFi(ssid, password),
-	}); err != nil {
-		return err
-	}
-
-	return watchProvisioning(ctx, client, stateTimeout)
-}
-
-// watchProvisioning listens for state transitions after sending Wi-Fi creds.
-func watchProvisioning(ctx context.Context, client *wificlient.Client, stateTimeout time.Duration) error {
-	deadline := time.NewTimer(stateTimeout)
-	defer deadline.Stop()
-
-	var lastErr byte
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-deadline.C:
-			return errors.New("timed out waiting for device to finish provisioning")
-		case code := <-client.ErrorEvents():
-			if code != ble.ErrorNone {
-				lastErr = code
-				fmt.Fprintf(os.Stderr, "Device error: 0x%02x (%s)\n", code, wificlient.ErrorName(code))
-			}
-		case s := <-client.StateEvents():
-			fmt.Fprintf(os.Stderr, "State: %s\n", wificlient.StateName(s, true))
-			switch s {
-			case ble.StateProvisioned:
-				return printProvisionedResult(ctx, client)
-			case ble.StateAuthorized:
-				if lastErr != ble.ErrorNone {
-					return fmt.Errorf("provisioning failed: %s", wificlient.ErrorName(lastErr))
-				}
-			}
-		case pkt := <-client.ResultEvents():
-			if pkt.Command == ble.RPCSendWiFi {
-				return printRedirect(pkt)
-			}
-		}
-	}
-}
-
-func printProvisionedResult(ctx context.Context, client *wificlient.Client) error {
-	// The redirect URL is delivered via RPC Result; wait briefly for it.
-	wait := time.After(3 * time.Second)
-	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		case <-wait:
-			fmt.Println("Device reports Provisioned. No redirect URL received.")
-			return nil
-		case pkt := <-client.ResultEvents():
-			if pkt.Command == ble.RPCSendWiFi {
-				return printRedirect(pkt)
-			}
-		}
-	}
-}
-
-func printRedirect(pkt ble.RPCPacket) error {
-	items, err := ble.DecodeStringList(pkt.Data)
-	if err != nil {
-		return err
-	}
-	url := ""
-	if len(items) > 0 {
-		url = items[0]
-	}
-	if url != "" {
-		fmt.Printf("Provisioned. Device captive portal: %s\n", url)
-	} else {
-		fmt.Println("Provisioned.")
-	}
-	return nil
-}
-
-func readPasswordPrompt(prompt string) (string, error) {
-	fmt.Fprint(os.Stderr, prompt)
-	fd := int(os.Stdin.Fd())
-	if !term.IsTerminal(fd) {
-		var line string
-		if _, err := fmt.Fscanln(os.Stdin, &line); err != nil {
-			return "", err
-		}
-		return line, nil
-	}
-	b, err := term.ReadPassword(fd)
-	fmt.Fprintln(os.Stderr)
-	if err != nil {
-		return "", err
-	}
-	// term.ReadPassword already strips the trailing newline; don't TrimSpace
-	// because passwords may legitimately contain leading/trailing whitespace.
-	return strings.TrimRight(string(b), "\r"), nil
 }
