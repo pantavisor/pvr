@@ -78,6 +78,24 @@ If you prefer to build `pvr` from source, follow these steps:
     ```
     This will compile the `pvr` executable and place it in `~/bin/pvr`. Ensure `~/bin` is in your system's PATH.
 
+### Go Install (Go 1.22+)
+
+If you have Go 1.22 or higher installed, you can install `pvr` directly from the GitLab repository:
+
+```bash
+go install gitlab.com/pantacor/pvr@latest
+```
+
+This downloads, builds, and installs the `pvr` binary to your Go bin directory (usually `~/go/bin/pvr`). Ensure your Go bin directory is in your system's PATH.
+
+To install a specific version:
+
+```bash
+go install gitlab.com/pantacor/pvr@v050
+```
+
+> **Note:** `go install` is available starting from version `v050`.
+
 ### Using the Install Script
 
 For a quick and automated installation, you can use the `install.sh` script (or `install.ps1` on Windows). This script will automatically detect your operating system and architecture, find the latest stable version of `pvr` from the GitLab package registry, download it, and install it to `~/.local/bin` (or `$HOME\.local\bin` on Windows).
@@ -590,6 +608,80 @@ example2$ pvr device set 5df243ff0be81900099855e6 a=1 b=2
 }
 device-meta field Updated Successfully
 
+```
+
+#### pvr device tty [options] <subcommand> [args]
+
+Interact with a Pantavisor device via its USB serial console. Connects to the device's debug shell over a USB serial port (ttyUSB or ttyACM). Uses a pure Go implementation — no external tools like `picocom` required.
+
+By default, `pvr device tty` connects to `/dev/ttyUSB0`. Use `--device` or `-d` to specify a different port. Use `--verbose probe` to scan all available USB serial ports.
+
+**Subcommands:**
+
+| Subcommand | Description |
+|---|---|
+| `shell` | Interactive serial console (default when no subcommand) |
+| `run CMD` | Execute a command on the device |
+| `ps` | List containers (runs `lxc-ls` + `pvcontrol ls`) |
+| `log [PLAT [N]]` | Tail device logs (default: `pantavisor` platform, 30 lines) |
+| `grep PATTERN` | Search device logs for PATTERN |
+| `probe` | Scan `/dev/ttyUSB*` and `/dev/ttyACM*` for active Pantavisor devices |
+| `help` | Show this help |
+
+**Options:**
+
+| Flag | Description |
+|---|---|
+| `-d PORT` | Serial port path (e.g. `/dev/ttyUSB0`). Defaults to `/dev/ttyUSB0` |
+| `-v, --verbose` | Show verbose probe output |
+
+**Interactive shell:**
+
+Type commands directly. Press **Ctrl+A** then **Ctrl+X** to exit (same as `picocom`).
+
+**Examples:**
+
+```bash
+# Interactive shell (connects to /dev/ttyUSB0 by default)
+$ pvr device tty
+Connected to /dev/ttyUSB0 (115200 8N1, raw)
+Type Ctrl+A then Ctrl+X to exit
+
+# Interactive shell with specific port
+$ pvr device tty -d /dev/ttyUSB1
+
+# Execute a single command
+$ pvr device tty run uname -r
+6.6.63-v8
+
+# List containers
+$ pvr device tty ps
+os           
+pv-avahi     
+pvr-sdk      
+pvwificonnect
+
+# Tail device logs
+$ pvr device tty log
+[pantavisor] 8350 INFO -- [pv-xconnect-out]: Periodic reconciliation check...
+[pantavisor] 8350 INFO -- [pv-xconnect-out]: Connected to pv-ctrl
+...
+
+# Tail logs for a specific platform
+$ pvr device tty log pvr-sdk 10
+
+# Search logs
+$ pvr device tty grep "error"
+
+# Scan available USB serial ports
+$ pvr device tty probe
+/dev/ttyUSB0
+/dev/ttyUSB1
+
+# Scan with verbose output
+$ pvr device tty --verbose probe
+  /dev/ttyUSB0: PROMPT FOUND
+  /dev/ttyUSB1: PROMPT FOUND
 ```
 
 #### pvr device logs [--template=<short|json|<gotemplate>] <deviceid|devicenick>[/source][@level][#platform]
