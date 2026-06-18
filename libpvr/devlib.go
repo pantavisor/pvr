@@ -90,6 +90,7 @@ func Scan() {
 					wwwURL = "https://stage.hub.pantacor.com/u/_/devices/" + res.DeviceId
 				}
 
+				fmt.Fprintf(os.Stderr, "\n── Device %d ───────────────────────────────\n", len(devices))
 				fmt.Fprintf(os.Stderr, "\tID: %s\n", res)
 				fmt.Fprintf(os.Stderr, "\tHost: %s\n", res.Hostname)
 				fmt.Fprintf(os.Stderr, "\tIPv4: %s\n", res.AddrIPv4)

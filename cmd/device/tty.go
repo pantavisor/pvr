@@ -1,5 +1,4 @@
 //go:build linux
-// +build linux
 
 //
 // Copyright 2017-2026  Pantacor Ltd.
@@ -28,6 +27,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -76,9 +76,9 @@ func serialProbe(port string) int {
 	// Probe: send Enter, accumulate all data until "# " appears or timeout.
 	// Data arrives character-by-character over USB-serial, so we must
 	// keep reading until we see the prompt or 2s pass without data.
-	for attempt := 0; attempt < 5; attempt++ {
+	for attempt := range 5 {
 		if attempt > 0 {
-			time.Sleep(200 * 1000)
+			time.Sleep(200 * time.Millisecond)
 		}
 		unix.Write(fd, []byte("\r\n"))
 
@@ -132,11 +132,15 @@ func runCommands(port string, cmds []string) int {
 	defer unix.Close(fd)
 
 	for _, cmd := range cmds {
-		unix.Write(fd, []byte(cmd+"\r\n"))
+		if _, err := unix.Write(fd, []byte(cmd+"\r\n")); err != nil {
+			fmt.Fprintf(os.Stderr, "pvr device tty: write failed on %s: %v\n", port, err)
+			return 2
+		}
 
 		// Collect output until prompt (accumulate data, not just last read)
 		var buf [1]byte
 		var out []byte
+		responded := false
 		deadline := time.Now().Add(10 * time.Second)
 
 		for time.Now().Before(deadline) {
@@ -151,11 +155,13 @@ func runCommands(port string, cmds []string) int {
 			}
 			out = append(out, buf[:nn]...)
 
-			if len(out) > 2000 {
+			if promptRe.Match(out) {
+				responded = true
 				break
 			}
 
-			if promptRe.Match(out) {
+			if len(out) > 2000 {
+				responded = true // got output, just truncated
 				break
 			}
 		}
@@ -181,8 +187,18 @@ func runCommands(port string, cmds []string) int {
 		if result != "" {
 			fmt.Println(result)
 		}
+
+		if !responded {
+			fmt.Fprintf(os.Stderr, "pvr device tty: timeout waiting for response to %q on %s\n", cmd, port)
+			return 1
+		}
 	}
 	return 0
+}
+
+// shQuote single-quotes s for a POSIX shell, escaping embedded single quotes.
+func shQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
 
 // scanPorts finds USB serial ports with an active Pantavisor debug shell.
@@ -243,15 +259,18 @@ func interactive(port string) error {
 	}
 	defer term.Restore(int(os.Stdin.Fd()), oldState)
 
-	// Set serial port termios to raw (after stty, for safety)
-	termios, err := unix.IoctlGetTermios(int(f.Fd()), unix.TCGETS)
-	if err == nil {
-		termios.Iflag &^= unix.IXON | unix.IXOFF | unix.IXANY | unix.ICRNL
-		termios.Oflag &^= unix.OPOST | unix.OCRNL | unix.ONLCR
-		termios.Lflag &^= unix.ECHO | unix.ICANON | unix.IEXTEN | unix.ISIG
-		termios.Cc[unix.VMIN] = 1
-		termios.Cc[unix.VTIME] = 0
-		unix.IoctlSetTermios(int(f.Fd()), unix.TCSETS, termios)
+	// Set serial port termios to raw (after stty, for safety); keep the prior
+	// settings so we can restore them before closing the port.
+	var prevTermios *unix.Termios
+	if t, err := unix.IoctlGetTermios(int(f.Fd()), unix.TCGETS); err == nil {
+		prevTermios = t
+		raw := *t
+		raw.Iflag &^= unix.IXON | unix.IXOFF | unix.IXANY | unix.ICRNL
+		raw.Oflag &^= unix.OPOST | unix.OCRNL | unix.ONLCR
+		raw.Lflag &^= unix.ECHO | unix.ICANON | unix.IEXTEN | unix.ISIG
+		raw.Cc[unix.VMIN] = 1
+		raw.Cc[unix.VTIME] = 0
+		unix.IoctlSetTermios(int(f.Fd()), unix.TCSETS, &raw)
 	}
 
 	fmt.Fprintf(os.Stderr, "Connected to %s (115200 8N1, raw)\n", port)
@@ -261,29 +280,25 @@ func interactive(port string) error {
 	type escState int
 	const (escIdle escState = iota; escPending)
 	var es escState
-	var escMu sync.Mutex
-	var exitReq = make(chan struct{})
+	var exitReq = make(chan struct{}, 1)
 
 	var wg sync.WaitGroup
-	var termMu sync.Mutex
 
-	// Stdin → serial
-	wg.Add(1)
+	// Stdin → serial. Not tracked by wg: os.Stdin.Read can't be reliably
+	// unblocked on exit, so we abandon this goroutine and let process teardown
+	// reap it. ponytail: abandoned goroutine, fine since the process exits next.
 	go func() {
-		defer wg.Done()
 		buf := make([]byte, 4096)
 		for {
 			n, err := os.Stdin.Read(buf)
 			if n <= 0 && err != nil {
 				break
 			}
-			for i := 0; i < n; i++ {
+			for i := range n {
 				b := buf[i]
-				escMu.Lock()
 				if es == escPending {
 					es = escIdle
 					if b == exitKey {
-						escMu.Unlock()
 						exitReq <- struct{}{}
 						return
 					}
@@ -291,10 +306,8 @@ func interactive(port string) error {
 				}
 				if b == escapeKey {
 					es = escPending
-					escMu.Unlock()
 					continue
 				}
-				escMu.Unlock()
 				f.Write([]byte{b})
 			}
 		}
@@ -308,10 +321,7 @@ func interactive(port string) error {
 		for {
 			n, err := f.Read(buf)
 			if n > 0 {
-				termMu.Lock()
 				os.Stdout.Write(buf[:n])
-				os.Stdout.Sync()
-				termMu.Unlock()
 			}
 			if err != nil {
 				break
@@ -319,14 +329,20 @@ func interactive(port string) error {
 		}
 	}()
 
+	// Don't catch SIGINT: in raw mode Ctrl+C is delivered as a 0x03 byte on
+	// stdin and forwarded to the shell to cancel the remote process. Exit only
+	// via Ctrl+A Ctrl+X (exitReq) or an external SIGTERM.
 	sig := make(chan os.Signal, 1)
-	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
+	signal.Notify(sig, syscall.SIGTERM)
 	select {
 	case <-sig:
 	case <-exitReq:
 	}
 
-	// Close serial port to unblock the read goroutine
+	// Restore the port's prior termios, then close to unblock the read goroutine.
+	if prevTermios != nil {
+		unix.IoctlSetTermios(int(f.Fd()), unix.TCSETS, prevTermios)
+	}
 	f.Close()
 	wg.Wait()
 	fmt.Fprintln(os.Stderr)
@@ -462,12 +478,15 @@ Exit interactive shell: Ctrl+A then Ctrl+X`,
 				lines := "30"
 				if len(afterSub) >= 1 {
 					if _, err := os.Stat(afterSub[0]); err == nil {
-						// First arg looks like a port (legacy syntax, ignore)
+						fmt.Fprintf(os.Stderr, "pvr device tty: ignoring %q (looks like a port path; use -d for the port)\n", afterSub[0])
 					} else {
 						plat = afterSub[0]
 					}
 				}
 				if len(afterSub) >= 2 {
+					if _, err := strconv.Atoi(afterSub[1]); err != nil {
+						return fmt.Errorf("line count must be a number, got %q", afterSub[1])
+					}
 					lines = afterSub[1]
 				}
 				var f string
@@ -476,13 +495,13 @@ Exit interactive shell: Ctrl+A then Ctrl+X`,
 				} else {
 					f = "/pv/logs/current/" + plat + "/lxc/console.log"
 				}
-				return cli.NewExitError("", runCommands(port, []string{"tail -n " + lines + " " + f}))
+				return cli.NewExitError("", runCommands(port, []string{"tail -n " + lines + " " + shQuote(f)}))
 
 			case "grep":
 				if len(afterSub) == 0 {
 					return fmt.Errorf("usage: pvr device tty grep PATTERN")
 				}
-				return cli.NewExitError("", runCommands(port, []string{"grep -rl '" + afterSub[0] + "' /pv/logs/current/"}))
+				return cli.NewExitError("", runCommands(port, []string{"grep -rl " + shQuote(afterSub[0]) + " /pv/logs/current/"}))
 
 			case "probe":
 				ports := scanPortsVerbose(c.Bool("verbose"))
