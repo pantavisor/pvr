@@ -32,6 +32,7 @@ require (
 	gitlab.com/pantacor/pantahub-base v0.0.0-20220922224408-d1e8099e66c0
 	gitlab.com/pantacor/pvwificonnect v1.7.0
 	go.mongodb.org/mongo-driver v1.9.0
+	golang.org/x/sys v0.39.0
 	golang.org/x/term v0.20.0
 	gopkg.in/cheggaaa/pb.v1 v1.0.28
 	lure.sh/fakeroot v0.0.0-20231024205152-b2da39c1be0c
@@ -124,7 +125,6 @@ require (
 	golang.org/x/exp v0.0.0-20241204233417-43b7b7cde48d // indirect
 	golang.org/x/net v0.47.0 // indirect
 	golang.org/x/sync v0.18.0 // indirect
-	golang.org/x/sys v0.39.0 // indirect
 	golang.org/x/text v0.31.0 // indirect
 	google.golang.org/protobuf v1.36.10 // indirect
 	gopkg.in/mailgun/mailgun-go.v1 v1.1.1 // indirect
