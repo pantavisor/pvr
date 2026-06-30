@@ -277,6 +277,10 @@ lxc.mount.entry = /volumes/{{- $source -}}/
 	{{- if .Source.args.PV_STATUS_GOAL }}
 	"status_goal": "{{- .Source.args.PV_STATUS_GOAL }}",
 	{{- end }}
+	{{- $devlog := .Source.args.PV_DEV_LOG | pvr_ifNull "__null__" | print }}
+	{{- if ne $devlog "__null__" }}
+	"dev-log": {{ if eq $devlog "false" }}false{{ else }}true{{ end }},
+	{{- end }}
 	{{- if .Source.args.PV_AUTOMODFW }}
 	"automodfw": {{ .Source.args.PV_AUTOMODFW | sprig_toPrettyJson | trim }},
 	{{- end }}
