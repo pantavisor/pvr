@@ -36,6 +36,7 @@ func TestCompileTemplate(t *testing.T) {
 	t.Run("named volume in RUN_JSON", testRunJSON_NamedVolume)
 	t.Run("PV_VOLUME_MOUNTS LXC_CONTAINER_CONF", testLXCContainerConf_PV_VOLUME_MOUNTS)
 	t.Run("PV_VOLUME_IMPORTS named origin", testLXCContainerConf_PV_VOLUME_IMPORTS_NamedOrigin)
+	t.Run("PV_DEV_LOG dev-log in RUN_JSON", testRunJSON_DevLog)
 }
 
 func ErrorIf(t *testing.T, test bool, args ...interface{}) {
@@ -305,4 +306,48 @@ func testRunJSON_NamedVolume(t *testing.T) {
 		"named volume key should appear unchanged in storage map, but got: "+string(result))
 	ErrorIfNot(t, strings.Contains(string(result), `"docker--data":`),
 		"path volume key should still be transformed in storage map, but got: "+string(result))
+}
+
+// Source.args.PV_DEV_LOG controls the per-container "dev-log" key in run.json
+// (per-container control of the /dev/log devlog socket):
+//   - unset  -> key omitted, container inherits the global PV_LOG_AUTO_DEVLOG
+//   - "false" -> "dev-log": false
+//   - any other value (incl. native bool) -> "dev-log": true
+func testRunJSON_DevLog(t *testing.T) {
+	render := func(args map[string]interface{}) string {
+		result, _ := compileTemplate(RUN_JSON, map[string]interface{}{
+			"Source": map[string]interface{}{
+				"name": "cont",
+				"args": args,
+			},
+			"Docker": map[string]interface{}{},
+		})
+		return string(result)
+	}
+
+	// unset -> no dev-log key at all
+	out := render(map[string]interface{}{})
+	ErrorIf(t, len(out) == 0, "error when compiling template")
+	ErrorIf(t, strings.Contains(out, "dev-log"),
+		"unset PV_DEV_LOG must omit dev-log key, but got: "+out)
+
+	// string "false" -> false
+	out = render(map[string]interface{}{"PV_DEV_LOG": "false"})
+	ErrorIfNot(t, strings.Contains(out, `"dev-log": false`),
+		`PV_DEV_LOG="false" should render "dev-log": false, but got: `+out)
+
+	// string "true" -> true
+	out = render(map[string]interface{}{"PV_DEV_LOG": "true"})
+	ErrorIfNot(t, strings.Contains(out, `"dev-log": true`),
+		`PV_DEV_LOG="true" should render "dev-log": true, but got: `+out)
+
+	// native bool false -> false (args may be typed when loaded from --arg-json)
+	out = render(map[string]interface{}{"PV_DEV_LOG": false})
+	ErrorIfNot(t, strings.Contains(out, `"dev-log": false`),
+		`PV_DEV_LOG=false (bool) should render "dev-log": false, but got: `+out)
+
+	// native bool true -> true
+	out = render(map[string]interface{}{"PV_DEV_LOG": true})
+	ErrorIfNot(t, strings.Contains(out, `"dev-log": true`),
+		`PV_DEV_LOG=true (bool) should render "dev-log": true, but got: `+out)
 }
