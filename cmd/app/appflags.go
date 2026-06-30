@@ -45,6 +45,14 @@ func TemplateArgConfigFlags() []cli.Flag {
 			Usage:  "Config value as KEY=VALUE (repeatable); merged into src.json config",
 			EnvVar: "PVR_CONFIG_JSON",
 		},
+		cli.StringSliceFlag{
+			Name:  "unset-arg",
+			Usage: "Template argument KEY to remove from src.json args (repeatable); applied after --arg",
+		},
+		cli.StringSliceFlag{
+			Name:  "unset-config",
+			Usage: "Config KEY to remove from src.json config (repeatable); applied after --config",
+		},
 	}
 }
 

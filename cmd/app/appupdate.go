@@ -75,7 +75,7 @@ func CommandAppUpdate() cli.Command {
 			if err != nil {
 				return cli.NewExitError(err, 6)
 			}
-			if err := pvr.MergeAppSrcArgs(appname, templateArgs, ParseConfig(c)); err != nil {
+			if err := pvr.MergeAppSrcArgs(appname, templateArgs, ParseConfig(c), c.StringSlice("unset-arg"), c.StringSlice("unset-config")); err != nil {
 				return cli.NewExitError(err, 4)
 			}
 

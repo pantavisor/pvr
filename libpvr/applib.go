@@ -413,11 +413,14 @@ func (p *Pvr) GetApplicationManifest(appname string) (*Source, error) {
 
 // MergeAppSrcArgs merges the given template args and config values into the
 // application's src.json and persists the result. Existing keys are
-// overwritten; keys that are not provided are left untouched. It is a no-op
-// when both maps are empty. This is used by app update/install to inject
-// --arg/--config into src.json before running the normal regeneration logic.
-func (p *Pvr) MergeAppSrcArgs(appname string, args map[string]interface{}, config map[string]interface{}) error {
-	if len(args) == 0 && len(config) == 0 {
+// overwritten; keys that are not provided are left untouched. The unsetArgs
+// and unsetConfig keys are removed afterwards (so unset wins over set within a
+// single call), which is the only way to fully drop a key back to its template
+// default. It is a no-op when nothing is provided. This is used by app
+// update/install to inject --arg/--config (and --unset-arg/--unset-config)
+// into src.json before running the normal regeneration logic.
+func (p *Pvr) MergeAppSrcArgs(appname string, args map[string]interface{}, config map[string]interface{}, unsetArgs []string, unsetConfig []string) error {
+	if len(args) == 0 && len(config) == 0 && len(unsetArgs) == 0 && len(unsetConfig) == 0 {
 		return nil
 	}
 
@@ -442,6 +445,13 @@ func (p *Pvr) MergeAppSrcArgs(appname string, args map[string]interface{}, confi
 		for k, v := range config {
 			appManifest.Config[k] = v
 		}
+	}
+
+	for _, k := range unsetArgs {
+		delete(appManifest.TemplateArgs, k)
+	}
+	for _, k := range unsetConfig {
+		delete(appManifest.Config, k)
 	}
 
 	srcContent, err := pvjson.Marshal(appManifest, pvjson.MarshalOptions{Prefix: " ", Indent: " "})
