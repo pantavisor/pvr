@@ -76,7 +76,7 @@ func serialProbe(port string) int {
 	// Probe: send Enter, accumulate all data until "# " appears or timeout.
 	// Data arrives character-by-character over USB-serial, so we must
 	// keep reading until we see the prompt or 2s pass without data.
-	for attempt := range 5 {
+	for attempt := 0; attempt < 5; attempt++ {
 		if attempt > 0 {
 			time.Sleep(200 * time.Millisecond)
 		}
@@ -294,7 +294,7 @@ func interactive(port string) error {
 			if n <= 0 && err != nil {
 				break
 			}
-			for i := range n {
+			for i := 0; i < n; i++ {
 				b := buf[i]
 				if es == escPending {
 					es = escIdle
