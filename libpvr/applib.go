@@ -411,6 +411,48 @@ func (p *Pvr) GetApplicationManifest(appname string) (*Source, error) {
 	return &result, nil
 }
 
+// MergeAppSrcArgs merges the given template args and config values into the
+// application's src.json and persists the result. Existing keys are
+// overwritten; keys that are not provided are left untouched. It is a no-op
+// when both maps are empty. This is used by app update/install to inject
+// --arg/--config into src.json before running the normal regeneration logic.
+func (p *Pvr) MergeAppSrcArgs(appname string, args map[string]interface{}, config map[string]interface{}) error {
+	if len(args) == 0 && len(config) == 0 {
+		return nil
+	}
+
+	appManifest, err := p.GetApplicationManifest(appname)
+	if err != nil {
+		return err
+	}
+
+	if len(args) > 0 {
+		if appManifest.TemplateArgs == nil {
+			appManifest.TemplateArgs = map[string]interface{}{}
+		}
+		for k, v := range args {
+			appManifest.TemplateArgs[k] = v
+		}
+	}
+
+	if len(config) > 0 {
+		if appManifest.Config == nil {
+			appManifest.Config = map[string]interface{}{}
+		}
+		for k, v := range config {
+			appManifest.Config[k] = v
+		}
+	}
+
+	srcContent, err := pvjson.Marshal(appManifest, pvjson.MarshalOptions{Prefix: " ", Indent: " "})
+	if err != nil {
+		return err
+	}
+
+	srcFilePath := filepath.Join(p.Dir, appname, SRC_FILE)
+	return os.WriteFile(srcFilePath, srcContent, 0644)
+}
+
 func (p *Pvr) GetPackageManifest(appname string) (*PVPKG, error) {
 	manifestFile := filepath.Join(p.Dir, appname, PVPKG_FILE)
 	js, err := os.ReadFile(manifestFile)

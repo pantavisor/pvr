@@ -64,6 +64,16 @@ func CommandAppInstall() cli.Command {
 			// fix up trailing/leading / from appnames
 			appname = strings.Trim(appname, "/")
 
+			// inject any --arg/--config into src.json before the normal
+			// install logic re-reads and regenerates from it
+			templateArgs, err := ParseTemplateArgs(c)
+			if err != nil {
+				return cli.NewExitError(err, 6)
+			}
+			if err := pvr.MergeAppSrcArgs(appname, templateArgs, ParseConfig(c)); err != nil {
+				return cli.NewExitError(err, 2)
+			}
+
 			appManifest, err := pvr.GetApplicationManifest(appname)
 			if err != nil {
 				return cli.NewExitError(err, 2)
@@ -146,6 +156,8 @@ func CommandAppInstall() cli.Command {
 			Value:  "app",
 		},
 	}
+
+	cmd.Flags = append(cmd.Flags, TemplateArgConfigFlags()...)
 
 	return cmd
 }
