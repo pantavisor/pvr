@@ -35,7 +35,7 @@ OPTIMIZE ?= 1
 PRODUCTION ?= 0
 
 VERSION ?= $(shell git describe --tags --abbrev=0 2>/dev/null || echo "dev")
-REVISION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
+REVISION ?= $(shell git describe --tags --always 2>/dev/null || echo "dev")
 CGO = CGO_ENABLED=0
 export DEBUG OPTIMIZE
 

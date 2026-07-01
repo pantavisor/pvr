@@ -7,7 +7,6 @@ COPY . .
 
 ARG DOCKERTAG=latest
 RUN apk update; apk add git upx make tar
-RUN version=`git describe --tags` && sed -i "s/NA/$version/" cmd/version.go
 
 RUN sed -i "s/defaultDistributionTag = \"latest\"/defaultDistributionTag = \"${DOCKERTAG}\"/" ./libpvr/configurationlib.go
 RUN go mod download && go mod vendor
