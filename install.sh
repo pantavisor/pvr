@@ -86,9 +86,12 @@ detect_arch() {
 
 get_latest_version() {
 	if [ "$CHANNEL" = "stable" ]; then
+		# stable = newest release version only (NNN or NNN-revNNN). Not develop,
+		# and NOT master-* builds, which are published to the same registry and
+		# would otherwise win as the newest non-develop package. Mirrors the Go
+		# client's releaseVersionRe in libpvr/packageupdater.go.
 		version="$(curl -s "https://${GITLAB_HOST}/api/v4/projects/${PROJECT_ID}/packages?per_page=100&order_by=created_at&sort=desc" |
-			grep -o '"version":"[^"]*"' |
-			grep -v 'develop' |
+			grep -oE '"version":"[0-9]+(-rev[0-9]+)?"' |
 			head -1 | cut -d'"' -f4)"
 	else
 		version="$(curl -s "https://${GITLAB_HOST}/api/v4/projects/${PROJECT_ID}/packages?per_page=1&order_by=created_at&sort=desc" |
