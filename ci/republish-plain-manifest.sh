@@ -7,27 +7,53 @@
 # breaks `pvr self-upgrade` for already-deployed clients (see
 # ci/verify-plain-manifest.sh for the why).
 #
-# It pulls the existing image (docker selects the real platform image out of
-# the index and stores it locally as a plain image) and pushes it straight
-# back. The docker image store cannot hold an attestation index, so the
-# re-push emits a plain v2 manifest pointing at the SAME binaries -- no rebuild,
-# fully reversible. Requires `docker login registry.gitlab.com` with push
-# rights to the repo.
+# It rewrites the tag to point at a single plain **docker v2s2** manifest for
+# the linux/amd64 image (the pvr image is amd64-only and bundles every
+# cross-built binary as files), matching the format of the known-good
+# :latest / :master tags. Same bits, no rebuild, reversible.
+#
+# NOTE: plain `docker pull` + `docker push` does NOT work for this on a Docker
+# engine using the containerd image store (Docker 24+ / Docker Desktop): it
+# preserves the OCI index and re-pushes it byte-for-byte. We use `skopeo`,
+# which converts to v2s2 and selects the single amd64 image.
+#
+# Requires: skopeo, and registry credentials with push rights. skopeo reads
+# ~/.docker/config.json by default, so a prior `docker login registry.gitlab.com`
+# is enough.
+#
+#   Alternative (recommended): just re-run the CI pipeline for the affected
+#   channel -- the tag pipeline (build-tags) for :stable, the develop pipeline
+#   (build) for :develop. Those push a v2s2 manifest via dind and are now
+#   verified by ci/verify-plain-manifest.sh.
 #
 set -eu
 
 IMAGE="registry.gitlab.com/pantacor/pvr"
-PLATFORM="linux/amd64" # the pvr image is a single amd64 alpine image that bundles all cross-built binaries
 
 if [ "$#" -lt 1 ]; then
 	echo "usage: $0 <tag> [<tag> ...]" >&2
 	exit 2
 fi
 
+if ! command -v skopeo >/dev/null 2>&1; then
+	echo "ERROR: skopeo is required (docker pull/push cannot down-convert an" >&2
+	echo "       OCI index on the containerd image store). Install skopeo, or" >&2
+	echo "       re-run the CI pipeline for the affected channel instead." >&2
+	exit 1
+fi
+
 for tag in "$@"; do
-	echo ">>> re-publishing ${IMAGE}:${tag} as a plain manifest"
-	docker pull --platform "$PLATFORM" "${IMAGE}:${tag}"
-	docker push "${IMAGE}:${tag}"
+	echo ">>> re-publishing ${IMAGE}:${tag} as a plain docker v2s2 manifest"
+	# --multi-arch system + amd64 overrides: pick the single linux/amd64 image
+	# out of the index (never the unknown/unknown attestation child).
+	# --format v2s2: emit a plain docker manifest, matching :latest/:master.
+	skopeo copy \
+		--multi-arch system \
+		--override-os linux \
+		--override-arch amd64 \
+		--format v2s2 \
+		"docker://${IMAGE}:${tag}" \
+		"docker://${IMAGE}:${tag}"
 done
 
-echo ">>> done"
+echo ">>> done -- verify with: sh ci/verify-plain-manifest.sh pantacor/pvr $*"
