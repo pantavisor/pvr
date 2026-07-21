@@ -22,6 +22,7 @@ import (
 	"log"
 	"net/url"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/go-resty/resty"
@@ -49,6 +50,30 @@ const (
 	// PhDeviceTokens constant defines path to /devices/tokens
 	PhDeviceTokens = "/devices/tokens"
 )
+
+// checkAPIResponse turns a non 2xx API response into an error.
+//
+// DoAuthCall only reports transport level failures: it returns a nil error for
+// any status other than 401/403, and it also returns the last 401/403 response
+// with a nil error once it runs out of authentication methods to retry. Every
+// caller therefore has to inspect the status itself, or a rejected request is
+// indistinguishable from a successful one.
+func checkAPIResponse(baseurl string, res *resty.Response) error {
+	if res == nil {
+		return errors.New("ERROR: no response from " + baseurl)
+	}
+	if res.StatusCode() >= 200 && res.StatusCode() < 300 {
+		return nil
+	}
+	// the body is only a hint here and can be a full HTML error page, so keep
+	// just enough of it to identify the failure
+	body := strings.TrimSpace(string(res.Body()))
+	if len(body) > 256 {
+		body = body[:256] + "..."
+	}
+	return fmt.Errorf("ERROR: call to %s failed with status %s: %s",
+		baseurl, res.Status(), body)
+}
 
 // ShowOrOpenRegisterLink show or open the user the registration link
 func ShowOrOpenRegisterLink(baseAPIURL, email, username, password string) error {
@@ -191,6 +216,10 @@ func (p *Session) TokenCreate(baseurl string, usermeta map[string]interface{}) (
 		return nil, errors.New("ERROR: authenticated call to " + baseurl + " failed with: " + err.Error())
 	}
 
+	if err := checkAPIResponse(baseurl, res); err != nil {
+		return nil, err
+	}
+
 	respBody := res.Body()
 	var resultSet *PantahubDevicesJoinToken
 	err = pvjson.Unmarshal(respBody, &resultSet)
@@ -214,7 +243,7 @@ func (p *Session) TokenDisable(baseurl string, id string) (*PantahubDevicesJoinT
 
 	fullURL := burl.ResolveReference(dtUrl)
 
-	_, err = p.DoAuthCall(false, NoneCallMethod, func(req *resty.Request) error {
+	res, err := p.DoAuthCall(false, NoneCallMethod, func(req *resty.Request) error {
 		req.Method = resty.MethodDelete
 		req.URL = fullURL.String()
 		return nil
@@ -222,6 +251,10 @@ func (p *Session) TokenDisable(baseurl string, id string) (*PantahubDevicesJoinT
 
 	if err != nil {
 		return nil, errors.New("ERROR: authenticated call to " + baseurl + " failed with: " + err.Error())
+	}
+
+	if err := checkAPIResponse(baseurl, res); err != nil {
+		return nil, err
 	}
 
 	resultSet := &PantahubDevicesJoinToken{
@@ -255,6 +288,10 @@ func (p *Session) TokenLs(baseurl string) ([]PantahubDevicesJoinToken, error) {
 		return nil, errors.New("ERROR: authenticated call to " + baseurl + " failed with: " + err.Error())
 	}
 
+	if err := checkAPIResponse(baseurl, res); err != nil {
+		return nil, err
+	}
+
 	var resultSet []PantahubDevicesJoinToken
 	err = pvjson.Unmarshal(res.Body(), &resultSet)
 
@@ -286,6 +323,10 @@ func (p *Session) DoPs(baseurl string) ([]PantahubDevice, error) {
 
 	if err != nil {
 		return nil, errors.New("ERROR: authenticated call to " + baseurl + " failed with: " + err.Error())
+	}
+
+	if err := checkAPIResponse(baseurl, res); err != nil {
+		return nil, err
 	}
 
 	var resultSet []PantahubDevice
@@ -324,6 +365,10 @@ func (p *Session) DoLogsCursor(baseurl string, cursor string) (logEntries []*log
 
 	if err != nil {
 		return nil, "", errors.New("ERROR: authenticated call to " + baseurl + " failed with: " + err.Error())
+	}
+
+	if err := checkAPIResponse(baseurl, res); err != nil {
+		return nil, "", err
 	}
 
 	var resultPage logs.Pager
@@ -409,6 +454,10 @@ func (p *Session) DoLogs(
 
 	if err != nil {
 		return nil, "", errors.New("ERROR: authenticated call to " + baseurl + " failed with: " + err.Error())
+	}
+
+	if err := checkAPIResponse(baseurl, res); err != nil {
+		return nil, "", err
 	}
 
 	var resultPage logs.Pager

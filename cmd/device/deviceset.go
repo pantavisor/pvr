@@ -27,6 +27,30 @@ import (
 	"gitlab.com/pantacor/pvr/utils/pvjson"
 )
 
+// metaFieldForAuth resolves which meta field the current credentials may
+// update. A logged in USER (or a user SESSION token) owns user-meta, while a
+// device owns device-meta.
+func metaFieldForAuth(authResponseData map[string]interface{}) (string, error) {
+	switch authResponseData["type"] {
+	case "USER", "SESSION":
+		return "user-meta", nil
+	case "DEVICE":
+		return "device-meta", nil
+	}
+
+	// fall back on the prn for token types we do not know about yet
+	prn, _ := authResponseData["prn"].(string)
+	if strings.Contains(prn, ":accounts:") {
+		return "user-meta", nil
+	} else if strings.Contains(prn, ":devices:") {
+		return "device-meta", nil
+	}
+
+	return "", fmt.Errorf("cannot tell whether to update user-meta or device-meta "+
+		"for auth type %v (prn %q); try logging in again with 'pvr login'",
+		authResponseData["type"], prn)
+}
+
 func CommandDeviceSet() cli.Command {
 	cmd := cli.Command{
 		Name:        "set",
@@ -86,22 +110,17 @@ func CommandDeviceSet() cli.Command {
 			if err != nil {
 				return cli.NewExitError(err, 2)
 			}
-			//Update Device
-			if authResponseData["type"] == "USER" {
-				updateResponse, err := session.UpdateDevice(baseURL, deviceNick, data, "user-meta")
-				if err != nil {
-					return cli.NewExitError(err, 2)
-				}
-				libpvr.LogPrettyJSON(updateResponse.Body())
-				fmt.Println("user-meta field Updated Successfully")
-			} else if authResponseData["type"] == "DEVICE" {
-				updateResponse, err := session.UpdateDevice(baseURL, deviceNick, data, "device-meta")
-				if err != nil {
-					return cli.NewExitError(err, 2)
-				}
-				libpvr.LogPrettyJSON(updateResponse.Body())
-				fmt.Println("device-meta field Updated Successfully")
+			updateField, err := metaFieldForAuth(authResponseData)
+			if err != nil {
+				return cli.NewExitError(err, 2)
 			}
+			//Update Device
+			updateResponse, err := session.UpdateDevice(baseURL, deviceNick, data, updateField)
+			if err != nil {
+				return cli.NewExitError(err, 2)
+			}
+			libpvr.LogPrettyJSON(updateResponse.Body())
+			fmt.Println(updateField + " field Updated Successfully")
 			return nil
 		},
 	}

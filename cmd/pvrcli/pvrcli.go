@@ -76,6 +76,15 @@ func ReadUserPasswdFromNetrc(host string) (string, string, error) {
 	return machine.Login, machine.Password, nil
 }
 
+// envOrDefault returns the value of the environment variable name, or
+// defaultValue when it is unset or empty.
+func envOrDefault(name, defaultValue string) string {
+	if v := os.Getenv(name); v != "" {
+		return v
+	}
+	return defaultValue
+}
+
 // Run builds the pvr CLI app and executes it. Both entrypoints
 // (./cmd/pvr and the repo-root main.go) are thin shims over this, so the two
 // build targets can never drift.
@@ -153,6 +162,18 @@ func Run() {
 			Usage:  "skip tls verify",
 			EnvVar: "PVR_INSECURE",
 		},
+	}
+
+	// cli skips App.Before entirely while generating shell completions, so the
+	// BashComplete handlers would otherwise read an empty Metadata map and panic
+	// on their type assertions. Seed the entries they need with the same
+	// defaults Before applies; Before still overwrites them from the parsed
+	// flags on a normal run.
+	cliApp.Metadata = map[string]interface{}{
+		"PVR_AUTH":         os.Getenv("PVR_ACCESSTOKEN"),
+		"PVR_BASEURL":      envOrDefault("PVR_BASEURL", "https://api.pantahub.com"),
+		"PVR_REPO_BASEURL": envOrDefault("PVR_REPO_BASEURL", "https://pvr.pantahub.com"),
+		"PVR_CONFIG_DIR":   envOrDefault("PVR_CONFIG_DIR", filepath.Join(home, ".pvr")),
 	}
 
 	cliApp.Before = func(c *cli.Context) error {

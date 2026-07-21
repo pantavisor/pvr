@@ -712,7 +712,15 @@ func (s *Session) Whoami() (err error) {
 		if err != nil {
 			return err
 		}
-		fmt.Fprint(os.Stderr, responseBody["nick"].(string)+"("+responseBody["prn"].(string)+") at "+authEndPoint+"\n")
+		// an expired or rejected token answers with an error body that carries
+		// neither field, so skip it instead of panicking on the assertions
+		nick, nickOk := responseBody["nick"].(string)
+		prn, prnOk := responseBody["prn"].(string)
+		if !nickOk || !prnOk {
+			fmt.Fprint(os.Stderr, "not logged in at "+authEndPoint+"\n")
+			continue
+		}
+		fmt.Fprint(os.Stderr, nick+"("+prn+") at "+authEndPoint+"\n")
 	}
 
 	return nil
