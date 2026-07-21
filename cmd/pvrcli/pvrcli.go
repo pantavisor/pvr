@@ -27,7 +27,6 @@ import (
 	"path/filepath"
 	"syscall"
 
-	"github.com/bgentry/go-netrc/netrc"
 	"github.com/go-resty/resty"
 	"github.com/urfave/cli"
 	"gitlab.com/pantacor/pvr/cmd"
@@ -39,42 +38,6 @@ import (
 	"gitlab.com/pantacor/pvr/cmd/wifi"
 	"gitlab.com/pantacor/pvr/libpvr"
 )
-
-// ReadUserPasswdFromNetrc reads username and password from the .netrc file
-// located in the current directory or $HOME/.netrc
-func ReadUserPasswdFromNetrc(host string) (string, string, error) {
-	path := ".netrc"
-	_, err := os.Stat(path)
-	if err != nil {
-		homeDir, err := os.UserHomeDir()
-		if err != nil {
-			return "", "", err
-		}
-		path = filepath.Join(homeDir, ".netrc")
-		_, err = os.Stat(path)
-		if err != nil {
-			return "", "", err
-		}
-	}
-
-	f, err := os.Open(path)
-	if err != nil {
-		return "", "", err
-	}
-	defer f.Close()
-
-	file, err := netrc.Parse(f)
-	if err != nil {
-		return "", "", err
-	}
-
-	machine := file.FindMachine(host)
-	if machine == nil {
-		return "", "", errors.New("no matching machine found in .netrc")
-	}
-
-	return machine.Login, machine.Password, nil
-}
 
 // envOrDefault returns the value of the environment variable name, or
 // defaultValue when it is unset or empty.
@@ -234,7 +197,7 @@ func Run() {
 			transport.Proxy = http.ProxyURL(u)
 		}
 
-		user, pass, _ := ReadUserPasswdFromNetrc(baseURL.Host) // ignore error
+		user, pass, _ := libpvr.ReadUserPasswdFromNetrc(baseURL.Host) // ignore error
 		if user != "" && pass != "" {
 			c.App.Metadata["PVR_USERNAME"] = user
 			c.App.Metadata["PVR_PASSWORD"] = pass

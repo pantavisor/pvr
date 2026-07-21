@@ -38,6 +38,7 @@ type CallMethod int
 const (
 	InteractiveCallMethod CallMethod = iota
 	OAuthCallMethod
+	NetrcCallMethod
 	NoneCallMethod
 )
 
@@ -80,7 +81,7 @@ func (s *Session) GetApp() *cli.App {
 }
 
 // Login : Login to a given URL
-func (s *Session) Login(APIURL string, interactiveOnly bool, oauth bool) (*resty.Response, error) {
+func (s *Session) Login(APIURL string, interactiveOnly bool, oauth bool, netrc bool) (*resty.Response, error) {
 	//clear token
 	u, err := url.Parse(APIURL)
 	if err != nil {
@@ -99,6 +100,9 @@ func (s *Session) Login(APIURL string, interactiveOnly bool, oauth bool) (*resty
 	}
 	if oauth {
 		method = OAuthCallMethod
+	}
+	if netrc {
+		method = NetrcCallMethod
 	}
 	response, err := s.DoAuthCall(false, method, func(req *resty.Request) error {
 		req.Method = resty.MethodGet
@@ -174,8 +178,15 @@ func (s *Session) DoAuthCall(withAnonToken bool, method CallMethod, fn Wrappable
 		}
 	}
 
+	if method == NetrcCallMethod {
+		retryMethods = []GetAccesstokenMethod{
+			NetrcMethod,
+		}
+	}
+
 	// Add one last retry with the last method, if it exists
 	retryMethods = append(retryMethods, GetAccesstokenMethod(-1))
+	var authErr error
 	for _, method := range retryMethods {
 		var newAuthHeader string
 
@@ -235,6 +246,12 @@ func (s *Session) DoAuthCall(withAnonToken bool, method CallMethod, fn Wrappable
 				s.GetApp().Metadata["PVR_AUTH"] = bearer
 				continue
 			}
+		case NetrcMethod:
+			bearer, err = s.auth.getNewAccessToken(authHeader, NetrcMethod)
+			if bearer != "" {
+				s.GetApp().Metadata["PVR_AUTH"] = bearer
+				continue
+			}
 		case InteractiveMethod:
 			bearer, err = s.auth.getNewAccessToken(authHeader, InteractiveMethod)
 			if bearer != "" {
@@ -248,6 +265,10 @@ func (s *Session) DoAuthCall(withAnonToken bool, method CallMethod, fn Wrappable
 				continue
 			}
 		}
+
+		if err != nil {
+			authErr = err
+		}
 	}
 
 	// now that we would have a refreshed bearer, lets go again
@@ -257,6 +278,13 @@ func (s *Session) DoAuthCall(withAnonToken bool, method CallMethod, fn Wrappable
 
 	if bearer == "" && err != nil {
 		fmt.Fprintln(os.Stderr, "** ACCESS DENIED: user cannot access repository. **")
+	}
+
+	// for single-method call modes (interactive/oauth/netrc) there is no
+	// further fallback to try, so surface the real reason the one method
+	// we attempted failed instead of the generic 401/403 response.
+	if bearer == "" && method != NoneCallMethod && authErr != nil {
+		return response, authErr
 	}
 
 	return response, err

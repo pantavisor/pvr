@@ -46,6 +46,7 @@ const (
 	AnonTokenMethod
 	InteractiveMethod
 	OAuthMethod
+	NetrcMethod
 )
 
 type PvrAuthTarget struct {
@@ -346,6 +347,29 @@ func (p *PvrAuthConfig) getNewAccessToken(authHeader string, method GetAccesstok
 			p.Tokens[authEp+" realm="+realm] = s
 			p.Save()
 
+			return accessToken, nil
+		}
+	case NetrcMethod:
+		parsedAuthEp, err := url.Parse(authEp)
+		if err != nil {
+			return "", errors.New("invalid authEp URL for .netrc lookup: " + err.Error())
+		}
+
+		username, password, err := ReadUserPasswdFromNetrc(parsedAuthEp.Host)
+		if err != nil {
+			return "", fmt.Errorf("netrc login failed: %w", err)
+		}
+
+		accessToken, refreshToken, err := doAuthenticate(authEp, username, password, "")
+		if err != nil {
+			return "", err
+		}
+		s.RefreshToken = refreshToken
+		s.AccessToken = accessToken
+		p.Tokens[authEp+" realm="+realm] = s
+		p.Save()
+
+		if accessToken != "" {
 			return accessToken, nil
 		}
 	case InteractiveMethod:

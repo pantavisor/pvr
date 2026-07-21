@@ -40,6 +40,10 @@ func CommandLogin() cli.Command {
 				Name:  "oauth, o",
 				Usage: "Login with oauth",
 			},
+			cli.BoolFlag{
+				Name:  "netrc, n",
+				Usage: "Login using only credentials found in .netrc for the auth endpoint's host",
+			},
 		},
 		Action: func(c *cli.Context) error {
 			APIURL := ""
@@ -56,7 +60,7 @@ func CommandLogin() cli.Command {
 				return cli.NewExitError(err, 4)
 			}
 
-			response, err := session.Login(APIURL, c.Bool("interactive"), c.Bool("oauth"))
+			response, err := session.Login(APIURL, c.Bool("interactive"), c.Bool("oauth"), c.Bool("netrc"))
 			if err != nil {
 				return cli.NewExitError(err, 4)
 			}

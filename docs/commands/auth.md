@@ -17,6 +17,7 @@ pvr login
 pvr login https://api2.pantahub.com/auth
 pvr login --interactive
 pvr login --oauth
+pvr login --netrc
 ```
 
 If no endpoint is given, defaults to `<PVR_BASEURL>/auth/auth_status`.
@@ -27,6 +28,18 @@ If no endpoint is given, defaults to `<PVR_BASEURL>/auth/auth_status`.
 |------|-------------|
 | `--interactive, -i` | Login using only interactive mode |
 | `--oauth, -o` | Login with OAuth |
+| `--netrc, -n` | Login using only credentials found in `.netrc` for the auth endpoint's host |
+
+`--interactive`, `--oauth`, and `--netrc` are each single-method: if the
+chosen method fails (e.g. no matching `.netrc` entry, or the credentials are
+rejected), `pvr login` fails immediately with the underlying error — it does
+not fall back to any other method (cached token, refresh token, interactive
+prompt, etc).
+
+The `.netrc` file is looked up in the current directory first, then
+`$HOME/.netrc`, matched against the host of the actual auth endpoint (as
+advertised by the server), not necessarily the host you passed on the
+command line.
 
 ---
 
