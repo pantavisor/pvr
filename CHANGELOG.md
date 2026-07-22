@@ -1,4 +1,75 @@
 
+<a name="052"></a>
+## [052](https://gitlab.com/pantacor/pvr/compare/051...052) (2026-07-21)
+
+### Chore
+
+* **deps:** use pvwificonnect v1.7.0
+
+### Ci
+
+* fix republish helper to emit plain v2s2 via skopeo
+* guard channel tags against non-plain (attestation) manifests
+* make src/vendor/binary tarballs reproducible
+
+### Docs
+
+* add full command reference and simplify README
+* add go install and pvr device tty documentation
+
+### Feat
+
+* add --unset-arg and --unset-config to app update and install
+* support --arg and --config on app update and install
+* add PV_DEV_LOG template arg for per-container devlog control
+* add pvr device tty subcommand for USB serial console
+* self-upgrade from GitLab packages; default tag latest; single entrypoint
+* add pvr wifi subcommand for Improv Wi-Fi BLE provisioning
+* **auth:** add --netrc/-n option to pvr login
+
+### Fix
+
+* surface API failures instead of reporting silent success
+* stop stamping bogus -dirty and clean up build-time seds
+* use Go 1.21-compatible for loops in device tty
+* tty hangs on ctrl + c
+* add Linux-only build tags for tty command
+* correct vendor/go.mod inconsistency for device tty
+* make Dockerfile.go1.21 work with pvwificonnect dependency
+* **install:** resolve stable channel to a real release, add selftest
+
+### Refactor
+
+* use modules/client for all pvr wifi command logic
+* import pvwificonnect/pkg/client instead of duplicating code
+
+### Test
+
+* cover MergeAppSrcArgs and arg/config flag parsing
+* cover PV_DEV_LOG dev-log rendering in RUN_JSON
+* verify whole-state signature and compact export json survive pvjson changes
+
+
+<a name="051"></a>
+## [051](https://gitlab.com/pantacor/pvr/compare/050...051) (2026-06-14)
+
+### Feature
+
+* extract state and repoutil into docker-free subpackages
+* add pvr curl subcommand to wrap curl with pantahub auth
+
+### Fix
+
+* harden CI against dind startup race and flaky registry pulls
+* preserve large integers through JSON encode/decode
+* only apply docker- volume name prefix to path volumes
+* pvrinstall format for linux
+
+### Test
+
+* add coverage for PV_VOLUME_MOUNTS and named-origin PV_VOLUME_IMPORTS
+
+
 <a name="050"></a>
 ## [050](https://gitlab.com/pantacor/pvr/compare/049...050) (2026-03-27)
 
