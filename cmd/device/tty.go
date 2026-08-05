@@ -305,26 +305,32 @@ func interactive(port string, baud int) error {
 	}
 	defer term.Restore(int(os.Stdin.Fd()), oldState)
 
+	// MakeRaw also turns off output post-processing, but a serial console ends
+	// its lines with a bare \n and nothing else maps that back to \r\n — every
+	// line would start where the previous one ended, walking off the right edge.
+	// Keep OPOST/ONLCR on the way picocom and screen do; term.Restore still puts
+	// the terminal back on exit.
+	if t, err := unix.IoctlGetTermios(int(os.Stdin.Fd()), unix.TCGETS); err == nil {
+		t.Oflag |= unix.OPOST | unix.ONLCR
+		unix.IoctlSetTermios(int(os.Stdin.Fd()), unix.TCSETS, t)
+	}
+
 	// Set serial port termios to raw (after stty, for safety); keep the prior
 	// settings so we can restore them before closing the port.
-	var prevTermios *unix.Termios
-	if t, err := unix.IoctlGetTermios(int(f.Fd()), unix.TCGETS); err == nil {
-		prevTermios = t
-		raw := *t
-		raw.Iflag &^= unix.IXON | unix.IXOFF | unix.IXANY | unix.ICRNL
-		raw.Oflag &^= unix.OPOST | unix.OCRNL | unix.ONLCR
-		raw.Lflag &^= unix.ECHO | unix.ICANON | unix.IEXTEN | unix.ISIG
-		raw.Cc[unix.VMIN] = 1
-		raw.Cc[unix.VTIME] = 0
-		unix.IoctlSetTermios(int(f.Fd()), unix.TCSETS, &raw)
-	}
+	prevTermios := setPortRaw(f)
 
 	fmt.Fprintf(os.Stderr, "Connected to %s (%d 8N1, raw)\n", port, baud)
 	fmt.Fprintf(os.Stderr, "Type Ctrl+A then Ctrl+X to exit\n\n")
 
+	// Nothing is sent on connect: the console may have a command running, and
+	// a stray CR would interrupt it. The user hits Enter when they want a prompt.
+
 	// Watch for Ctrl+A then Ctrl+X escape sequence
 	type escState int
-	const (escIdle escState = iota; escPending)
+	const (
+		escIdle escState = iota
+		escPending
+	)
 	var es escState
 	var exitReq = make(chan struct{}, 1)
 
@@ -387,12 +393,57 @@ func interactive(port string, baud int) error {
 
 	// Restore the port's prior termios, then close to unblock the read goroutine.
 	if prevTermios != nil {
-		unix.IoctlSetTermios(int(f.Fd()), unix.TCSETS, prevTermios)
+		withPortFd(f, func(fd int) {
+			unix.IoctlSetTermios(fd, unix.TCSETS, prevTermios)
+		})
 	}
 	f.Close()
-	wg.Wait()
+
+	// Close unblocks the reader through the runtime poller, but never let a
+	// wedged read keep the CLI alive: the user asked to leave.
+	readerDone := make(chan struct{})
+	go func() { wg.Wait(); close(readerDone) }()
+	select {
+	case <-readerDone:
+	case <-time.After(time.Second):
+	}
 	fmt.Fprintln(os.Stderr)
 	return nil
+}
+
+// withPortFd runs fn on the port's raw file descriptor.
+//
+// It deliberately uses SyscallConn instead of os.File.Fd(): Fd() puts the
+// descriptor back into blocking mode and drops it from the runtime poller, and
+// a port that is no longer polled cannot have a pending Read interrupted by
+// Close — which would wedge the Ctrl+A Ctrl+X exit path forever.
+func withPortFd(f *os.File, fn func(fd int)) {
+	sc, err := f.SyscallConn()
+	if err != nil {
+		return
+	}
+	sc.Control(func(fd uintptr) { fn(int(fd)) })
+}
+
+// setPortRaw switches the port to raw 8N1 and returns its previous termios so
+// the caller can restore it, or nil if the settings could not be read.
+func setPortRaw(f *os.File) *unix.Termios {
+	var prev *unix.Termios
+	withPortFd(f, func(fd int) {
+		t, err := unix.IoctlGetTermios(fd, unix.TCGETS)
+		if err != nil {
+			return
+		}
+		prev = t
+		raw := *t
+		raw.Iflag &^= unix.IXON | unix.IXOFF | unix.IXANY | unix.ICRNL
+		raw.Oflag &^= unix.OPOST | unix.OCRNL | unix.ONLCR
+		raw.Lflag &^= unix.ECHO | unix.ICANON | unix.IEXTEN | unix.ISIG
+		raw.Cc[unix.VMIN] = 1
+		raw.Cc[unix.VTIME] = 0
+		unix.IoctlSetTermios(fd, unix.TCSETS, &raw)
+	})
+	return prev
 }
 
 // resolvePort returns the port to use: explicit port > default /dev/ttyUSB0 > error.
@@ -412,8 +463,8 @@ func resolvePort(port string, baud int) (string, error) {
 	// Fallback: scan all ports
 	ports := scanPorts(baud)
 	if len(ports) == 0 {
-		return "", fmt.Errorf("no Pantavisor device found on /dev/ttyUSB0\n"+
-			"  Use: pvr device tty -d PORT ...\n"+
+		return "", fmt.Errorf("no Pantavisor device found on /dev/ttyUSB0\n" +
+			"  Use: pvr device tty -d PORT ...\n" +
 			"  Or:  pvr device tty --verbose probe")
 	}
 	if len(ports) == 1 {
