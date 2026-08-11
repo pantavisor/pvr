@@ -1,9 +1,26 @@
 
-<a name="052"></a>
-## [052](https://gitlab.com/pantacor/pvr/compare/051...052) (2026-07-21)
+<a name="053"></a>
+## [053](https://gitlab.com/pantacor/pvr/compare/052...053) (2026-08-11)
 
 ### Chore
 
+* **deps:** update go-containerregistry to v0.20.7
+
+### Feat
+
+* **device:** add --baud flag to device tty
+
+### Fix
+
+* **device:** unhang tty exit and stop mangling console output
+
+
+<a name="052"></a>
+## [052](https://gitlab.com/pantacor/pvr/compare/051...052) (2026-07-22)
+
+### Chore
+
+* update CHANGELOG.md for release 052
 * **deps:** use pvwificonnect v1.7.0
 
 ### Ci
@@ -71,7 +88,11 @@
 
 
 <a name="050"></a>
-## [050](https://gitlab.com/pantacor/pvr/compare/049...050) (2026-03-27)
+## [050](https://gitlab.com/pantacor/pvr/compare/049...050) (2026-06-14)
+
+### Chore
+
+* update CHANGELOG.md for release 050
 
 ### Feature
 
@@ -129,10 +150,6 @@
 
 ### Feature
 
-* add revision to the pvr version command
-* do polling pkce instead of just redirection callback
-* add make release
-* add release to makefile
 * update dockerlib to use new library that supports cli client 1.44
 
 ### Fix
@@ -152,13 +169,33 @@
 * use docker cache on pvr test instead of pulling always
 * make sure to read the api version and negociate from there
 * docker lib should negociate without intervention
-* correct install file name
 * it generate root.squashfs even with old src.json
 * docker negotion needs to start from 1.46
 
 
 <a name="048"></a>
-## [048](https://gitlab.com/pantacor/pvr/compare/047...048) (2026-02-06)
+## [048](https://gitlab.com/pantacor/pvr/compare/047...048) (2026-03-04)
+
+### Feature
+
+* add windows installer scripts
+* add revision to the pvr version command
+* do polling pkce instead of just redirection callback
+* add make release
+* add release to makefile
+
+### Fix
+
+* user correct posix expression
+* donot add the .zip to tar.gz files
+* build package in master
+* don't build tools on master
+* just update the upload of src and vendorr
+* gitlab.ci upload packages
+* make tools on master too
+* docker remote pull was failing for multiarch containers
+* new version schema was failing to build in gitlab-ci
+* correct install file name
 
 ### Refactor
 
