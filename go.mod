@@ -1,6 +1,6 @@
 module gitlab.com/pantacor/pvr
 
-go 1.23.8
+go 1.24.0
 
 toolchain go1.24.4
 
@@ -12,12 +12,12 @@ require (
 	github.com/bmatcuk/doublestar v1.3.4
 	github.com/cavaliercoder/grab v2.0.0+incompatible
 	github.com/docker/distribution v2.8.3+incompatible
-	github.com/docker/docker v24.0.9+incompatible
+	github.com/docker/docker v28.5.2+incompatible
 	github.com/genuinetools/reg v0.16.1
 	github.com/gibson042/canonicaljson-go v1.0.3
 	github.com/go-jose/go-jose/v3 v3.0.0-rc.1
 	github.com/go-resty/resty v1.12.0
-	github.com/google/go-containerregistry v0.8.0
+	github.com/google/go-containerregistry v0.20.7
 	github.com/grandcat/zeroconf v1.0.0
 	github.com/highercomve/jsondiff v0.0.0-20230331184928-5ac4220227bb
 	github.com/justincampbell/timeago v0.0.0-20160528003754-027f40306f1d
@@ -33,7 +33,7 @@ require (
 	gitlab.com/pantacor/pvwificonnect v1.7.0
 	go.mongodb.org/mongo-driver v1.9.0
 	golang.org/x/sys v0.39.0
-	golang.org/x/term v0.20.0
+	golang.org/x/term v0.37.0
 	gopkg.in/cheggaaa/pb.v1 v1.0.28
 	lure.sh/fakeroot v0.0.0-20231024205152-b2da39c1be0c
 )
@@ -49,12 +49,16 @@ require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bmizerany/assert v0.0.0-20160611221934-b7ed37b82869 // indirect
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
+	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/channelmeter/iso8601duration v0.0.0-20150204201828-8da3af7a2a61 // indirect
+	github.com/containerd/errdefs v1.0.0 // indirect
+	github.com/containerd/errdefs/pkg v0.3.0 // indirect
 	github.com/containerd/stargz-snapshotter/estargz v0.18.1 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.7 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible // indirect
+	github.com/distribution/reference v0.6.0 // indirect
 	github.com/docker/cli v29.0.3+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.9.3 // indirect
 	github.com/docker/go-connections v0.5.0 // indirect
@@ -65,11 +69,13 @@ require (
 	github.com/facebookgo/stack v0.0.0-20160209184415-751773369052 // indirect
 	github.com/facebookgo/subset v0.0.0-20150612182917-8dac2c3c4870 // indirect
 	github.com/fatih/structs v1.1.0 // indirect
+	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fluent/fluent-logger-golang v1.9.0 // indirect
+	github.com/go-logr/logr v1.4.3 // indirect
+	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/go-stack/stack v1.8.1 // indirect
 	github.com/godbus/dbus/v5 v5.1.0 // indirect
-	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/google/uuid v1.6.0 // indirect
@@ -81,7 +87,6 @@ require (
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/justincampbell/bigduration v0.0.0-20160531141349-e45bf03c0666 // indirect
 	github.com/klauspost/compress v1.18.1 // indirect
-	github.com/kr/pretty v0.3.1 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/mattn/go-runewidth v0.0.13 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.2-0.20181231171920-c182affec369 // indirect
@@ -90,6 +95,8 @@ require (
 	github.com/mitchellh/copystructure v1.0.0 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/mitchellh/reflectwalk v1.0.1 // indirect
+	github.com/moby/docker-image-spec v1.3.1 // indirect
+	github.com/moby/sys/sequential v0.7.0 // indirect
 	github.com/moby/term v0.5.2 // indirect
 	github.com/olivere/elastic/v7 v7.0.32 // indirect
 	github.com/opencontainers/image-spec v1.1.1 // indirect
@@ -121,11 +128,20 @@ require (
 	github.com/xdg-go/scram v1.1.1 // indirect
 	github.com/xdg-go/stringprep v1.0.3 // indirect
 	github.com/youmark/pkcs8 v0.0.0-20201027041543-1326539a0a0a // indirect
+	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
+	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.61.0 // indirect
+	go.opentelemetry.io/otel v1.36.0 // indirect
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.33.0 // indirect
+	go.opentelemetry.io/otel/metric v1.36.0 // indirect
+	go.opentelemetry.io/otel/trace v1.36.0 // indirect
+	go.opentelemetry.io/proto/otlp v1.4.0 // indirect
 	golang.org/x/crypto v0.44.0 // indirect
 	golang.org/x/exp v0.0.0-20241204233417-43b7b7cde48d // indirect
 	golang.org/x/net v0.47.0 // indirect
 	golang.org/x/sync v0.18.0 // indirect
 	golang.org/x/text v0.31.0 // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20241118233622-e639e219e697 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20241118233622-e639e219e697 // indirect
 	google.golang.org/protobuf v1.36.10 // indirect
 	gopkg.in/mailgun/mailgun-go.v1 v1.1.1 // indirect
 	gopkg.in/mgo.v2 v2.0.0-20190816093944-a6b53ec6cb22 // indirect
@@ -153,32 +169,5 @@ exclude github.com/Sirupsen/logrus v1.1.0
 replace github.com/golang/lint v0.0.0-20190409202823-959b441ac422 => github.com/golang/lint v0.0.0-20190301231843-5614ed5bae6f
 
 replace github.com/go-jose/go-jose/v3 => github.com/asac/go-jose/v3 v3.0.0-20210726220436-d8aa79561ce4
-
-// Version constraints for Go 1.21 compatibility
-replace github.com/google/go-containerregistry => github.com/google/go-containerregistry v0.8.0
-
-replace github.com/docker/distribution => github.com/docker/distribution v2.7.1+incompatible
-
-replace golang.org/x/net => golang.org/x/net v0.7.0
-
-replace golang.org/x/term => golang.org/x/term v0.5.0
-
-replace golang.org/x/crypto => golang.org/x/crypto v0.6.0
-
-replace golang.org/x/sys => golang.org/x/sys v0.5.0
-
-replace golang.org/x/text => golang.org/x/text v0.7.0
-
-replace golang.org/x/sync => golang.org/x/sync v0.1.0
-
-replace github.com/klauspost/compress => github.com/klauspost/compress v1.15.15
-
-replace google.golang.org/protobuf => google.golang.org/protobuf v1.28.1
-
-replace github.com/containerd/stargz-snapshotter/estargz => github.com/containerd/stargz-snapshotter/estargz v0.14.3
-
-replace github.com/docker/cli => github.com/docker/cli v20.10.9+incompatible
-
-replace github.com/rogpeppe/go-internal => github.com/rogpeppe/go-internal v1.9.0
 
 replace github.com/genuinetools/reg => github.com/pantacor/reg v0.0.0-20240122195051-0126d67d2189
