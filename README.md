@@ -62,11 +62,12 @@ Full command reference and usage guides are in the [docs/](docs/) directory:
 | Low-level operations | [docs/commands/lowlevel.md](docs/commands/lowlevel.md) |
 | Utilities | [docs/commands/utils.md](docs/commands/utils.md) |
 | Deprecated commands | [docs/commands/deprecated.md](docs/commands/deprecated.md) |
+| Templates and manifests | [docs/PVR_TEMPLATES.md](docs/PVR_TEMPLATES.md) |
 
 ## Templates and Manifests
 
 For template variables and how the manifest generation system works, see
-[PVR_TEMPLATES.md](PVR_TEMPLATES.md).
+[docs/PVR_TEMPLATES.md](docs/PVR_TEMPLATES.md).
 
 ## Environment Variables
 
