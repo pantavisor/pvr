@@ -247,6 +247,7 @@ pvr device tty probe                     # scan for available USB serial ports
 | Flag | Description |
 |------|-------------|
 | `--device, -d` | Serial port path. Default: `/dev/ttyUSB0` |
+| `--baud, -b` | Serial console baud rate (e.g. 921600). Default: `115200` |
 | `--verbose, -v` | Show verbose probe output |
 
 Linux-only.

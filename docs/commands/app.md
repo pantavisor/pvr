@@ -41,6 +41,7 @@ pvr app add --base rolling-ros-base --from=another-container extended-app
 | `--type, -t` | `PVR_SOURCE_TYPE` | Source type: `docker` (default), `pvr`, `rootfs` |
 | `--source` | `PVR_SOURCE` | Source priority: comma-separated `remote,local` (default) |
 | `--platform` | `PVR_PLATFORM` | Target platform (e.g. `linux/arm/v7`) |
+| `--runlevel` | `PVR_RUNLEVEL` | Runlevel to install container to: `data`, `root`, `platform`, `app`. Deprecated in favor of `--group`. Default: `app` |
 | `--group` | `PVR_GROUP` | Container group: `data`, `root`, `platform`, `app` |
 | `--restart-policy` | `PVR_RESTART_POLICY` | Restart policy: `system` or `container` |
 | `--status-goal` | `PVR_STATUS_GOAL` | Desired status: `MOUNTED`, `STARTED`, `READY` |
@@ -115,6 +116,7 @@ Useful after editing `src.json` to apply new template arguments or config.
 | `--type, -t` | `PVR_SOURCE_TYPE` | Source type override |
 | `--source` | `PVR_SOURCE` | Source priority override |
 | `--base` | `PVR_APP_ADD_BASE` | Base app name for patch rootfs |
+| `--runlevel` | `PVR_RUNLEVEL` | Runlevel to install app to: `root`, `platform`, `app`. Deprecated in favor of `--group`. Default: `app` |
 | `--arg` | `PVR_TEMPLATE_ARG` | Template arguments `KEY=VALUE` (repeatable); merged into src.json |
 | `--arg-json` | `PVR_TEMPLATE_ARG` | Template arguments as JSON file |
 | `--config` | `PVR_CONFIG_JSON` | Config values `KEY=VALUE` (repeatable) |

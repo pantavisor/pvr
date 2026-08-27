@@ -17,7 +17,7 @@ Embed a JWS signature protecting JSON document elements of a selected part.
 ```bash
 pvr sig add --part nginx
 pvr sig add --part nginx --key ./private.pem
-pvr sig add --parts="nginx,base-os" --include="**/*.json" --exclude="src.json"
+pvr sig add --part="nginx,base-os" --include="**/*.json" --exclude="src.json"
 pvr sig add --noconfig                       # exclude _config parts
 ```
 

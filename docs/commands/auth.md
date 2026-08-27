@@ -104,3 +104,24 @@ All flags are passed through to `curl(1)` unchanged — pvr only injects the
 auth header. Requires `curl(1)` in `PATH`.
 
 **Flags:** none (all arguments forwarded to curl)
+
+---
+
+## pvr claim
+
+Claim ownership of a device through a secret challenge only accessible to
+device owners. The device must already have registered itself with
+Pantahub. Prompts for the challenge if not provided as an argument.
+
+```bash
+pvr claim https://api.pantahub.com/devices/xxxxxxxxxx
+pvr claim <device-id-or-nick> --challenge=<secret>
+```
+
+Alias: `cl`
+
+**Flags:**
+
+| Flag | Description |
+|------|-------------|
+| `--challenge, -c` | Secret Challenge |
