@@ -1,4 +1,18 @@
 
+<a name="054"></a>
+## [054](https://gitlab.com/pantacor/pvr/compare/053...054) (2026-09-04)
+
+### Docs
+
+* move PVR_TEMPLATES.md into docs/ and update README references
+* fix 5 findings from codecheck pvr all-5c1cc35 (2026-08-27)
+* complete and correct PVR_TEMPLATES.md
+
+### Feat
+
+* **device:** add `pvr device accept-ownership`
+
+
 <a name="053"></a>
 ## [053](https://gitlab.com/pantacor/pvr/compare/052...053) (2026-08-11)
 
