@@ -34,6 +34,7 @@ func CommandDevice() cli.Command {
 			CommandDeviceGet(),
 			CommandDeviceSet(),
 			CommandDeviceDelete(),
+			CommandDeviceAcceptOwnership(),
 			CommandStatus(),
 			CommandSteps(),
 			CommandStateDiff(),

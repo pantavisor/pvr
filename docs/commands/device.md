@@ -159,6 +159,26 @@ pvr device delete --yes <DEVICE_ENDPOINT>
 
 ---
 
+## pvr device accept-ownership
+
+Accept ownership of a device that registered through a device token whose
+owner verification mode is `manual`. Until the owner accepts it, hub only
+issues the device read-only credentials, so it cannot post state or logs.
+
+```bash
+pvr device accept-ownership <NICK|ID>
+pvr device accept-ownership <USER_NICK>/<NICK|ID>
+```
+
+Run it logged in as the device owner. Devices whose verification is already
+complete are reported as-is; devices using `tls` verification are rejected,
+since only the device itself can complete that handshake. The same action is
+available from the device page in the Hub UI.
+
+Alias: `pvr device accept`.
+
+---
+
 ## pvr device status
 
 Show the current or specified revision's status for a device.

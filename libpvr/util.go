@@ -1411,3 +1411,63 @@ func SortObjects(objects map[string]string) []string {
 
 	return values
 }
+
+// DeviceOwnershipStatus is the owner-verification state hub reports for a
+// device that was onboarded through a device token with an ovmode.
+type DeviceOwnershipStatus struct {
+	Mode   string `json:"mode,omitempty"`
+	Status string `json:"status,omitempty"`
+}
+
+// AcceptDeviceOwnership completes the manual owner-verification step for a
+// device: it resolves NICK|ID (optionally scoped by ownerNick) to the device
+// id and POSTs /devices/{id}/ownership/validate with the logged-in user.
+func (s *Session) AcceptDeviceOwnership(baseURL string,
+	deviceNick string,
+	ownerNick string,
+) (*DeviceOwnershipStatus, error) {
+	response, err := s.GetDevice(baseURL, deviceNick, ownerNick)
+	if err != nil {
+		return nil, err
+	}
+
+	device := struct {
+		ID     string                 `json:"id"`
+		Nick   string                 `json:"nick"`
+		OVMode *DeviceOwnershipStatus `json:"ovmode"`
+	}{}
+	if err := json.Unmarshal(response.Body(), &device); err != nil {
+		return nil, fmt.Errorf("parsing device details: %w", err)
+	}
+	if device.ID == "" {
+		return nil, errors.New("device details did not include an id")
+	}
+	if device.OVMode == nil || device.OVMode.Mode == "" {
+		return nil, fmt.Errorf("device %s has no owner verification configured; nothing to accept", device.Nick)
+	}
+	if device.OVMode.Mode != "manual" {
+		return nil, fmt.Errorf("device %s uses %q owner verification; only manual mode is accepted from pvr", device.Nick, device.OVMode.Mode)
+	}
+	if device.OVMode.Status == "completed" || device.OVMode.Status == "validation_not_needed" {
+		return device.OVMode, nil
+	}
+
+	validateURL := baseURL + "/devices/" + device.ID + "/ownership/validate"
+	response, err = s.DoAuthCall(false, NoneCallMethod, func(req *resty.Request) error {
+		req.Method = resty.MethodPost
+		req.URL = validateURL
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("accepting device ownership: %w", err)
+	}
+	if response.StatusCode() != http.StatusOK {
+		return nil, fmt.Errorf("accepting device ownership failed (code=%d): %s", response.StatusCode(), response.Body())
+	}
+
+	status := &DeviceOwnershipStatus{}
+	if err := json.Unmarshal(response.Body(), status); err != nil {
+		return nil, fmt.Errorf("parsing ownership response: %w", err)
+	}
+	return status, nil
+}
