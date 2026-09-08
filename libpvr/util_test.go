@@ -18,6 +18,7 @@ package libpvr
 
 import (
 	"fmt"
+	"testing"
 )
 
 type testStruct struct {
@@ -113,4 +114,44 @@ func ExampleIsValidUrl_url3() {
 		fmt.Println("no")
 	}
 	// Output: yes
+}
+
+func TestResolveDeviceEndpoint(t *testing.T) {
+	tests := []struct {
+		name    string
+		baseURL string
+		value   string
+		want    string
+	}{
+		{
+			name:    "bare id resolved against base url",
+			baseURL: "https://api.stage.pantahub.com",
+			value:   "000000000000000000000000",
+			want:    "https://api.stage.pantahub.com/devices/000000000000000000000000",
+		},
+		{
+			name:    "bare id resolved against base url with port and trailing slash",
+			baseURL: "https://api.stage.pantahub.com:8443/",
+			value:   "000000000000000000000000",
+			want:    "https://api.stage.pantahub.com:8443/devices/000000000000000000000000",
+		},
+		{
+			name:    "full url passed through unchanged",
+			baseURL: "https://api.stage.pantahub.com",
+			value:   "https://api.pantahub.com/devices/000000000000000000000000",
+			want:    "https://api.pantahub.com/devices/000000000000000000000000",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ResolveDeviceEndpoint(tt.baseURL, tt.value)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got != tt.want {
+				t.Errorf("ResolveDeviceEndpoint(%q, %q) = %q, want %q", tt.baseURL, tt.value, got, tt.want)
+			}
+		})
+	}
 }

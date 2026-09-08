@@ -17,7 +17,6 @@
 package cmd
 
 import (
-	"net/url"
 	"os"
 
 	"github.com/urfave/cli"
@@ -59,14 +58,11 @@ func CommandClaim() cli.Command {
 				deviceEndpoint = c.Args()[0]
 			}
 
-			u, err := url.Parse(deviceEndpoint)
-
-			// if no scheme, we assume its device-id/nick
-			if u.Scheme == "" {
-				u.Scheme = "https"
-				u.Host = "api.pantahub.com"
-				u.Path = "/devices/" + deviceEndpoint
-				deviceEndpoint = u.String()
+			// if no scheme, we assume its device-id/nick and resolve
+			// it against the configured base URL
+			deviceEndpoint, err = libpvr.ResolveDeviceEndpoint(c.App.Metadata["PVR_BASEURL"].(string), deviceEndpoint)
+			if err != nil {
+				return cli.NewExitError("Error resolving device endpoint: "+err.Error(), 3)
 			}
 			challenge := c.String("challenge")
 

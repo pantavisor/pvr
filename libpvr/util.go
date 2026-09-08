@@ -959,6 +959,33 @@ func IsValidUrl(value string) bool {
 	return true
 }
 
+// ResolveDeviceEndpoint turns a device argument into an absolute device
+// endpoint URL. A value that already carries a scheme (a full URL) is
+// returned unchanged. A bare value (a device id or nick) is resolved
+// against baseURL, e.g. "abc123" with baseURL "https://api.stage.pantahub.com"
+// becomes "https://api.stage.pantahub.com/devices/abc123".
+func ResolveDeviceEndpoint(baseURL, value string) (string, error) {
+	u, err := url.Parse(value)
+	if err != nil {
+		return "", err
+	}
+
+	if u.Scheme != "" {
+		return value, nil
+	}
+
+	base, err := url.Parse(baseURL)
+	if err != nil {
+		return "", err
+	}
+
+	u.Scheme = base.Scheme
+	u.Host = base.Host
+	u.Path = strings.TrimSuffix(base.Path, "/") + "/devices/" + value
+
+	return u.String(), nil
+}
+
 var tmplMap = map[string]interface{}{
 	"basename": func(a string) string {
 		return path.Base(a)
