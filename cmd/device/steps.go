@@ -94,33 +94,38 @@ func getRunningRev(session *libpvr.Session, baseURL, deviceNick string) (string,
 	return rev, nil
 }
 
+func completeDeviceNick(c *cli.Context) {
+	if c.GlobalString("baseurl") != "" {
+		c.App.Metadata["PVR_BASEURL"] = c.GlobalString("baseurl")
+	}
+	session, err := libpvr.NewSession(c.App)
+	if err != nil {
+		log.Fatal(err.Error())
+		return
+	}
+	if c.NArg() == 0 {
+		return
+	}
+	searchTerm := c.Args()[c.NArg()-1]
+	baseURL := c.App.Metadata["PVR_BASEURL"].(string)
+	splits := strings.Split(searchTerm, "/")
+	if len(splits) == 1 {
+		session.SuggestDeviceNicks("", searchTerm, baseURL)
+	} else {
+		session.SuggestDeviceNicks(splits[0], searchTerm, baseURL)
+	}
+}
+
 func CommandSteps() cli.Command {
 	return cli.Command{
-		Name:        "steps",
-		Aliases:     []string{"step"},
-		ArgsUsage:   "<NICK|ID>",
-		Usage:       "pvr device steps <NICK|ID> [--rev=N]",
-		Description: "List steps of a device trail. Without --rev lists all steps, with --rev shows a specific step.",
-		BashComplete: func(c *cli.Context) {
-			if c.GlobalString("baseurl") != "" {
-				c.App.Metadata["PVR_BASEURL"] = c.GlobalString("baseurl")
-			}
-			session, err := libpvr.NewSession(c.App)
-			if err != nil {
-				log.Fatal(err.Error())
-				return
-			}
-			if c.NArg() == 0 {
-				return
-			}
-			searchTerm := c.Args()[c.NArg()-1]
-			baseURL := c.App.Metadata["PVR_BASEURL"].(string)
-			splits := strings.Split(searchTerm, "/")
-			if len(splits) == 1 {
-				session.SuggestDeviceNicks("", searchTerm, baseURL)
-			} else {
-				session.SuggestDeviceNicks(splits[0], searchTerm, baseURL)
-			}
+		Name:         "steps",
+		Aliases:      []string{"step"},
+		ArgsUsage:    "<NICK|ID>",
+		Usage:        "pvr device steps <NICK|ID> [--rev=N]",
+		Description:  "List steps of a device trail. Without --rev lists all steps, with --rev shows a specific step.",
+		BashComplete: completeDeviceNick,
+		Subcommands: []cli.Command{
+			CommandStepsCancel(),
 		},
 		Action: func(c *cli.Context) error {
 			session, err := libpvr.NewSession(c.App)
@@ -169,6 +174,64 @@ func CommandSteps() cli.Command {
 			cli.StringFlag{
 				Name:   "rev,r",
 				Usage:  "Show a specific step revision, e.g. --rev=4",
+				EnvVar: "PVR_STEPS_REV",
+			},
+		},
+	}
+}
+
+// CommandStepsCancel : pvr device steps cancel
+func CommandStepsCancel() cli.Command {
+	return cli.Command{
+		Name:         "cancel",
+		ArgsUsage:    "<NICK|ID|URL>",
+		Usage:        "pvr device steps cancel <NICK|ID|URL> --rev=N",
+		Description:  "Cancel a pending step of a device trail. The Hub marks the step CANCEL if it is still NEW, QUEUED, DOWNLOADING or INPROGRESS; the device drops the update and keeps its current revision.",
+		BashComplete: completeDeviceNick,
+		Action: func(c *cli.Context) error {
+			session, err := libpvr.NewSession(c.App)
+			if err != nil {
+				return cli.NewExitError(err, 4)
+			}
+			baseURL := c.App.Metadata["PVR_BASEURL"].(string)
+
+			if c.NArg() < 1 {
+				return cli.NewExitError(errors.New("Device ID or Nick is required. See --help"), 2)
+			}
+
+			info, err := resolveDevice(session, baseURL, c.Args()[0])
+			if err != nil {
+				return cli.NewExitError(err.Error(), 4)
+			}
+
+			rev := c.String("rev")
+			if rev == "" {
+				rev = info.Rev
+			}
+			if rev == "" {
+				return cli.NewExitError(errors.New("Step revision is required: pass --rev=N or a pvr URL ending in the revision. See --help"), 2)
+			}
+
+			cancelURL := info.BaseURL + "/trails/" + info.DeviceID + "/steps/" + rev + "/cancel"
+			response, err := session.DoAuthCall(false, libpvr.NoneCallMethod, func(req *resty.Request) error {
+				req.Method = resty.MethodPut
+				req.URL = cancelURL
+				return nil
+			})
+			if err != nil {
+				return cli.NewExitError("Error cancelling step "+rev+": "+err.Error(), 4)
+			}
+			if response.StatusCode() != 200 {
+				return cli.NewExitError("Error cancelling step "+rev+": "+string(response.Body()), 4)
+			}
+
+			libpvr.LogPrettyJSON(response.Body())
+			return nil
+		},
+		Flags: []cli.Flag{
+			cli.StringFlag{
+				Name:   "rev,r",
+				Usage:  "Step revision to cancel, e.g. --rev=4",
 				EnvVar: "PVR_STEPS_REV",
 			},
 		},

@@ -216,6 +216,27 @@ Without `--rev`, lists all steps.
 |------|-----|-------------|
 | `--rev, -r` | `PVR_STEPS_REV` | Show a specific step revision |
 
+### pvr device steps cancel
+
+Cancel a step that the device has not finished applying yet. The Hub marks
+the step `CANCEL` if it is still `NEW`, `QUEUED`, `DOWNLOADING` or
+`INPROGRESS`; the device drops the update and keeps its current revision.
+
+```bash
+pvr device steps cancel <DEVICE_ID> --rev=4
+pvr device steps cancel https://pvr.pantahub.com/<USER>/<NICK>/4
+```
+
+The revision comes from `--rev` or from the trailing revision of a pvr URL.
+Prints the resulting step progress. Use this instead of the deprecated
+`wontgo` endpoint.
+
+**Flags:**
+
+| Flag | Env | Description |
+|------|-----|-------------|
+| `--rev, -r` | `PVR_STEPS_REV` | Step revision to cancel |
+
 ---
 
 ## pvr device statediff
