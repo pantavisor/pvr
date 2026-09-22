@@ -771,39 +771,49 @@ func (p *Pvr) JwsVerifyPvs(keyPath string, caCerts string, pvsPath string, inclu
 	return &summary, nil
 }
 
+// getSigMatch reads the pvs include/exclude patterns a pvs@2 signature names
+// in its protected header. It only decodes that header, without handing the
+// JWS to a JOSE parser: the payload of a pvs signature is the state itself and
+// is detached, which a stock go-jose refuses to parse, and nothing here needs
+// the signature verified. Callers that must trust it verify it separately.
 func getSigMatch(signature PvrMap) (*PvsMatch, error) {
-	if _, ok := signature["#spec"]; !ok {
+	spec, ok := signature["#spec"]
+	if !ok {
 		return nil, errors.New("ERROR: pvs signature does not have a #spec element")
 	}
 
-	if signature["#spec"].(string) != "pvs@2" {
+	if specStr, _ := spec.(string); specStr != "pvs@2" {
 		return nil, errors.New("ERROR: pvs signature must be of #spec pvs@2")
 	}
 
-	buf, err := pvjson.Marshal(signature)
-	if err != nil {
-		return nil, err
+	protected, _ := signature["protected"].(string)
+	if protected == "" {
+		// general JWS JSON serialization: the first signature speaks for it
+		if sigs, ok := signature["signatures"].([]interface{}); ok && len(sigs) > 0 {
+			if first, ok := sigs[0].(map[string]interface{}); ok {
+				protected, _ = first["protected"].(string)
+			}
+		}
+	}
+	if protected == "" {
+		return nil, errors.New("ERROR: pvs signature has no protected header")
 	}
 
-	sig, err := gojose.ParseSigned(string(buf))
+	headerBuf, err := base64.RawURLEncoding.DecodeString(strings.TrimRight(protected, "="))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("ERROR: pvs signature protected header is not base64url: %w", err)
 	}
 
-	header := sig.Signatures[0].Protected
-	pvsHeader := header.ExtraHeaders[gojose.HeaderKey("pvs")]
-
-	jsonBuf, err := pvjson.Marshal(pvsHeader, pvjson.MarshalOptions{Compact: true})
-	if err != nil {
+	var header struct {
+		Pvs *PvsMatch `json:"pvs"`
+	}
+	if err := pvjson.Unmarshal(headerBuf, &header); err != nil {
 		return nil, err
 	}
-
-	var match *PvsMatch
-	err = pvjson.Unmarshal(jsonBuf, &match)
-	if err != nil {
-		return nil, err
+	if header.Pvs == nil {
+		return nil, errors.New("ERROR: pvs signature protected header has no pvs element")
 	}
-	return match, nil
+	return header.Pvs, nil
 }
 
 func getSigSummary(stateBuf []byte, stateMap PvrMap, signature PvrMap) (*JwsVerifySummary, error) {
