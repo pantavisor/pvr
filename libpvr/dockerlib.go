@@ -23,6 +23,8 @@ import (
 	"bufio"
 	"compress/gzip"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -61,6 +63,7 @@ var (
 	ErrTarNotFound             = errors.New("tar not found in your PATH, please install before continue")
 	ErrImageNotFound           = errors.New("image not found or you do not have access")
 	ErrDownloadedLayerDiffSize = errors.New("size of downloaded layer is different from expected")
+	ErrDownloadedLayerDiffSha  = errors.New("sha of downloaded layer is different from expected")
 	stripFilesList             = []string{
 		"usr/bin/qemu-arm-static",
 	}
@@ -711,13 +714,16 @@ func (p *Pvr) GenerateApplicationSquashFS(app *AppData, appManifest *Source) err
 		}
 
 		for i, layer := range layers {
-			layerDigest, err := layer.Digest()
+			// Layers are cached uncompressed and keyed by DiffID, so the
+			// registry's blob compression (gzip, zstd, ...) never reaches
+			// the tar readers below.
+			diffID, err := layer.DiffID()
 			if err != nil {
 				return err
 			}
 
-			filename := filepath.Join(cacheDir, layerDigest.String()) + ".tar.gz"
-			shaValid, err := FileHasSameSha(filename, layerDigest.String())
+			filename := filepath.Join(cacheDir, diffID.String()) + ".tar"
+			shaValid, err := FileHasSameSha(filename, diffID.String())
 			if err != nil {
 				return err
 			}
@@ -727,35 +733,34 @@ func (p *Pvr) GenerateApplicationSquashFS(app *AppData, appManifest *Source) err
 				continue
 			}
 
-			// Download compressed layer
-			layerReader, err := layer.Compressed()
+			layerReader, err := layer.Uncompressed()
 			if err != nil {
 				return err
 			}
 
-			buf := bufio.NewReader(layerReader)
-
 			err = Create(filename, 0644)
 			if err != nil {
+				layerReader.Close()
 				return err
 			}
 			file, err := os.OpenFile(filename, os.O_WRONLY|os.O_TRUNC, 0644)
 			if err != nil {
+				layerReader.Close()
 				return err
 			}
 
-			layerSize, err := layer.Size()
+			hasher := sha256.New()
+			_, err = io.Copy(io.MultiWriter(file, hasher), bufio.NewReader(layerReader))
+			layerReader.Close()
+			if closeErr := file.Close(); err == nil {
+				err = closeErr
+			}
 			if err != nil {
 				return err
 			}
 
-			writedCount, err := buf.WriteTo(file)
-			if writedCount != layerSize {
-				return ErrDownloadedLayerDiffSize
-			}
-
-			if err != nil {
-				return err
+			if got := "sha256:" + hex.EncodeToString(hasher.Sum(nil)); got != diffID.String() {
+				return fmt.Errorf("%w: layer %d diff_id is %s, expected %s", ErrDownloadedLayerDiffSha, i, got, diffID)
 			}
 			files = append(files, filename)
 			fmt.Printf("Layer %d downloaded\n", i)
