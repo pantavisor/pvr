@@ -34,7 +34,8 @@ var SourceFlagUsage = "Comma separated priority list of source (valid sources: \
 var RunlevelFlagUsage = "Runlevel to install container to (valid runlevels: \"data\", \"root\", \"platform\" and \"app\") (deprecated) (default: \"app\")"
 var GroupFlagUsage = "Group to install container to (default: last group in groups.json, if exists)"
 var RestartPolicyFlagUsage = "Restart policy in case of container modification (valid policies: \"system\" and \"container\")"
-var StatusGoalFlagUsage = "Status goal for container after bootup (valid goals: \"MOUNTED\", \"STARTED\" and \"READY\")"
+var StatusGoalFlagUsage = "Status goal for container after bootup (valid goals: \"MOUNTED\", \"STARTED\", \"READY\" and \"STAGED\")"
+var LifecycleGoalFlagUsage = "Lifecycle goal for container after bootup, preferred over --status-goal by newer Pantavisor (unrecognized goals fall back to --status-goal, or \"MOUNTED\" if unset)"
 
 func CommandAppAdd() cli.Command {
 	cmd := cli.Command{
@@ -157,6 +158,9 @@ func CommandAppAdd() cli.Command {
 			if c.String("status-goal") != "" {
 				app.TemplateArgs["PV_STATUS_GOAL"] = c.String("status-goal")
 			}
+			if c.String("lifecycle-goal") != "" {
+				app.TemplateArgs["PV_LIFECYCLE_GOAL"] = c.String("lifecycle-goal")
+			}
 			if c.String("base") != "" {
 				app.DoOverlay = true
 				app.Base = strings.Trim(c.String("base"), "/")
@@ -229,6 +233,11 @@ func CommandAppAdd() cli.Command {
 			Name:   "status-goal",
 			Usage:  StatusGoalFlagUsage,
 			EnvVar: "PVR_STATUS_GOAL",
+		},
+		cli.StringFlag{
+			Name:   "lifecycle-goal",
+			Usage:  LifecycleGoalFlagUsage,
+			EnvVar: "PVR_LIFECYCLE_GOAL",
 		},
 		cli.StringFlag{
 			Name:   "base",

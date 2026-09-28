@@ -17,8 +17,6 @@
 package templates
 
 import (
-	"io"
-	"os"
 	"strings"
 	"testing"
 )
@@ -39,7 +37,7 @@ func TestCompileTemplate(t *testing.T) {
 	t.Run("PV_VOLUME_MOUNTS LXC_CONTAINER_CONF", testLXCContainerConf_PV_VOLUME_MOUNTS)
 	t.Run("PV_VOLUME_IMPORTS named origin", testLXCContainerConf_PV_VOLUME_IMPORTS_NamedOrigin)
 	t.Run("PV_DEV_LOG dev-log in RUN_JSON", testRunJSON_DevLog)
-	t.Run("PV_STATUS_MOUNTED staged renders full container", testStatusMounted)
+	t.Run("PV_STATUS_GOAL / PV_LIFECYCLE_GOAL combinations", testStatusAndLifecycleGoals)
 }
 
 func ErrorIf(t *testing.T, test bool, args ...interface{}) {
@@ -355,12 +353,21 @@ func testRunJSON_DevLog(t *testing.T) {
 		`PV_DEV_LOG=true (bool) should render "dev-log": true, but got: `+out)
 }
 
-// PV_STATUS_MOUNTED only matters when PV_STATUS_GOAL=="MOUNTED":
-//   - unset / "" / "dataonly" -> today's data-only rendering (unchanged)
-//   - "staged"                -> full container (type/config/lxc.container.conf)
-//     plus "status_substate": "STAGED"
-//   - anything else           -> treated as "dataonly", with a stderr warning
-func testStatusMounted(t *testing.T) {
+// testStatusAndLifecycleGoals covers PV_STATUS_GOAL / PV_LIFECYCLE_GOAL and
+// their interaction:
+//
+//   - status_goal is the fallback read by older Pantavisor (status_goal only,
+//     prefix-matched); it must always be one of MOUNTED/STARTED/READY, so an
+//     unset or STAGED PV_STATUS_GOAL falls back to MOUNTED.
+//   - lifecycle_goal is the preferred goal read by newer Pantavisor
+//     (pantavisor#827/#828); it is rendered verbatim, with no validation, so
+//     future goals pass through.
+//   - PV_STATUS_GOAL=STAGED without PV_LIFECYCLE_GOAL is shorthand for
+//     PV_LIFECYCLE_GOAL=STAGED with status_goal falling back to MOUNTED.
+//   - The container renders in full (type/config/lxc.container.conf, exactly
+//     as STARTED would) whenever the preferred goal (PV_LIFECYCLE_GOAL if
+//     set, else PV_STATUS_GOAL) is not MOUNTED; data-only only when it is.
+func testStatusAndLifecycleGoals(t *testing.T) {
 	renderRunJSON := func(args map[string]interface{}) string {
 		result, _ := compileTemplate(RUN_JSON, map[string]interface{}{
 			"Source": map[string]interface{}{
@@ -382,80 +389,104 @@ func testStatusMounted(t *testing.T) {
 		return string(result)
 	}
 
-	baseArgs := map[string]interface{}{"PV_STATUS_GOAL": "MOUNTED"}
-
-	dataOnlyRunJSON := renderRunJSON(baseArgs)
-	dataOnlyLXCConf := renderLXCConf(baseArgs)
-
-	assertDataOnly := func(t *testing.T, runJSON, lxcConf string, label string) {
-		t.Helper()
-		ErrorIfNot(t, strings.Contains(runJSON, `"status_goal": "MOUNTED"`),
-			label+`: expected "status_goal": "MOUNTED", but got: `+runJSON)
-		ErrorIf(t, strings.Contains(runJSON, `"status_substate"`),
-			label+`: data-only rendering must not set status_substate, but got: `+runJSON)
-		ErrorIf(t, strings.Contains(runJSON, `"config": "lxc.container.conf"`),
-			label+`: data-only rendering must not reference lxc.container.conf, but got: `+runJSON)
-		ErrorIf(t, strings.Contains(runJSON, `"type":"lxc"`),
-			label+`: data-only rendering must not set type, but got: `+runJSON)
-		ErrorIfNot(t, lxcConf == "",
-			label+`: data-only rendering must produce an empty lxc.container.conf, but got: `+lxcConf)
+	cases := []struct {
+		name              string
+		args              map[string]interface{}
+		wantStatusGoal    string
+		wantLifecycleGoal string // "" means lifecycle_goal must not be rendered
+		wantFull          bool   // false means data-only
+	}{
+		{
+			name:              "STAGED shorthand",
+			args:              map[string]interface{}{"PV_STATUS_GOAL": "STAGED"},
+			wantStatusGoal:    "MOUNTED",
+			wantLifecycleGoal: "STAGED",
+			wantFull:          true,
+		},
+		{
+			name:              "LIFECYCLE=STAGED + STATUS=MOUNTED",
+			args:              map[string]interface{}{"PV_LIFECYCLE_GOAL": "STAGED", "PV_STATUS_GOAL": "MOUNTED"},
+			wantStatusGoal:    "MOUNTED",
+			wantLifecycleGoal: "STAGED",
+			wantFull:          true,
+		},
+		{
+			name:              "LIFECYCLE=STAGED + STATUS=STARTED",
+			args:              map[string]interface{}{"PV_LIFECYCLE_GOAL": "STAGED", "PV_STATUS_GOAL": "STARTED"},
+			wantStatusGoal:    "STARTED",
+			wantLifecycleGoal: "STAGED",
+			wantFull:          true,
+		},
+		{
+			name:              "LIFECYCLE=STAGED alone",
+			args:              map[string]interface{}{"PV_LIFECYCLE_GOAL": "STAGED"},
+			wantStatusGoal:    "MOUNTED",
+			wantLifecycleGoal: "STAGED",
+			wantFull:          true,
+		},
+		{
+			name:              "LIFECYCLE=FUTUREGOAL + STATUS=READY (pass-through)",
+			args:              map[string]interface{}{"PV_LIFECYCLE_GOAL": "FUTUREGOAL", "PV_STATUS_GOAL": "READY"},
+			wantStatusGoal:    "READY",
+			wantLifecycleGoal: "FUTUREGOAL",
+			wantFull:          true,
+		},
+		{
+			name:              "LIFECYCLE=MOUNTED alone",
+			args:              map[string]interface{}{"PV_LIFECYCLE_GOAL": "MOUNTED"},
+			wantStatusGoal:    "MOUNTED",
+			wantLifecycleGoal: "MOUNTED",
+			wantFull:          false,
+		},
+		{
+			name:              "plain MOUNTED unchanged",
+			args:              map[string]interface{}{"PV_STATUS_GOAL": "MOUNTED"},
+			wantStatusGoal:    "MOUNTED",
+			wantLifecycleGoal: "",
+			wantFull:          false,
+		},
+		{
+			name:              "plain STARTED unchanged",
+			args:              map[string]interface{}{"PV_STATUS_GOAL": "STARTED"},
+			wantStatusGoal:    "STARTED",
+			wantLifecycleGoal: "",
+			wantFull:          true,
+		},
 	}
 
-	// unset (today's baseline) must be byte-identical to "dataonly" and to "" .
-	assertDataOnly(t, dataOnlyRunJSON, dataOnlyLXCConf, "unset")
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			runJSON := renderRunJSON(c.args)
+			lxcConf := renderLXCConf(c.args)
 
-	explicitDataOnlyArgs := map[string]interface{}{"PV_STATUS_GOAL": "MOUNTED", "PV_STATUS_MOUNTED": "dataonly"}
-	explicitDataOnlyRunJSON := renderRunJSON(explicitDataOnlyArgs)
-	explicitDataOnlyLXCConf := renderLXCConf(explicitDataOnlyArgs)
-	ErrorIfNot(t, explicitDataOnlyRunJSON == dataOnlyRunJSON,
-		`PV_STATUS_MOUNTED="dataonly" must render byte-identical run.json to unset, got: `+explicitDataOnlyRunJSON)
-	ErrorIfNot(t, explicitDataOnlyLXCConf == dataOnlyLXCConf,
-		`PV_STATUS_MOUNTED="dataonly" must render byte-identical lxc.container.conf to unset, got: `+explicitDataOnlyLXCConf)
+			wantStatusGoalLine := `"status_goal": "` + c.wantStatusGoal + `"`
+			ErrorIfNot(t, strings.Contains(runJSON, wantStatusGoalLine),
+				c.name+`: expected `+wantStatusGoalLine+`, but got: `+runJSON)
 
-	emptyArgs := map[string]interface{}{"PV_STATUS_GOAL": "MOUNTED", "PV_STATUS_MOUNTED": ""}
-	emptyRunJSON := renderRunJSON(emptyArgs)
-	ErrorIfNot(t, emptyRunJSON == dataOnlyRunJSON,
-		`PV_STATUS_MOUNTED="" must render byte-identical run.json to unset, got: `+emptyRunJSON)
+			if c.wantLifecycleGoal != "" {
+				wantLifecycleGoalLine := `"lifecycle_goal": "` + c.wantLifecycleGoal + `"`
+				ErrorIfNot(t, strings.Contains(runJSON, wantLifecycleGoalLine),
+					c.name+`: expected `+wantLifecycleGoalLine+`, but got: `+runJSON)
+			} else {
+				ErrorIf(t, strings.Contains(runJSON, "lifecycle_goal"),
+					c.name+`: must not render lifecycle_goal, but got: `+runJSON)
+			}
 
-	// "staged" -> full container, with status_substate STAGED alongside status_goal MOUNTED.
-	stagedArgs := map[string]interface{}{"PV_STATUS_GOAL": "MOUNTED", "PV_STATUS_MOUNTED": "staged"}
-	stagedRunJSON := renderRunJSON(stagedArgs)
-	stagedLXCConf := renderLXCConf(stagedArgs)
-
-	ErrorIfNot(t, strings.Contains(stagedRunJSON, `"status_goal": "MOUNTED"`),
-		`staged: expected "status_goal": "MOUNTED", but got: `+stagedRunJSON)
-	ErrorIfNot(t, strings.Contains(stagedRunJSON, `"status_substate": "STAGED"`),
-		`staged: expected "status_substate": "STAGED", but got: `+stagedRunJSON)
-	ErrorIfNot(t, strings.Contains(stagedRunJSON, `"config": "lxc.container.conf"`),
-		`staged: expected "config": "lxc.container.conf", but got: `+stagedRunJSON)
-	ErrorIfNot(t, strings.Contains(stagedRunJSON, `"type":"lxc"`),
-		`staged: expected "type":"lxc", but got: `+stagedRunJSON)
-	ErrorIf(t, stagedLXCConf == "",
-		"staged: expected a non-empty lxc.container.conf, but got an empty one")
-
-	// PV_STATUS_MOUNTED is ignored entirely when PV_STATUS_GOAL != "MOUNTED".
-	startedArgs := map[string]interface{}{"PV_STATUS_GOAL": "STARTED", "PV_STATUS_MOUNTED": "staged"}
-	startedRunJSON := renderRunJSON(startedArgs)
-	ErrorIfNot(t, strings.Contains(startedRunJSON, `"status_goal": "STARTED"`),
-		`STARTED+staged: expected "status_goal": "STARTED", but got: `+startedRunJSON)
-	ErrorIf(t, strings.Contains(startedRunJSON, `"status_substate"`),
-		`STARTED+staged: PV_STATUS_MOUNTED must be ignored when PV_STATUS_GOAL != MOUNTED, but got: `+startedRunJSON)
-
-	// Unrecognized value -> treated as "dataonly" and never fails, with a warning on stderr.
-	origStderr := os.Stderr
-	r, w, err := os.Pipe()
-	ErrorIf(t, err != nil, "failed to create pipe for stderr capture: ", err)
-	os.Stderr = w
-
-	bogusArgs := map[string]interface{}{"PV_STATUS_GOAL": "MOUNTED", "PV_STATUS_MOUNTED": "bogus"}
-	bogusRunJSON := renderRunJSON(bogusArgs)
-	bogusLXCConf := renderLXCConf(bogusArgs)
-
-	_ = w.Close()
-	os.Stderr = origStderr
-	captured, _ := io.ReadAll(r)
-
-	assertDataOnly(t, bogusRunJSON, bogusLXCConf, "bogus")
-	ErrorIfNot(t, strings.Contains(string(captured), "PV_STATUS_MOUNTED"),
-		"unrecognized PV_STATUS_MOUNTED value should warn on stderr, but got: "+string(captured))
+			if c.wantFull {
+				ErrorIfNot(t, strings.Contains(runJSON, `"config": "lxc.container.conf"`),
+					c.name+`: expected "config": "lxc.container.conf" (full container), but got: `+runJSON)
+				ErrorIfNot(t, strings.Contains(runJSON, `"type":"lxc"`),
+					c.name+`: expected "type":"lxc" (full container), but got: `+runJSON)
+				ErrorIf(t, lxcConf == "",
+					c.name+": expected a non-empty lxc.container.conf, but got an empty one")
+			} else {
+				ErrorIf(t, strings.Contains(runJSON, `"config": "lxc.container.conf"`),
+					c.name+`: data-only rendering must not reference lxc.container.conf, but got: `+runJSON)
+				ErrorIf(t, strings.Contains(runJSON, `"type":"lxc"`),
+					c.name+`: data-only rendering must not set type, but got: `+runJSON)
+				ErrorIfNot(t, lxcConf == "",
+					c.name+": data-only rendering must produce an empty lxc.container.conf, but got: "+lxcConf)
+			}
+		})
+	}
 }
