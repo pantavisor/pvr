@@ -19,8 +19,11 @@ package templates
 const (
 	LXC_CONTAINER_CONF = `
 {{- $runlevel := .Source.args.PV_RUNLEVEL }}
+{{- $statusGoal := .Source.args.PV_STATUS_GOAL | pvr_ifNull "__null__" }}
+{{- $statusMounted := .Source.args.PV_STATUS_MOUNTED | pvr_ifNull "__null__" }}
+{{- $mountedStaged := and (eq $statusGoal "MOUNTED") (eq $statusMounted "staged") }}
 {{- if and (.Source.args.PV_RUNLEVEL | pvr_ifNull "__null__" | ne "data")
-           (.Source.args.PV_STATUS_GOAL | pvr_ifNull "__null__" | ne "MOUNTED") -}}
+           (or (ne $statusGoal "MOUNTED") $mountedStaged) -}}
 	{{ "" -}}
 {{- if .Source.args.LXC_TTY_MIN }}
 lxc.tty.min = {{ .Source.args.LXC_TTY_MIN }}
@@ -226,11 +229,17 @@ lxc.mount.entry = /volumes/{{- $source -}}/
 {{- if not $persistence -}}
 {{- $persistence = sprig_dict -}}
 {{- end -}}
+{{- $statusGoal := .Source.args.PV_STATUS_GOAL | pvr_ifNull "__null__" -}}
+{{- $statusMounted := .Source.args.PV_STATUS_MOUNTED | pvr_ifNull "__null__" -}}
+{{- $mountedStaged := and (eq $statusGoal "MOUNTED") (eq $statusMounted "staged") -}}
+{{- if and (eq $statusGoal "MOUNTED") (ne $statusMounted "__null__") (ne $statusMounted "") (ne $statusMounted "staged") (ne $statusMounted "dataonly") -}}
+{{- pvr_warn (print "PV_STATUS_MOUNTED value " (sprig_squote $statusMounted) " is not recognized (expected \"staged\" or \"dataonly\"); treating as \"dataonly\"") -}}
+{{- end -}}
 {
 	"#spec": "service-manifest-run@1",
 	"name":"{{- .Source.name -}}",
 	{{- if and (.Source.args.PV_RUNLEVEL | pvr_ifNull "__null__" | ne "data")
-           (.Source.args.PV_STATUS_GOAL | pvr_ifNull "__null__" | ne "MOUNTED") }}
+           (or (ne $statusGoal "MOUNTED") $mountedStaged) }}
 	"config": "lxc.container.conf",
 	{{- end }}
 	{{- if .Source.args.PV_CONDITIONS }}
@@ -276,6 +285,9 @@ lxc.mount.entry = /volumes/{{- $source -}}/
 	{{- end }}
 	{{- if .Source.args.PV_STATUS_GOAL }}
 	"status_goal": "{{- .Source.args.PV_STATUS_GOAL }}",
+	{{- end }}
+	{{- if $mountedStaged }}
+	"status_substate": "STAGED",
 	{{- end }}
 	{{- $devlog := .Source.args.PV_DEV_LOG | pvr_ifNull "__null__" | print }}
 	{{- if ne $devlog "__null__" }}
@@ -340,7 +352,7 @@ lxc.mount.entry = /volumes/{{- $source -}}/
 		}
 	},
 	{{- if and (.Source.args.PV_RUNLEVEL | pvr_ifNull "__null__" | ne "data")
-           (.Source.args.PV_STATUS_GOAL | pvr_ifNull "__null__" | ne "MOUNTED") }}
+           (or (ne $statusGoal "MOUNTED") $mountedStaged) }}
 	{{- if .Source.exports }}"exports": {{ .Source.exports | sprig_toPrettyJson | sprig_indent 8 }},{{- end }}
 	{{- if .Source.logs }}"logs": {{  .Source.logs | sprig_toPrettyJson | sprig_indent 8 }},{{- end }}
 	"type":"lxc",

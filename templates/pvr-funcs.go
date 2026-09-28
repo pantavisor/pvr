@@ -17,6 +17,8 @@
 package templates
 
 import (
+	"fmt"
+	"os"
 	"reflect"
 	"strings"
 )
@@ -107,6 +109,10 @@ var pvrFuncMap = map[string]interface{}{
 		value = strings.TrimSuffix(value, "/")
 		value = strings.ReplaceAll(value, "/", "-")
 		return value
+	},
+	"warn": func(msg string) interface{} {
+		fmt.Fprintln(os.Stderr, "pvr: warning: "+msg)
+		return ""
 	},
 	"isEmpty": func(value interface{}) bool {
 		if value == nil {

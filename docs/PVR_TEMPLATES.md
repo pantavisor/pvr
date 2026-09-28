@@ -96,6 +96,7 @@ These variables directly affect the structure and metadata of the `run.json` fil
 | `PV_GROUP` | string | Group the container belongs to (e.g., "data", "root", "platform", "app", or any group from `groups.json`). Preferred over `PV_RUNLEVEL` on Pantavisor 015+. |
 | `PV_RUNLEVEL` | string | Deprecated runlevel: "data", "root", "platform" or "app". Mutually exclusive with `PV_GROUP`. |
 | `PV_STATUS_GOAL` | string | Status the container must reach after bootup: "MOUNTED", "STARTED" or "READY". |
+| `PV_STATUS_MOUNTED` | string | Only meaningful when `PV_STATUS_GOAL` is `"MOUNTED"`. Unset, `""` or `"dataonly"` (default): today's data-only rendering. `"staged"`: renders the full container (`type`, `config`, `lxc.container.conf`, everything a `STARTED` container gets) plus `"status_substate": "STAGED"`, so Pantavisor mounts volumes/loads drivers but leaves the process unstarted, startable on demand via `pv-ctrl`. Any other value is treated as `"dataonly"` (never fails; pvr prints a warning). Ignored when `PV_STATUS_GOAL` isn't `"MOUNTED"`. |
 | `PV_CONDITIONS` | map | Conditional startup logic. |
 | `PV_RESTART_POLICY` | string | What is restarted when this container is modified/fails: "system" or "container". |
 | `PV_ROLES` | array | List of roles assigned to this container (e.g., `["mgmt"]`). |
@@ -115,7 +116,7 @@ These variables directly affect the structure and metadata of the `run.json` fil
 | `PV_AUTOMODFW` | bool | Renders `"automodfw"`: auto-mount of `/lib/modules` and `/lib/firmware` into the container. |
 | `PV_REMOUNT` | object | Renders `"remount"`: per-container remount policies, e.g. `{"default": [{"/.*": "nosuid,noexec,noatime,nodev"}, {"/": "ro"}]}`. The active policy is chosen by the device's `PV_REMOUNT_POLICY` config key. |
 
-> **Note:** when `PV_RUNLEVEL` is `data` or `PV_STATUS_GOAL` is `MOUNTED`, the container is a pure data/volume container: no `lxc.container.conf` is generated at all, and `config`, `type`, `roles`, `exports` and `logs` are omitted from `run.json`.
+> **Note:** when `PV_RUNLEVEL` is `data` or `PV_STATUS_GOAL` is `MOUNTED`, the container is a pure data/volume container: no `lxc.container.conf` is generated at all, and `config`, `type`, `roles`, `exports` and `logs` are omitted from `run.json`. Set `PV_STATUS_MOUNTED=staged` (with `PV_STATUS_GOAL=MOUNTED`, and `PV_RUNLEVEL` not `data`) to opt out of the data-only rendering and get a full container that starts on demand instead — see `PV_STATUS_MOUNTED` above.
 
 ### LXC Configuration (`lxc.container.conf`)
 
