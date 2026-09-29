@@ -136,6 +136,59 @@ and stops the session on Ctrl-C or SIGTERM. It exits 0 when the session
 finishes or is stopped, 1 when the device refuses it (`busy`, `invalid`) or it
 ends with an error, 130 on Ctrl-C.
 
+## pvr device ssh <DEVICE_NICK|ID> [TARGET [COMMAND...]]
+
+Opens an SSH session to a device through Pantahub, as the Hub UI's Terminal
+tab does. It needs a device connected to the Hub over MQTT (the pv-mqtt-sdk
+agent) with Pantavisor's SSH enabled, and a token with the full API scope or
+`devices.ssh`. SSH runs end to end with the device's SSH server: the Hub only
+relays the encrypted bytes over a WebSocket.
+
+`TARGET` is the SSH user: `_pv_` (the Pantavisor host, the default), a
+container name, or `<tty>@<container>` for that container's console.
+`--list` shows the targets:
+
+```
+$ pvr device ssh mydevice --list
+TARGET   GROUP     STATUS
+_pv_     (host)
+os       root      STARTED
+pvr-sdk  platform  STARTED
+$ pvr device ssh mydevice os
+$ pvr device ssh mydevice _pv_ cat /proc/cmdline
+```
+
+pvr generates an ed25519 key pair for each session and keeps the private key in
+memory; the device accepts its public key only while the session lasts. The
+terminal follows the local window size.
+
+The device's host key is trusted on first use and kept in
+`~/.pvr/known_hosts_web` (OpenSSH known_hosts format, under
+`pantahub:<device id>`). The first time, pvr shows the fingerprint and asks;
+when stdin is not a terminal it refuses unless `--accept-new`. A changed key
+is refused with a warning unless `--replace-host-key`.
+
+With `--proxy`, pvr only relays stdin/stdout to the session, so the regular
+OpenSSH client can use it as its ProxyCommand. The session must authorize the
+key that ssh offers, so pass its public half (ssh-ed25519 only) with
+`--pubkey`:
+
+```
+ssh -o ProxyCommand='pvr device ssh %h --proxy --pubkey ~/.ssh/id_ed25519.pub' _pv_@<device>
+```
+
+or in `~/.ssh/config` (`%r` passes the target, the ssh user, to the Hub for
+its audit record):
+
+```
+Host mydevice
+    User _pv_
+    ProxyCommand pvr device ssh %h %r --proxy --pubkey ~/.ssh/id_ed25519.pub
+```
+
+The exit status is the remote shell's or command's when known; 255 when the
+SSH connection fails, 4 when the Hub refuses the session.
+
 ## pvr device scan
 
 Scan the local network for Pantavisor devices announcing themselves via mDNS.

@@ -39,6 +39,16 @@ import (
 // device). Everything after `--` is positional. help is true when -h or
 // --help was given.
 func commandArgs(c *cli.Context) (args []string, help bool, err error) {
+	return commandArgsUntil(c, 0)
+}
+
+// commandArgsUntil is commandArgs for a command whose arguments past the
+// first positional ones are a command of their own (pvr device ssh <device>
+// <target> <command...>): once positional arguments have been taken, the
+// next one and everything after it are returned as they are, flags
+// included, so "uname -m" or "sh -c ..." reach the device untouched.
+// positional 0 parses flags everywhere.
+func commandArgsUntil(c *cli.Context, positional int) (args []string, help bool, err error) {
 	in := []string(c.Args())
 	for i := 0; i < len(in); i++ {
 		a := in[i]
@@ -47,6 +57,10 @@ func commandArgs(c *cli.Context) (args []string, help bool, err error) {
 			break
 		}
 		if a == "-" || !strings.HasPrefix(a, "-") {
+			if positional > 0 && len(args) >= positional {
+				args = append(args, in[i:]...)
+				break
+			}
 			args = append(args, a)
 			continue
 		}
