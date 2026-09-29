@@ -1,5 +1,4 @@
-//go:build !windows
-// +build !windows
+//go:build go1.22 && !windows
 
 //
 // Copyright 2026  Pantacor Ltd.
