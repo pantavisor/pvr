@@ -85,6 +85,57 @@ functions, `sprintf`, `basename`, `timeformat`.
 
 ---
 
+## pvr device live-logs <DEVICE_NICK|ID> [SOURCE...]
+
+Streams a device's log files live through Pantahub, as the Hub UI's Live logs
+tab does. It needs a device connected to the Hub over MQTT (the pv-mqtt-sdk
+agent) and a token with the full API scope or `devices.logs`. Alias:
+`livelogs`.
+
+Without sources it lists the log files of the revision (paths relative to
+`/pantavisor/logs/<rev>/`, with their size; `gz` marks rotated files) and
+exits:
+
+```
+$ pvr device live-logs mydevice
+Revision: current
+Other revisions: locals/hub-3, locals/hub-2
+pantavisor/
+  pantavisor.log          47.1 KiB
+  pantavisor.log.2.gz      8.9 KiB  gz
+os/
+  lxc/
+    console.log            1.2 KiB
+```
+
+With sources (files, or folders to stream every live file under them; at most
+10) it prints each line as `[source] line`, the source coloured when stdout is
+a terminal:
+
+```
+$ pvr device live-logs mydevice pantavisor/pantavisor.log os/lxc/console.log
+[pantavisor/pantavisor.log] [pantavisor] 1790… INFO -- [ctrl]: …
+[os/lxc/console.log] …
+```
+
+Options:
+
+- `--rev REV`: `current` (the default, followed live) or another revision
+  name, read once.
+- `--tail N`: lines read back from each source first, 0 to 500 (default 200).
+- `--filter TEXT`: only lines containing TEXT, compared case-insensitively
+  on the device (at most 256 bytes, no control characters).
+- `--no-follow`: read the sources once and exit.
+- `--all`: stream the whole revision (its live files, at most 64).
+- `--json`: one JSON object per line, `{"src","line","seq"}`; with no
+  sources, the raw listing.
+
+A session lasts at most 30 minutes. pvr renews its lease every 20 s, reports
+lost batches and lines the device dropped (over its 64 KiB/s limit) on stderr,
+and stops the session on Ctrl-C or SIGTERM. It exits 0 when the session
+finishes or is stopped, 1 when the device refuses it (`busy`, `invalid`) or it
+ends with an error, 130 on Ctrl-C.
+
 ## pvr device scan
 
 Scan the local network for Pantavisor devices announcing themselves via mDNS.

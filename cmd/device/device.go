@@ -29,6 +29,7 @@ func CommandDevice() cli.Command {
 		Subcommands: []cli.Command{
 			CommandPs(),
 			CommandLogs(),
+			CommandLiveLogs(),
 			CommandScan(),
 			CommandDeviceCreate(),
 			CommandDeviceGet(),
@@ -41,7 +42,7 @@ func CommandDevice() cli.Command {
 			CommandTty(),
 			tokens.CommandDeviceTokens(),
 		},
-		Usage:       "pvr device <ps|logs|scan|tty>",
+		Usage:       "pvr device <ps|logs|live-logs|scan|tty>",
 		Description: "\n1.Show Owned Devices\n 2.Get logs for your devices (early preview)\n 3.Scan for pantavisor devices announcing themselves through MDNS on local network.\n4.Create new device\n5.Set device user-meta|device-meta fields (Note:If you are logged in as USER then you can update user-meta field but if you are logged in as DEVICE then you can update device-meta field)",
 	}
 	return cmd
