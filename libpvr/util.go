@@ -17,14 +17,17 @@
 package libpvr
 
 import (
+	"archive/tar"
 	"archive/zip"
 	"bytes"
+	"compress/gzip"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log"
 	"net"
 	"net/http"
@@ -38,6 +41,7 @@ import (
 	"regexp"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 	"text/template"
 	"time"
@@ -757,6 +761,246 @@ func SliceContainsItem(slice []string, item string) bool {
 	return ok
 }
 
+// SafeJoin joins relative onto root and requires the result to stay inside
+// root. It rejects absolute paths, any ".." component, and anything that
+// cleans out of root. It does not follow symlinks: callers that delete or
+// write through the result must also avoid resolving symlinks.
+func SafeJoin(root, relative string) (string, error) {
+	if filepath.IsAbs(relative) {
+		return "", fmt.Errorf("path %q is absolute and must be relative to %q", relative, root)
+	}
+
+	joined := filepath.Join(root, relative)
+	rel, err := filepath.Rel(root, joined)
+	if err != nil {
+		return "", err
+	}
+	if filepath.IsAbs(rel) || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("path %q escapes %q", relative, root)
+	}
+	return joined, nil
+}
+
+// ResolveInRoot is SafeJoin for a path that is about to be removed or
+// written through: it also resolves the symlinks the tree already has and
+// requires the real path to stay inside root. A missing path answers an
+// fs.ErrNotExist error.
+func ResolveInRoot(root, relative string) (string, error) {
+	joined, err := SafeJoin(root, relative)
+	if err != nil {
+		return "", err
+	}
+	realRoot, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return "", err
+	}
+	real, err := filepath.EvalSymlinks(joined)
+	if err != nil {
+		return "", err
+	}
+	rel, err := filepath.Rel(realRoot, real)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || filepath.IsAbs(rel) {
+		return "", fmt.Errorf("path %q resolves outside %q", relative, root)
+	}
+	return real, nil
+}
+
+// Ceilings of an image's unpacked rootfs, summed over its layers before
+// they are unpacked: a few compressed megabytes can expand to fill a disk.
+// PVR_MAX_ROOTFS_BYTES and PVR_MAX_ROOTFS_ENTRIES override them.
+var (
+	MaxRootFsBytes   = envInt64("PVR_MAX_ROOTFS_BYTES", 32<<30)
+	MaxRootFsEntries = envInt64("PVR_MAX_ROOTFS_ENTRIES", 2_000_000)
+)
+
+func envInt64(name string, fallback int64) int64 {
+	if v, err := strconv.ParseInt(os.Getenv(name), 10, 64); err == nil && v > 0 {
+		return v
+	}
+	return fallback
+}
+
+// RootFsBudget adds up the layers of an image as they are unpacked.
+type RootFsBudget struct {
+	Bytes, Entries int64
+}
+
+// Add reads the headers of layerPath (tar, or gzip-compressed tar) and
+// refuses the layer once the image's unpacked size or entry count passes
+// its ceiling.
+func (b *RootFsBudget) Add(layerPath string) error {
+	file, err := os.Open(layerPath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	contentType, err := GetFileContentType(layerPath)
+	if err != nil {
+		return err
+	}
+	var reader io.Reader = file
+	if contentType == "application/x-gzip" {
+		gz, err := gzip.NewReader(file)
+		if err != nil {
+			return err
+		}
+		defer gz.Close()
+		reader = gz
+	}
+	tr := tar.NewReader(reader)
+	for {
+		header, err := tr.Next()
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		b.Entries++
+		if header.Size > 0 {
+			b.Bytes += header.Size
+		}
+		if b.Bytes > MaxRootFsBytes || b.Entries > MaxRootFsEntries {
+			return fmt.Errorf("the image unpacks to more than %d bytes or %d entries", MaxRootFsBytes, MaxRootFsEntries)
+		}
+	}
+}
+
+// ContainedSymlink is a symlink of an image rootfs that ContainSymlinks
+// rewrote: what the image says, and what pvr points it to meanwhile.
+type ContainedSymlink struct {
+	Original  string
+	Rewritten string
+}
+
+// ContainSymlinks rewrites the symlinks under root whose targets would leave
+// root on this machine (absolute targets, or ".." past root) into relative
+// links to the place they name inside the image, as its container sees them.
+// Extracting further layers with tar, processing whiteouts and creating
+// directories then stay inside root. RestoreSymlinks puts the image's own
+// targets back, so the packaged rootfs is unchanged.
+func ContainSymlinks(root string, rewritten map[string]ContainedSymlink) error {
+	return filepath.WalkDir(root, func(link string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.Type()&fs.ModeSymlink == 0 {
+			return nil
+		}
+		target, err := os.Readlink(link)
+		if err != nil {
+			return err
+		}
+		if seen, ok := rewritten[link]; ok && seen.Rewritten == target {
+			return nil
+		}
+		// A relative target without ".." only descends from the link's own
+		// directory, through links that are contained themselves.
+		if !filepath.IsAbs(target) && !hasDotDot(target) {
+			return nil
+		}
+		linkDir, err := filepath.Rel(root, filepath.Dir(link))
+		if err != nil {
+			return err
+		}
+		inImage := target
+		if !filepath.IsAbs(target) {
+			// Not path.Join: cleaning "a/../x" to "x" would skip the
+			// link a; ResolveInImage takes the parts as they are.
+			inImage = "/" + filepath.ToSlash(linkDir) + "/" + filepath.ToSlash(target)
+		}
+		// Where the container ends up, following the image's other links:
+		// composed links ("a -> ..", "b -> a/../x") cannot climb out.
+		resolved, err := ResolveInImage(root, inImage)
+		if err != nil {
+			return fmt.Errorf("symlink %s: %w", link, err)
+		}
+		relative, err := filepath.Rel(filepath.Dir(link), filepath.Join(root, filepath.FromSlash(resolved)))
+		if err != nil {
+			return err
+		}
+		if err := os.Remove(link); err != nil {
+			return err
+		}
+		if err := os.Symlink(relative, link); err != nil {
+			return err
+		}
+		rewritten[link] = ContainedSymlink{Original: target, Rewritten: relative}
+		return nil
+	})
+}
+
+func hasDotDot(target string) bool {
+	for _, part := range strings.Split(filepath.ToSlash(target), "/") {
+		if part == ".." {
+			return true
+		}
+	}
+	return false
+}
+
+// maxSymlinkHops bounds link chains, as the kernel does (ELOOP).
+const maxSymlinkHops = 40
+
+// ResolveInImage resolves the image path p (absolute, "/" being root) the
+// way a container whose root is root does: ".." stops at "/", absolute link
+// targets start from root, and every link along the way is followed. Parts
+// that do not exist yet are kept as they are.
+func ResolveInImage(root, p string) (string, error) {
+	current := "/"
+	// The parts as written: ".." after a link climbs from where the link
+	// leads, so the path is not cleaned first.
+	remaining := strings.Split(filepath.ToSlash(p), "/")
+	hops := 0
+	for len(remaining) > 0 {
+		part := remaining[0]
+		remaining = remaining[1:]
+		switch part {
+		case "", ".":
+			continue
+		case "..":
+			current = path.Dir(current)
+			continue
+		}
+		next := path.Join(current, part)
+		info, err := os.Lstat(filepath.Join(root, filepath.FromSlash(next)))
+		if err != nil || info.Mode()&os.ModeSymlink == 0 {
+			current = next
+			continue
+		}
+		if hops++; hops > maxSymlinkHops {
+			return "", fmt.Errorf("too many levels of symbolic links resolving %s", p)
+		}
+		target, err := os.Readlink(filepath.Join(root, filepath.FromSlash(next)))
+		if err != nil {
+			return "", err
+		}
+		if path.IsAbs(filepath.ToSlash(target)) {
+			current = "/"
+		}
+		remaining = append(strings.Split(filepath.ToSlash(target), "/"), remaining...)
+	}
+	return current, nil
+}
+
+// RestoreSymlinks gives the links ContainSymlinks rewrote their image
+// targets back, unless a later layer replaced or removed them.
+func RestoreSymlinks(rewritten map[string]ContainedSymlink) error {
+	for link, s := range rewritten {
+		target, err := os.Readlink(link)
+		if err != nil || target != s.Rewritten {
+			continue
+		}
+		if err := os.Remove(link); err != nil {
+			return err
+		}
+		if err := os.Symlink(s.Original, link); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func RemoveDirContents(dir string) error {
 	d, err := os.Open(dir)
 	if err != nil {
@@ -1243,31 +1487,86 @@ func GetFileContentType(src string) (string, error) {
 	return contentType, nil
 }
 
+// MaxRootFsDownloadSize bounds a downloaded rootfs so a hostile or oversized
+// source cannot exhaust the disk of the machine that fetches it.
+var MaxRootFsDownloadSize = int64(8 << 30)
+
+// isLoopbackURL allows plain http only for loopback addresses, which
+// development and local tests use.
+func isLoopbackURL(u *url.URL) bool {
+	hostname := u.Hostname()
+	if hostname == "localhost" {
+		return true
+	}
+	ip := net.ParseIP(hostname)
+	return ip != nil && ip.IsLoopback()
+}
+
+// rootFsDownloadClient enforces the download policy for rootfs sources:
+// https outside loopback, redirects that keep the scheme and the original
+// host, a bounded transfer window, and an overall size cap.
+var rootFsDownloadClient = &http.Client{
+	Timeout: 30 * time.Minute,
+	CheckRedirect: func(req *http.Request, via []*http.Request) error {
+		if len(via) >= 10 {
+			return errors.New("stopped after 10 redirects")
+		}
+		u := req.URL
+		if (u.Scheme != "https" && !isLoopbackURL(u)) ||
+			(via[0].URL.Hostname() != u.Hostname()) {
+			return fmt.Errorf("rootfs redirect %s leaves the original host or scheme", u)
+		}
+		return nil
+	},
+}
+
+// DownloadFile fetches uri into a fresh private temporary directory and
+// returns the path of the downloaded file. The caller owns the returned
+// directory: it must remove it once the download is processed.
 func DownloadFile(uri *url.URL) (string, error) {
-	temppath, err := ExecCommandOut(MKTEMP_CMD, "-t", "download-rootfs-XXXXXXXX")
-	if err != nil {
-		return "", err
-	}
-	defer RemoveAll(temppath)
-
-	tempfile, err := os.OpenFile(temppath, os.O_TRUNC|os.O_WRONLY, 0666)
-	if err != nil {
-		return "", err
+	if uri.Scheme != "https" && !isLoopbackURL(uri) {
+		return "", fmt.Errorf("rootfs download from %s requires https", uri)
 	}
 
-	resp, err := http.Get(uri.String())
+	tempdir, err := os.MkdirTemp("", "download-rootfs-")
 	if err != nil {
 		return "", err
 	}
 
+	resp, err := rootFsDownloadClient.Get(uri.String())
+	if err != nil {
+		os.RemoveAll(tempdir)
+		return "", err
+	}
 	defer resp.Body.Close()
 
-	_, err = io.Copy(tempfile, resp.Body)
+	if resp.StatusCode >= 400 {
+		os.RemoveAll(tempdir)
+		return "", fmt.Errorf("rootfs download from %s returned status %d", uri, resp.StatusCode)
+	}
+
+	tempfile, err := os.CreateTemp(tempdir, "download-rootfs-")
 	if err != nil {
+		os.RemoveAll(tempdir)
 		return "", err
 	}
 
-	return filepath.Abs(filepath.Dir(tempfile.Name()))
+	// One byte past the cap tells an oversized source from one at the cap.
+	size, err := io.Copy(tempfile, io.LimitReader(resp.Body, MaxRootFsDownloadSize+1))
+	if err == nil && size > MaxRootFsDownloadSize {
+		err = fmt.Errorf("rootfs download from %s exceeds %d bytes", uri, MaxRootFsDownloadSize)
+	}
+	if err != nil {
+		tempfile.Close()
+		os.RemoveAll(tempdir)
+		return "", err
+	}
+	if err := tempfile.Close(); err != nil {
+		os.RemoveAll(tempdir)
+		return "", err
+	}
+
+	return tempfile.Name(), nil
 }
 
 type TreeDiff struct {

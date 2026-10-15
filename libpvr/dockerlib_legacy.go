@@ -27,6 +27,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log"
 	"net/http"
 	"os"
@@ -744,7 +745,15 @@ func (p *Pvr) GenerateApplicationSquashFS(app *AppData, appManifest *Source) err
 	}
 
 	fmt.Println("Extracting layers...")
+	// Symlinks of earlier layers that point outside the rootfs would carry
+	// later layers, whiteouts and structural dirs out of it: they point
+	// inside it until the rootfs is packaged.
+	contained := map[string]ContainedSymlink{}
+	var budget RootFsBudget
 	for layerNumber, file := range files {
+		if err := budget.Add(file); err != nil {
+			return err
+		}
 		err := ProcessWhiteouts(extractPath, file, layerNumber)
 		if err != nil {
 			log.Println("Error processing whiteouts.")
@@ -752,6 +761,9 @@ func (p *Pvr) GenerateApplicationSquashFS(app *AppData, appManifest *Source) err
 		}
 		err = Untar(extractPath, file, []string{"--exclude", ".wh.*"})
 		if err != nil {
+			return err
+		}
+		if err := ContainSymlinks(extractPath, contained); err != nil {
 			return err
 		}
 		fmt.Printf("Extracting layer %d\n", layerNumber)
@@ -769,15 +781,12 @@ func (p *Pvr) GenerateApplicationSquashFS(app *AppData, appManifest *Source) err
 	}
 
 	fmt.Println("Adding essential structural dirs to operate RO containers")
-	for _, file := range structureDirs {
-		dirToMake := filepath.Join(extractPath, file)
-		err = ExecCommand(MKDIR_CMD, "-p", dirToMake)
-		if err != nil {
-			_, err2 := os.Lstat(dirToMake)
-			if err2 != nil {
-				return err
-			}
-		}
+	if err := makeStructureDirs(extractPath); err != nil {
+		return err
+	}
+
+	if err := RestoreSymlinks(contained); err != nil {
+		return err
 	}
 
 	// if we are using a different name, we generate an overlay
@@ -836,7 +845,16 @@ func ProcessWhiteouts(extractPath string, layerPath string, layerNumber int) err
 	for _, whiteoutFile := range whiteouts {
 
 		basename := filepath.Base(whiteoutFile)
-		dir := filepath.Join(extractPath, filepath.Dir(whiteoutFile))
+		// A layer may name a whiteout anything, and earlier layers may
+		// have left symlinks: refuse entries that reach outside the root.
+		dir, err := ResolveInRoot(extractPath, filepath.Dir(whiteoutFile))
+		if errors.Is(err, fs.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			fmt.Printf("REFUSING to process whiteout %s: %s\n", whiteoutFile, err.Error())
+			return fmt.Errorf("whiteout %s is not contained in the extraction root: %w", whiteoutFile, err)
+		}
 
 		if strings.HasPrefix(basename, ".wh.") && strings.HasSuffix(basename, "opq") {
 			//Clear all contents of the folder from the extract path
@@ -849,7 +867,12 @@ func ProcessWhiteouts(extractPath string, layerPath string, layerNumber int) err
 
 		} else if strings.HasPrefix(basename, ".wh.") {
 			//Remove the indicated file from the extract path'
-			filePath := filepath.Join(dir, strings.TrimPrefix(basename, ".wh."))
+			name := strings.TrimPrefix(basename, ".wh.")
+			if name == "" || name == "." || name == ".." {
+				fmt.Printf("REFUSING to process whiteout %s: it names no entry\n", whiteoutFile)
+				return fmt.Errorf("whiteout %s names no entry of its directory", whiteoutFile)
+			}
+			filePath := filepath.Join(dir, name)
 			PrintDebugln("Processing whiteout:" + filePath)
 			err := RemoveAll(filePath) //removr a file / dir
 			if err != nil && !os.IsNotExist(err) {

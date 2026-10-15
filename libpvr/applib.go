@@ -24,6 +24,7 @@ import (
 	"os/exec"
 	"os/user"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"syscall"
@@ -780,6 +781,76 @@ func ReportDockerManifestError(err error, image string) error {
 	)
 }
 
+// squashfsAllowedOptions maps an mksquashfs flag to how it may be used.
+//
+//	"none": flag must appear on its own
+//	"one":  flag must be followed by exactly one value
+//
+// Anything not listed here, including pseudo-definition files (-pf), action
+// files (-af), sort/exclude lists, and append options, is rejected: they
+// execute commands, read arbitrary host paths, or duplicate values we set
+// ourselves.
+var squashfsAllowedOptions = map[string]struct {
+	mode          string
+	allowedValues []string
+	valuePattern  string
+}{
+	"-comp":               {mode: "one", allowedValues: []string{"gzip", "lzma", "lzo", "lz4", "xz", "zstd"}},
+	"-b":                  {mode: "one", valuePattern: `^[0-9]{1,6}(\.[0-9]{1,6})?[KMG]?$`},
+	"-Xdict-size":         {mode: "one", valuePattern: `^[0-9]{1,6}(\.[0-9]{1,6})?[KMG]?%?$`},
+	"-Xcompression-level": {mode: "one", valuePattern: `^-?[0-9]{1,3}$`},
+	"-processors":         {mode: "one", valuePattern: `^[0-9]{1,4}$`},
+	"-mem":                {mode: "one", valuePattern: `^[0-9]{1,6}(\.[0-9]{1,6})?[KMG]?$`},
+	"-read-queue":         {mode: "one", valuePattern: `^[0-9]{1,4}$`},
+	"-write-queue":        {mode: "one", valuePattern: `^[0-9]{1,4}$`},
+	"-fragment-queue":     {mode: "one", valuePattern: `^[0-9]{1,4}$`},
+	"-threads":            {mode: "one", valuePattern: `^[0-9]{1,4}$`},
+	"-no-fragments":       {mode: "none"},
+	"-no-duplicates":      {mode: "none"},
+	"-no-exports":         {mode: "none"},
+	"-no-sparse":          {mode: "none"},
+	"-no-progress":        {mode: "none"},
+	"-no-recovery":        {mode: "none"},
+	"-no-i":               {mode: "none"},
+	"-no-d":               {mode: "none"},
+	"-no-g":               {mode: "none"},
+	"-no-x":               {mode: "none"},
+	"-no-pad":             {mode: "none"},
+	"-all-root":           {mode: "none"},
+}
+
+// ValidateSquashfsOptions rejects format_options values that mksquashfs would
+// turn into arbitrary command execution or host-file access. Values that only
+// tune compression and block sizes are allowed.
+func ValidateSquashfsOptions(options string) error {
+	fields := strings.Fields(options)
+	for i := 0; i < len(fields); i++ {
+		flag := fields[i]
+		def, ok := squashfsAllowedOptions[flag]
+		if !ok {
+			return fmt.Errorf("squashfs option %q is not allowed", flag)
+		}
+		if def.mode != "one" {
+			continue
+		}
+		i++
+		if i >= len(fields) {
+			return fmt.Errorf("squashfs option %q needs a value", flag)
+		}
+		value := fields[i]
+		if len(def.allowedValues) > 0 && !SliceContainsItem(def.allowedValues, value) {
+			return fmt.Errorf("squashfs option %q value %q is not supported", flag, value)
+		}
+		if def.valuePattern != "" {
+			matched, err := regexp.MatchString(def.valuePattern, value)
+			if err != nil || !matched {
+				return fmt.Errorf("squashfs option %q value %q is not valid", flag, value)
+			}
+		}
+	}
+	return nil
+}
+
 func (p *Pvr) MakeSquash(rootfsPath string, app *AppData) error {
 
 	err := p.CheckIfIsRunningAsRoot()
@@ -818,7 +889,10 @@ func (p *Pvr) MakeSquash(rootfsPath string, app *AppData) error {
 	if app.Appmanifest.FormatOptions == "" {
 		comp = []string{"-comp", "xz"}
 	} else {
-		comp = strings.Split(app.Appmanifest.FormatOptions, " ")
+		if err := ValidateSquashfsOptions(app.Appmanifest.FormatOptions); err != nil {
+			return err
+		}
+		comp = strings.Fields(app.Appmanifest.FormatOptions)
 	}
 	comp = append(comp, "-reproducible", "-root-mode", "0755", "-mkfs-time", "1", "-all-time", "1")
 

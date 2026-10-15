@@ -31,9 +31,11 @@ import (
 	"github.com/urfave/cli"
 	"gitlab.com/pantacor/pvr/cmd"
 	"gitlab.com/pantacor/pvr/cmd/app"
+	"gitlab.com/pantacor/pvr/cmd/builds"
 	"gitlab.com/pantacor/pvr/cmd/device"
 	"gitlab.com/pantacor/pvr/cmd/dm"
 	"gitlab.com/pantacor/pvr/cmd/fakeroot"
+	imagecmd "gitlab.com/pantacor/pvr/cmd/image"
 	"gitlab.com/pantacor/pvr/cmd/sig"
 	"gitlab.com/pantacor/pvr/cmd/wifi"
 	"gitlab.com/pantacor/pvr/libpvr"
@@ -249,11 +251,15 @@ func Run() {
 		cmd.CommandCompletion(),
 		cmd.CommandVersion(),
 		// SubCommands
+		build.CommandBuild(),
+		build.CommandSecret(),
+		build.CommandSigning(),
 		dm.CommandDmApply(),
 		dm.CommandDmConvert(),
 		device.CommandDevice(),
 		app.CommandApp(),
 		sig.CommandSig(),
+		imagecmd.CommandImage(),
 		fakeroot.CommandFakeroot(),
 		wifi.CommandWifi(),
 	}

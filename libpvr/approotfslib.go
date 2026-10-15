@@ -213,35 +213,54 @@ func GetFromRootFs(app *AppData) (string, error) {
 		return "", err
 	}
 
-	var from string
+	var from, downloadDir string
 	if uri.Scheme != "" {
 		fmt.Printf("Downloading file: %s", app.From)
 		from, err = DownloadFile(uri)
 		if err != nil {
 			return "", err
 		}
+		// DownloadFile returns the downloaded file inside a private
+		// temporary directory the caller owns.
+		downloadDir = filepath.Dir(from)
 	} else {
-		from, err = ExpandPath(rootfsPath)
+		expanded, err := ExpandPath(rootfsPath)
 		if err != nil {
 			return "", err
 		}
+		// A local rootfs is the pvr user's own file, wherever it is; the
+		// builder never lets package metadata choose a rootfs source.
+		from = expanded
 	}
 
 	fileInfo, err := os.Stat(from)
 	if err != nil {
+		if downloadDir != "" {
+			os.RemoveAll(downloadDir)
+		}
 		return "", err
 	}
 
 	if !fileInfo.IsDir() {
 		tempdir, err := os.MkdirTemp(os.TempDir(), "rootfs-")
 		if err != nil {
+			if downloadDir != "" {
+				os.RemoveAll(downloadDir)
+			}
 			return "", err
 		}
 
 		if err = Untar(tempdir, from, []string{}); err != nil {
+			os.RemoveAll(tempdir)
+			if downloadDir != "" {
+				os.RemoveAll(downloadDir)
+			}
 			return "", err
 		}
 
+		if downloadDir != "" {
+			os.RemoveAll(downloadDir)
+		}
 		from = tempdir
 	}
 
