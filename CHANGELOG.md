@@ -1,4 +1,36 @@
 
+<a name="055"></a>
+## [055](https://gitlab.com/pantacor/pvr/compare/054...055) (2026-10-19)
+
+### Build
+
+* **go1.21:** exclude device live-logs and ssh from Go 1.21 builds
+
+### Chore
+
+* **api:** update copyright header in remote.go
+
+### Docs
+
+* **wifi:** give `pvr wifi` the context it was missing
+
+### Feat
+
+* **device:** add ssh to open SSH sessions through Pantahub
+* **device:** add live-logs to stream device logs through Pantahub
+* **device:** add `pvr device steps cancel`
+* **libpvr:** export SignatureCoverage
+* **templates:** add cgroup v2 args and drop default device allow
+* **templates:** add PV_LIFECYCLE_GOAL and render PV_STATUS_GOAL=STAGED as MOUNTED + lifecycle_goal
+* **templates:** add PV_STATUS_MOUNTED=staged for full MOUNTED containers
+
+### Fix
+
+* resolve bare device ids against PVR_BASEURL
+* **libpvr:** support zstd-compressed docker layers
+* **libpvr:** read pvs patterns from the protected header without go-jose
+
+
 <a name="054"></a>
 ## [054](https://gitlab.com/pantacor/pvr/compare/053...054) (2026-09-04)
 
