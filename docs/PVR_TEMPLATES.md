@@ -129,11 +129,15 @@ These variables control the low-level LXC configuration parameters.
 | `PV_LXC_NAMESPACE_KEEP` | `user net ipc` | Space-separated namespaces to inherit from Pantavisor. When unset, the default is `user ipc` plus `net` — `net` is only included when `PV_LXC_NETWORK_TYPE` is unset or `host`. |
 | `PV_LXC_CAP_DROP` | - | List of capabilities to drop (e.g., `["SYS_TIME"]`); lowercased on render. |
 | `PV_LXC_CAP_KEEP` | - | List of capabilities to keep. Use either keep or drop, not both. |
-| `PVR_LXC_CGROUP_DEVICES_WHITE` | - | List of cgroup device allow rules. When set, `lxc.cgroup.devices.deny = a` is emitted first; when unset, `lxc.cgroup.devices.allow = a` is emitted. |
+| `PVR_LXC_CGROUP_DEVICES_WHITE` | - | List of cgroup device allow rules. When set, `lxc.cgroup.devices.deny = a` is emitted first, then one `lxc.cgroup.devices.allow = <rule>` per entry. When unset, no device line is written and the container gets every device its parent allows. |
 | `PVR_LXC_CGROUP_V1` | - | List of raw cgroup v1 settings appended after `lxc.cgroup.`, e.g. `["memory.limit_in_bytes = 100M"]`. |
+| `PVR_LXC_CGROUP2_DEVICES_WHITE` | - | cgroup v2 counterpart of `PVR_LXC_CGROUP_DEVICES_WHITE`. When set, `lxc.cgroup2.devices.deny = a` is emitted first, then one `lxc.cgroup2.devices.allow = <rule>` per entry. Safe with older Pantavisor: the v1 device rules apply there. |
+| `PVR_LXC_CGROUP_V2` | - | List of raw cgroup v2 settings appended after `lxc.cgroup2.`, e.g. `["memory.max = 100M"]`. Works from Pantavisor 031 on, not before; see the note below the table. |
 | `PV_LXC_EXTRA_CONF` | - | Raw string appended to `lxc.container.conf`. |
 | `PV_LXC_EXTRA_ENV` | - | List of extra `KEY=VALUE` entries rendered as `lxc.environment`, on top of `.Docker.Env`. |
 | `PV_DISABLE_AUTODEV` | false | Sets `lxc.autodev = 0`. Only do this if you know what you are doing. |
+
+**Note on `PVR_LXC_CGROUP_V2`:** these cgroup v2 limit lines (e.g. `memory.max`) work from Pantavisor 031 on. Before Pantavisor 031 they do not work: older Pantavisor passes them to LXC unchanged, and on devices with the cgroup v1 or hybrid layout (all controllers mounted as v1) the container then fails to start, because the limit file does not exist in the cgroup2 tree. For those devices use `PVR_LXC_CGROUP_V1`. A container may set both.
 
 #### Network & TTY
 | Variable | Default | Description |
