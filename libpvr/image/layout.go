@@ -65,10 +65,12 @@ type Partition struct {
 }
 
 const (
-	sourcePvroot   = "pvroot"
-	sourceBSP      = "bsp:"
-	sector         = 512
-	maxLayoutBytes = 16 << 30 // 16 GiB
+	sourcePvroot         = "pvroot"
+	sourceBSP            = "bsp:"
+	sector               = 512
+	maxLayoutBytes int64 = 16 << 30 // 16 GiB
+	// maxImageBaseBytes caps the unpacked size of an image base.
+	maxImageBaseBytes int64 = 16 << 30 // 16 GiB
 )
 
 func isDisallowedPathChar(r rune) bool {

@@ -360,8 +360,8 @@ func (a *assembler) unpackBase() error {
 			return fmt.Errorf("image base entry %s is not a file of the base", h.Name)
 		}
 		cumulativeBytes += h.Size
-		if cumulativeBytes > 16<<30 {
-			return fmt.Errorf("image base unpacked size exceeds cumulative limit of %d bytes", 16<<30)
+		if cumulativeBytes > maxImageBaseBytes {
+			return fmt.Errorf("image base unpacked size exceeds cumulative limit of %d bytes", maxImageBaseBytes)
 		}
 		dst := filepath.Join(a.base, filepath.FromSlash(name))
 		if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
@@ -501,7 +501,7 @@ func gunzipFile(src, dst string) error {
 		return err
 	}
 	defer out.Close()
-	const maxGunzipBytes = 16 << 30 // 16 GiB
+	const maxGunzipBytes int64 = 16 << 30 // 16 GiB
 	n, err := io.Copy(out, io.LimitReader(zr, maxGunzipBytes+1))
 	if err != nil {
 		return err
