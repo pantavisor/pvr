@@ -1,7 +1,8 @@
-FROM golang:1.24-alpine
+FROM golang:1.24.13-alpine
 
 WORKDIR /app
 COPY . .
+RUN apk add --no-cache patch && for p in ci/go-patches/go1.24-*.patch; do patch -d "$(go env GOROOT)" -p1 < "$p" || exit 1; done
 
 RUN apk add --no-cache jq docker-cli fakeroot squashfs-tools file
 

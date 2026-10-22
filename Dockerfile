@@ -1,4 +1,10 @@
-FROM golang:1.24-alpine AS src
+FROM golang:1.24.13-alpine AS src
+
+# Go 1.24 has no release with the fix for GO-2026-6809 (CVE-2026-111943),
+# and pvr stays on Go 1.24: patch the standard library, which go build
+# compiles from GOROOT/src.
+COPY ci/go-patches/ /tmp/go-patches/
+RUN apk add --no-cache patch && for p in /tmp/go-patches/go1.24-*.patch; do patch -d "$(go env GOROOT)" -p1 < "$p" || exit 1; done
 
 ENV GO111MODULES=on
 
