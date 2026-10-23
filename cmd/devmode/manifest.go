@@ -17,6 +17,7 @@
 package devmode
 
 import (
+	"path"
 	"sort"
 	"strconv"
 )
@@ -38,10 +39,10 @@ type Manifest struct {
 	Files     []Entry `json:"files"`
 }
 
-// LocalFile is one file of the local tree.
+// LocalFile is one file, symlink or empty directory of the local tree.
 type LocalFile struct {
 	Path   string // container path, slash separated, no leading slash
-	Type   string // file or symlink
+	Type   string // file, symlink or dir
 	Mode   uint32 // permission bits
 	Size   int64
 	SHA256 string
@@ -79,13 +80,26 @@ func ComputeDiff(local []LocalFile, m Manifest) Diff {
 	for _, e := range m.Files {
 		dev[e.Path] = e
 	}
+	dirs := map[string]bool{}
+	for _, l := range local {
+		p := l.Path
+		if l.Type != "dir" {
+			p = path.Dir(p)
+		}
+		for p != "." && p != "/" && !dirs[p] {
+			dirs[p] = true
+			p = path.Dir(p)
+		}
+	}
 	d := Diff{Added: []Change{}, Changed: []Change{}, Deleted: []Change{}}
 	seen := map[string]bool{}
 	for _, l := range local {
 		seen[l.Path] = true
 		e, ok := dev[l.Path]
 		switch {
-		case !ok || e.Type == "deleted" || e.Type == "dir":
+		case l.Type == "dir" && ok && e.Type == "dir":
+			d.Unchanged++
+		case !ok || e.Type == "deleted" || (e.Type == "dir" && l.Type != "dir"):
 			d.Added = append(d.Added, Change{Path: l.Path})
 		case e.Type != l.Type:
 			d.Changed = append(d.Changed, Change{l.Path, "type"})
@@ -106,7 +120,11 @@ func ComputeDiff(local []LocalFile, m Manifest) Diff {
 		}
 	}
 	for _, e := range m.Files {
-		if (e.Type == "file" || e.Type == "symlink") && !seen[e.Path] {
+		gone := (e.Type == "file" || e.Type == "symlink") && !seen[e.Path]
+		if e.Type == "dir" && !dirs[e.Path] {
+			gone = true
+		}
+		if gone {
 			d.Deleted = append(d.Deleted, Change{Path: e.Path})
 		}
 	}

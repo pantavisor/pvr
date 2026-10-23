@@ -58,7 +58,7 @@ Backup and editor files (`*~`, `*.swp`, `.git`, ...) are ignored.
 |---|---|
 | `enter <device> [--base N] [--resume]` | `pvcontrol devmode create [N] [--resume]` |
 | `status <device> [container...]` | `pvcontrol devmode status`, `pvcontrol devmode files ls <c>`, `pvcontrol containers ls` |
-| `push <device> [container...] [--delete] [--watch] [--yes] [--keep-owner]` | `pvcontrol devmode files put <c> <path> - --mode M --uid U --gid G` (file on stdin); with `--delete` `pvcontrol devmode files rm <c> <path>` |
+| `push <device> [container...] [--delete] [--watch] [--yes] [--keep-owner]` | `pvcontrol devmode files put <c> <path> - --mode M --uid U --gid G` (file on stdin), `... put <c> <path> --type symlink --target T`, `... put <c> <path> --type dir --mode M`; with `--delete` `pvcontrol devmode files rm <c> <path>` (`--recursive` for a directory) |
 | `pull <device> [container...]` | `pvcontrol devmode files ls <c>`, `pvcontrol devmode files get <c> <path>` |
 | `apply <device> [container...] [--yes]` | `pvcontrol devmode apply <c>`, or `... --reboot` for a system container |
 | `reset <device> <container>` | `pvcontrol devmode reset <c>` |
@@ -74,7 +74,12 @@ Rules:
   `restart` for a container, `reboot` for a system container.
 - `push` keeps the permission bits of the local file. The owner is root (0/0)
   because local owners rarely mean anything on the device; `--keep-owner` sends
-  the local numeric uid/gid instead. Symlinks are skipped for now.
+  the local numeric uid/gid instead. Symlinks are pushed as symlinks and empty
+  local directories as directories. File names can hold any character.
+- `push --delete` removes a directory that is only on the device with
+  `--recursive`, with everything in it.
+- `pull` creates symlinks and empty directories. Special files (device nodes,
+  sockets, pipes) are skipped and reported.
 - `apply` of a system container reboots the device. It asks first, or needs
   `--yes`. Without a terminal and without `--yes` it exits with 13.
 - `push --watch` waits 400 ms after the last change, pushes, then applies the
@@ -97,7 +102,7 @@ Every command takes `--json` and prints one document:
 | 1 | `error` | other failure |
 | 2 | `usage` | wrong arguments |
 | 10 | `unreachable` | no connection to the device |
-| 11 | `not_allowed` | devmode is off on the device |
+| 11 | `not_allowed` | devmode is off on the device, or the caller is not a management container |
 | 12 | `not_active` | the device does not run a devmode revision |
 | 13 | `reboot_needed` | apply needs a reboot and was not confirmed |
 | 14 | `apply_failed` | the device refused the apply |

@@ -146,17 +146,36 @@ func (c *Client) Get(ctx context.Context, container, path string, w io.Writer) e
 type PutOpts struct {
 	Mode     uint32
 	UID, GID int
+	Type     string // file (default), dir or symlink
+	Target   string // for a symlink
 }
 
 func (c *Client) Put(ctx context.Context, container, path string, body io.Reader, o PutOpts) error {
-	_, err := c.pvcontrol(ctx, body, nil, "devmode", "files", "put", container, path, "-",
-		"--mode", fmt.Sprintf("%04o", o.Mode&0o7777),
-		"--uid", strconv.Itoa(o.UID), "--gid", strconv.Itoa(o.GID))
+	args := []string{"devmode", "files", "put", container, path}
+	switch o.Type {
+	case "dir":
+		args = append(args, "--type", "dir")
+		body = nil
+	case "symlink":
+		args = append(args, "--type", "symlink", "--target", o.Target)
+		body = nil
+	default:
+		args = append(args, "-")
+	}
+	args = append(args, "--uid", strconv.Itoa(o.UID), "--gid", strconv.Itoa(o.GID))
+	if o.Type != "symlink" {
+		args = append(args, "--mode", fmt.Sprintf("%04o", o.Mode&0o7777))
+	}
+	_, err := c.pvcontrol(ctx, body, nil, args...)
 	return err
 }
 
-func (c *Client) Remove(ctx context.Context, container, path string) error {
-	_, err := c.pvcontrol(ctx, nil, nil, "devmode", "files", "rm", container, path)
+func (c *Client) Remove(ctx context.Context, container, path string, recursive bool) error {
+	args := []string{"devmode", "files", "rm", container, path}
+	if recursive {
+		args = append(args, "--recursive")
+	}
+	_, err := c.pvcontrol(ctx, nil, nil, args...)
 	return err
 }
 

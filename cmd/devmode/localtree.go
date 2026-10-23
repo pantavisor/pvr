@@ -48,17 +48,6 @@ func CleanRemotePath(p string) (string, error) {
 	return c, nil
 }
 
-// SafeName tells if a file name can go through pvcontrol into a URL as is.
-func SafeName(p string) bool {
-	for _, r := range p {
-		if !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' ||
-			strings.ContainsRune("._-/+@:,=~", r)) {
-			return false
-		}
-	}
-	return true
-}
-
 // LocalToRemote maps <root>/<container>/<rel> to (container, container path).
 func LocalToRemote(root, file string) (container, rel string, err error) {
 	r, err := filepath.Rel(root, file)
@@ -128,9 +117,6 @@ func ScanLocal(root, container string) ([]LocalFile, error) {
 			}
 			return nil
 		}
-		if d.IsDir() {
-			return nil
-		}
 		rel, err := filepath.Rel(base, p)
 		if err != nil {
 			return err
@@ -142,6 +128,18 @@ func ScanLocal(root, container string) ([]LocalFile, error) {
 		}
 		lf.Mode = uint32(info.Mode().Perm())
 		switch {
+		case d.IsDir():
+			// only empty directories are pushed; others come with their files
+			ents, rerr := os.ReadDir(p)
+			if rerr != nil {
+				return rerr
+			}
+			for _, x := range ents {
+				if !Ignored(x.Name()) {
+					return nil
+				}
+			}
+			lf.Type = "dir"
 		case info.Mode()&fs.ModeSymlink != 0:
 			lf.Type = "symlink"
 			lf.Target, err = os.Readlink(p)

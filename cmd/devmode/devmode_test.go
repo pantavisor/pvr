@@ -1,6 +1,8 @@
 package devmode
 
 import (
+	"context"
+	"io"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -225,5 +227,92 @@ func TestSSHArgs(t *testing.T) {
 	}
 	if !strings.HasSuffix(a, "dev.local") {
 		t.Errorf("host not last: %s", a)
+	}
+}
+
+func TestDiffDirs(t *testing.T) {
+	m := Manifest{Files: []Entry{
+		{Path: "etc", Type: "dir", Mode: "0755"},
+		{Path: "etc/keep", Type: "file", Mode: "0644", SHA256: "aa"},
+		{Path: "old", Type: "dir", Mode: "0755"},
+		{Path: "old/x", Type: "file", Mode: "0644", SHA256: "bb"},
+		{Path: "emptyok", Type: "dir", Mode: "0755"},
+		{Path: "sock", Type: "special"},
+	}}
+	local := []LocalFile{
+		{Path: "etc/keep", Type: "file", Mode: 0o644, SHA256: "aa"},
+		{Path: "emptyok", Type: "dir", Mode: 0o755},
+		{Path: "newdir", Type: "dir", Mode: 0o700},
+		{Path: "ln", Type: "symlink", Target: "etc"},
+	}
+	d := ComputeDiff(local, m)
+	if !reflect.DeepEqual(d.Added, []Change{{"ln", ""}, {"newdir", ""}}) {
+		t.Errorf("added = %v", d.Added)
+	}
+	if !reflect.DeepEqual(d.Deleted, []Change{{"old", ""}, {"old/x", ""}}) {
+		t.Errorf("deleted = %v", d.Deleted)
+	}
+	if len(d.Changed) != 0 || d.Unchanged != 2 {
+		t.Errorf("changed %v unchanged %d", d.Changed, d.Unchanged)
+	}
+	if !under([]string{"old"}, "old/x") || under([]string{"old"}, "older") {
+		t.Error("under")
+	}
+}
+
+func TestScanLocalEmptyDir(t *testing.T) {
+	root := t.TempDir()
+	os.MkdirAll(filepath.Join(root, "c", "var", "empty"), 0o750)
+	os.MkdirAll(filepath.Join(root, "c", "etc"), 0o755)
+	os.WriteFile(filepath.Join(root, "c", "etc", "f with space.conf"), []byte("x"), 0o644)
+	os.Symlink("f", filepath.Join(root, "c", "etc", "ln"))
+	files, err := ScanLocal(root, "c")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]string{}
+	for _, f := range files {
+		got[f.Path] = f.Type
+	}
+	want := map[string]string{"var/empty": "dir", "etc/f with space.conf": "file", "etc/ln": "symlink"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("got %v", got)
+	}
+}
+
+type recTransport struct{ cmds []string }
+
+func (r *recTransport) Run(_ context.Context, c string, _ io.Reader, _, _ io.Writer) (int, error) {
+	r.cmds = append(r.cmds, c)
+	return 0, nil
+}
+func (r *recTransport) Close() error { return nil }
+
+func TestRemoteCommands(t *testing.T) {
+	rt := &recTransport{}
+	c := &Client{T: rt}
+	ctx := context.Background()
+	c.Put(ctx, "nginx", "etc/a b's.conf", strings.NewReader("x"), PutOpts{Mode: 0o644})
+	c.Put(ctx, "nginx", "var/empty", nil, PutOpts{Mode: 0o750, Type: "dir"})
+	c.Put(ctx, "nginx", "bin/ln", nil, PutOpts{Type: "symlink", Target: "../x y"})
+	c.Remove(ctx, "nginx", "old", true)
+	c.Remove(ctx, "nginx", "f", false)
+	c.Apply(ctx, "nginx", true)
+	want := []string{
+		`pvcontrol devmode files put nginx 'etc/a b'\''s.conf' - --uid 0 --gid 0 --mode 0644`,
+		`pvcontrol devmode files put nginx var/empty --type dir --uid 0 --gid 0 --mode 0750`,
+		`pvcontrol devmode files put nginx bin/ln --type symlink --target '../x y' --uid 0 --gid 0`,
+		`pvcontrol devmode files rm nginx old --recursive`,
+		`pvcontrol devmode files rm nginx f`,
+		`pvcontrol devmode apply nginx --reboot`,
+	}
+	if !reflect.DeepEqual(rt.cmds, want) {
+		t.Errorf("got\n%s\nwant\n%s", strings.Join(rt.cmds, "\n"), strings.Join(want, "\n"))
+	}
+}
+
+func TestClassifyMgmt(t *testing.T) {
+	if classify(`{"Error":"Request not sent from a mgmt platform"}`).Kind != KindNotAllowed {
+		t.Error("mgmt refusal should map to not_allowed")
 	}
 }

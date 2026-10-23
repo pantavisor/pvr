@@ -74,7 +74,7 @@ func classify(stderr string) *Error {
 		msg = j.Error
 	}
 	switch {
-	case strings.Contains(msg, "Devmode is disabled"):
+	case strings.Contains(msg, "Devmode is disabled"), strings.Contains(msg, "not sent from a mgmt platform"):
 		return errf(KindNotAllowed, msg)
 	case strings.Contains(msg, "Not running a devmode revision"):
 		return errf(KindNotActive, msg)

@@ -123,30 +123,36 @@ func (e *Env) PushContainer(ctx context.Context, name string, del bool) (PushRes
 	}
 	d := ComputeDiff(local, m)
 	r.Unchanged = d.Unchanged
+	devDirs := map[string]bool{}
+	for _, f := range m.Files {
+		if f.Type == "dir" {
+			devDirs[f.Path] = true
+		}
+	}
 	byPath := map[string]LocalFile{}
 	for _, l := range local {
 		byPath[l.Path] = l
 	}
 	for _, ch := range append(append([]Change{}, d.Added...), d.Changed...) {
 		l := byPath[ch.Path]
-		switch {
-		case l.Type == "symlink":
-			r.Skipped = append(r.Skipped, Skip{ch.Path, "symlinks are not pushed yet"})
-			continue
-		case !SafeName(ch.Path):
-			r.Skipped = append(r.Skipped, Skip{ch.Path, "unsupported character in the name"})
-			continue
-		}
 		local := filepath.Join(e.Dir, name, filepath.FromSlash(ch.Path))
-		f, err := os.Open(local)
-		if err != nil {
-			return r, err
-		}
-		o := PutOpts{Mode: l.Mode}
+		o := PutOpts{Mode: l.Mode, Type: l.Type, Target: l.Target}
 		if e.KeepOwner {
 			if u, g, ok := localOwner(local); ok {
 				o.UID, o.GID = u, g
 			}
+		}
+		if l.Type != "file" {
+			e.progress("push %s/%s (%s)", name, ch.Path, l.Type)
+			if err := e.C.Put(ctx, name, ch.Path, nil, o); err != nil {
+				return r, err
+			}
+			r.Pushed = append(r.Pushed, ch.Path)
+			continue
+		}
+		f, err := os.Open(local)
+		if err != nil {
+			return r, err
 		}
 		e.progress("push %s/%s", name, ch.Path)
 		err = e.C.Put(ctx, name, ch.Path, f, o)
@@ -158,8 +164,11 @@ func (e *Env) PushContainer(ctx context.Context, name string, del bool) (PushRes
 	}
 	if del {
 		for _, ch := range d.Deleted {
+			if under(r.Deleted, ch.Path) {
+				continue // went with its directory
+			}
 			e.progress("delete %s/%s", name, ch.Path)
-			if err := e.C.Remove(ctx, name, ch.Path); err != nil {
+			if err := e.C.Remove(ctx, name, ch.Path, devDirs[ch.Path]); err != nil {
 				return r, err
 			}
 			r.Deleted = append(r.Deleted, ch.Path)
@@ -210,6 +219,16 @@ func (e *Env) printPush(w io.Writer, res []PushResult) {
 	}
 }
 
+// under tells if p is inside one of the deleted directories.
+func under(deleted []string, p string) bool {
+	for _, d := range deleted {
+		if strings.HasPrefix(p, d+"/") {
+			return true
+		}
+	}
+	return false
+}
+
 // ---- pull ----
 
 type PullResult struct {
@@ -247,6 +266,9 @@ func (e *Env) Pull(ctx context.Context, names []string) ([]PullResult, error) {
 				if err := os.MkdirAll(dst, 0o755); err != nil {
 					return out, err
 				}
+				if m, ok := parseMode(f.Mode); ok {
+					_ = os.Chmod(dst, os.FileMode(m&0o777)|0o700)
+				}
 			case "deleted":
 				if err := os.Remove(dst); err == nil {
 					r.Removed = append(r.Removed, f.Path)
@@ -262,17 +284,17 @@ func (e *Env) Pull(ctx context.Context, names []string) ([]PullResult, error) {
 				}
 				r.Written = append(r.Written, f.Path)
 			case "file":
-				if !SafeName(f.Path) {
-					r.Skipped = append(r.Skipped, Skip{f.Path, "unsupported character in the name"})
-					continue
-				}
 				e.progress("pull %s/%s", n, f.Path)
 				if err := e.pullFile(ctx, n, f, dst); err != nil {
 					return out, err
 				}
 				r.Written = append(r.Written, f.Path)
 			default:
-				r.Skipped = append(r.Skipped, Skip{f.Path, "unknown type " + f.Type})
+				reason := "unknown type " + f.Type
+				if f.Type == "special" {
+					reason = "special file (device node, socket or pipe)"
+				}
+				r.Skipped = append(r.Skipped, Skip{f.Path, reason})
 			}
 		}
 		out = append(out, r)
