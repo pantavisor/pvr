@@ -118,3 +118,42 @@ func Scan() {
 
 	fmt.Fprintf(os.Stderr, "Pantavisor devices detected in network: %d (see above for details)\n", len(devices))
 }
+
+// ScanDevices browses the local network for pantavisor devices for the given
+// time and returns what it found, without printing anything.
+func ScanDevices(timeout time.Duration) ([]PVZeroConf, error) {
+	resolver, err := zeroconf.NewResolver(nil)
+	if err != nil {
+		return nil, err
+	}
+	entries := make(chan *zeroconf.ServiceEntry)
+	done := make(chan []PVZeroConf)
+	go func() {
+		var found []PVZeroConf
+		for entry := range entries {
+			res := PVZeroConf{Hostname: entry.HostName, AddrIPv4: entry.AddrIPv4,
+				AddrIPv6: entry.AddrIPv6, Port: entry.Port}
+			for _, v := range entry.Text {
+				switch {
+				case strings.HasPrefix(v, "pantahub="):
+					res.Pantahub = v[9:]
+				case strings.HasPrefix(v, "challenge="):
+					res.Challenge = v[10:]
+				case strings.HasPrefix(v, "device-id="):
+					res.DeviceId = v[10:]
+				}
+			}
+			if res.DeviceId != "" {
+				found = append(found, res)
+			}
+		}
+		done <- found
+	}()
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	if err := resolver.Browse(ctx, "_ssh._tcp", "local.", entries); err != nil {
+		return nil, err
+	}
+	<-ctx.Done()
+	return <-done, nil
+}
