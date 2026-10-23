@@ -41,10 +41,10 @@ func (m *multi) Set(v string) error { *m = append(*m, v); return nil }
 
 // options holds every flag any devmode command takes.
 type options struct {
-	json, yes, del, watch, keepOwner, resume, noScan bool
-	exec, dir, base, rev                             string
-	sshOpts                                          multi
-	scanTimeout                                      time.Duration
+	json, yes, watch, keepOwner, resume, noScan, noApply, recursive bool
+	exec, dir, base, rev                                            string
+	sshOpts                                                         multi
+	scanTimeout                                                     time.Duration
 }
 
 type spec struct {
@@ -221,7 +221,9 @@ func CommandDevmode() cli.Command {
 			name: "status", args: "<device> [container...]", maxPos: -1,
 			usage: "Show devmode state and the local-versus-device difference per container",
 			desc: "Runs 'pvcontrol devmode status', 'pvcontrol devmode files ls <container>' and 'pvcontrol containers ls'.\n" +
-				"added: only local. changed: content or mode differs. deleted: only on the device (removed by 'push --delete').\n" +
+				"added: only local. changed: content or mode differs.\n" +
+				"only on device: a file the local tree lacks (sync removes it, push leaves it).\n" +
+				"to delete: a path on ./devmode/<container>/.devmode-deleted that the device has not deleted yet (push and sync delete it).\n" +
 				"apply: restart for a container, reboot for a system container.",
 			flags: func(fs *flag.FlagSet, o *options) { transportFlags(fs, o); dirFlag(fs, o) },
 			run: func(ctx context.Context, env *Env, o *options, c *cli.Context, pos []string) (interface{}, func(io.Writer), error) {
@@ -233,25 +235,29 @@ func CommandDevmode() cli.Command {
 			},
 		}),
 		dev(spec{
-			name: "push", args: "<device> [container...] [--delete] [--watch] [--yes]", maxPos: -1,
-			usage: "Upload changed files from ./devmode/<container>/ to the device",
-			desc: "Runs 'pvcontrol devmode files put <container> <path> - --mode M --uid U --gid G' per changed file,\n" +
-				"and with --delete 'pvcontrol devmode files rm <container> <path>' per file missing locally.\n" +
+			name: "push", args: "<device> [container...] [--watch] [--yes] [--keep-owner]", maxPos: -1,
+			usage: "Add and update files from ./devmode/<container>/ on the device",
+			desc: "Uploads every file, symlink and empty directory of ./devmode/<container>/ that is new or different:\n" +
+				"'pvcontrol devmode files put <container> <path> - --mode M --uid U --gid G' (file on stdin),\n" +
+				"'... put <container> <path> --type symlink --target T' and '... put <container> <path> --type dir --mode M'.\n" +
+				"Then it deletes the image paths on ./devmode/<container>/.devmode-deleted that are not deleted yet:\n" +
+				"'pvcontrol devmode files rm <container> <path> --recursive'.\n" +
+				"Push removes nothing else; use 'pvr devmode sync' to make the container match the local tree exactly.\n" +
 				"Files keep their permission bits. The owner is root (0/0) unless --keep-owner uses the local numeric uid/gid.\n" +
-				"--watch pushes and applies again whenever the tree changes (400ms quiet time); --yes lets it reboot for system containers.",
+				"--watch pushes and applies again whenever the tree changes (400ms quiet time); --yes lets it reboot for system containers.\n" +
+				"Without container names every directory in ./devmode is pushed.",
 			flags: func(fs *flag.FlagSet, o *options) {
 				transportFlags(fs, o)
 				dirFlag(fs, o)
-				fs.BoolVar(&o.del, "delete", false, "remove device files that are missing locally")
 				fs.BoolVar(&o.watch, "watch", false, "keep running: push and apply on every change")
 				fs.BoolVar(&o.yes, "yes", false, "allow a device reboot in watch mode")
 				fs.BoolVar(&o.keepOwner, "keep-owner", false, "use the local uid/gid instead of 0/0")
 			},
 			run: func(ctx context.Context, env *Env, o *options, c *cli.Context, pos []string) (interface{}, func(io.Writer), error) {
 				if o.watch {
-					return nil, nil, env.Watch(ctx, pos, o.del)
+					return nil, nil, env.Watch(ctx, pos)
 				}
-				r, err := env.Push(ctx, pos, o.del)
+				r, err := env.Push(ctx, pos)
 				if err != nil {
 					return nil, nil, err
 				}
@@ -259,9 +265,46 @@ func CommandDevmode() cli.Command {
 					env.printPush(w, r)
 					for _, x := range r {
 						if x.Apply != "" {
-							fmt.Fprintln(w, "run pvr devmode apply to make the container see the files")
+							fmt.Fprintln(w, "run pvr devmode apply to make the container see the changes")
 							break
 						}
+					}
+				}, nil
+			},
+		}),
+		dev(spec{
+			name: "sync", args: "<device> [container...] [--no-apply] [--yes] [--keep-owner]", maxPos: -1,
+			usage: "Make a container exactly the image plus ./devmode/<container>/ minus the deleted list",
+			desc: "Checks the whole local tree of every selected container first (paths, file types, deleted list)\n" +
+				"and stops before touching the device if anything is wrong. Then it prints one line per container,\n" +
+				"for example 'pv-example-app: emptying devmode files, uploading 12 files, deleting 1 image file', and for each container runs:\n" +
+				"'pvcontrol devmode reset <container>', the uploads of 'pvr devmode push', and 'pvcontrol devmode files rm <container> <path> --recursive'\n" +
+				"for each path on ./devmode/<container>/.devmode-deleted.\n" +
+				"Then the containers are applied once, like 'pvr devmode apply': a system container needs a device reboot,\n" +
+				"which needs --yes or an interactive yes, otherwise exit code 13. --no-apply skips that step.\n" +
+				"Without container names every container that has a directory in ./devmode is synced.",
+			flags: func(fs *flag.FlagSet, o *options) {
+				transportFlags(fs, o)
+				dirFlag(fs, o)
+				fs.BoolVar(&o.noApply, "no-apply", false, "do not restart the containers afterwards")
+				fs.BoolVar(&o.yes, "yes", false, "allow a device reboot")
+				fs.BoolVar(&o.keepOwner, "keep-owner", false, "use the local uid/gid instead of 0/0")
+			},
+			run: func(ctx context.Context, env *Env, o *options, c *cli.Context, pos []string) (interface{}, func(io.Writer), error) {
+				r, err := env.Sync(ctx, pos, o.noApply)
+				if err != nil {
+					return nil, nil, err
+				}
+				return r, func(w io.Writer) {
+					if r.Apply == nil {
+						fmt.Fprintln(w, "synced; run pvr devmode apply to make the containers see the changes")
+						return
+					}
+					if len(r.Apply.Restarted) > 0 {
+						fmt.Fprintf(w, "restarted: %s\n", joinNames(r.Apply.Restarted))
+					}
+					if r.Apply.Reboot {
+						fmt.Fprintf(w, "the device reboots now (needed for %s)\n", r.Apply.Rebooted)
 					}
 				}, nil
 			},
@@ -270,7 +313,10 @@ func CommandDevmode() cli.Command {
 			name: "pull", args: "<device> [container...]", maxPos: -1,
 			usage: "Fetch the devmode files of the device into ./devmode/<container>/",
 			desc: "Runs 'pvcontrol devmode files ls <container>' and 'pvcontrol devmode files get <container> <path>'.\n" +
-				"Files deleted in devmode are removed from the local tree.",
+				"Files and symlinks are written to ./devmode/<container>/, directories are created.\n" +
+				"Paths that devmode deleted are removed from the local tree and written to ./devmode/<container>/.devmode-deleted\n" +
+				"(one path per line; the file is replaced, or removed when nothing is deleted).\n" +
+				"Special files (device nodes, sockets, pipes) are skipped and reported.",
 			flags: func(fs *flag.FlagSet, o *options) { transportFlags(fs, o); dirFlag(fs, o) },
 			run: func(ctx context.Context, env *Env, o *options, c *cli.Context, pos []string) (interface{}, func(io.Writer), error) {
 				r, err := env.Pull(ctx, pos)
@@ -311,19 +357,45 @@ func CommandDevmode() cli.Command {
 			},
 		}),
 		dev(spec{
-			name: "reset", args: "<device> <container>", minPos: 1, maxPos: 1,
-			usage: "Empty the devmode files of a container on the device",
-			desc:  "Runs 'pvcontrol devmode reset <container>'. The local tree is not touched.",
+			name: "reset", args: "<device> <container...>", minPos: 1, maxPos: -1,
+			usage: "Empty the devmode files of containers on the device (back to the image)",
+			desc: "Runs 'pvcontrol devmode reset <container>' for each container. The local tree and the deleted list are not touched.\n" +
+				"Run 'pvr devmode apply' afterwards to restart the containers.",
 			flags: func(fs *flag.FlagSet, o *options) { transportFlags(fs, o) },
 			run: func(ctx context.Context, env *Env, o *options, c *cli.Context, pos []string) (interface{}, func(io.Writer), error) {
 				if _, err := env.C.RequireActive(ctx); err != nil {
 					return nil, nil, err
 				}
-				if err := env.C.Reset(ctx, pos[0]); err != nil {
+				done := []string{}
+				for _, n := range pos {
+					if err := env.C.Reset(ctx, n); err != nil {
+						return nil, nil, err
+					}
+					done = append(done, n)
+				}
+				return map[string]interface{}{"containers": done}, func(w io.Writer) {
+					fmt.Fprintf(w, "%s: devmode files removed; run pvr devmode apply to restart\n", joinNames(done))
+				}, nil
+			},
+		}),
+		dev(spec{
+			name: "rm", args: "<device> <container> <path...> [--recursive]", minPos: 2, maxPos: -1,
+			usage: "Delete image paths in a container and remember them in the deleted list",
+			desc: "Runs 'pvcontrol devmode files rm <container> <path> [--recursive]' for each path (container paths without a leading slash)\n" +
+				"and adds each path to ./devmode/<container>/.devmode-deleted, creating the directory if needed.\n" +
+				"push and sync delete the listed paths again. --recursive is needed for a directory with content.",
+			flags: func(fs *flag.FlagSet, o *options) {
+				transportFlags(fs, o)
+				dirFlag(fs, o)
+				fs.BoolVar(&o.recursive, "recursive", false, "delete a directory with everything in it")
+			},
+			run: func(ctx context.Context, env *Env, o *options, c *cli.Context, pos []string) (interface{}, func(io.Writer), error) {
+				r, err := env.Remove(ctx, pos[0], pos[1:], o.recursive)
+				if err != nil {
 					return nil, nil, err
 				}
-				return map[string]string{"container": pos[0]}, func(w io.Writer) {
-					fmt.Fprintf(w, "%s: devmode files removed; run pvr devmode apply to restart it\n", pos[0])
+				return r, func(w io.Writer) {
+					fmt.Fprintf(w, "%s: deleted %s; run pvr devmode apply to restart\n", r.Container, joinNames(r.Removed))
 				}, nil
 			},
 		}),
@@ -464,7 +536,7 @@ func CommandDevmode() cli.Command {
 	return cli.Command{
 		Name:        "devmode",
 		Usage:       "Sync files to a device running a devmode revision",
-		ArgsUsage:   "<enter|status|push|pull|apply|reset|leave|devices|add-device>",
+		ArgsUsage:   "<enter|status|push|sync|pull|apply|reset|rm|leave|devices|add-device>",
 		Description: "See docs/devmode.md. Every command takes --json. Exit codes: 1 error, 2 usage, 10 device unreachable, 11 devmode not allowed, 12 devmode not active, 13 reboot needed, 14 apply failed.",
 		Subcommands: subs,
 	}

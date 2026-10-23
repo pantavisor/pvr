@@ -49,7 +49,7 @@ func addTree(w *fsnotify.Watcher, root string) {
 
 // Watch pushes and applies every time the local tree changes, until ctx
 // ends. System containers only get a reboot when e.Yes is set.
-func (e *Env) Watch(ctx context.Context, names []string, del bool) error {
+func (e *Env) Watch(ctx context.Context, names []string) error {
 	if _, err := e.C.RequireActive(ctx); err != nil {
 		return err
 	}
@@ -93,7 +93,7 @@ func (e *Env) Watch(ctx context.Context, names []string, del bool) error {
 			if !ok {
 				return nil
 			}
-			if Ignored(filepath.Base(ev.Name)) {
+			if b := filepath.Base(ev.Name); Ignored(b) && b != DeletedListName {
 				continue
 			}
 			if ev.Op&fsnotify.Create != 0 {
@@ -120,15 +120,15 @@ func (e *Env) Watch(ctx context.Context, names []string, del bool) error {
 			}
 			sort.Strings(batch)
 			dirty = map[string]bool{}
-			e.cycle(ctx, batch, del)
+			e.cycle(ctx, batch)
 		}
 	}
 }
 
 // cycle pushes and applies one batch; failures are reported and the watch
 // goes on.
-func (e *Env) cycle(ctx context.Context, batch []string, del bool) {
-	res, err := e.Push(ctx, batch, del)
+func (e *Env) cycle(ctx context.Context, batch []string) {
+	res, err := e.Push(ctx, batch)
 	if err != nil {
 		e.cycleError("push", err)
 		return

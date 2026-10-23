@@ -43,14 +43,31 @@ pvr devmode enter bench              # device reboots into a devmode revision
 pvr devmode pull bench nginx         # ./devmode/nginx/... from the device
 $EDITOR devmode/nginx/etc/nginx/nginx.conf
 pvr devmode status bench             # what differs
-pvr devmode push bench nginx         # upload changed files
+pvr devmode push bench nginx         # add and update files
 pvr devmode apply bench nginx        # restart the container
 pvr devmode push bench --watch       # push and apply on every save
+pvr devmode rm bench nginx etc/nginx/conf.d/default.conf   # delete an image file
+pvr devmode sync bench nginx         # make the container match ./devmode exactly
 pvr devmode leave bench              # run the committed revision again
 ```
 
 The local tree is `./devmode/<container>/<path>`; change it with `--dir`.
 Backup and editor files (`*~`, `*.swp`, `.git`, ...) are ignored.
+
+### The deleted list
+
+`./devmode/<container>/.devmode-deleted` lists image paths to delete in the
+container, one container path per line, without a leading slash. Blank lines and
+`#` comments are allowed. The name is reserved: the file is never uploaded.
+
+```
+# the default site is replaced by my own
+etc/nginx/conf.d/default.conf
+usr/share/doc
+```
+
+`pvr devmode rm` adds paths to it, `pvr devmode pull` writes it from the files
+devmode deleted on the device, and `push` and `sync` delete the listed paths.
 
 ## Commands
 
@@ -58,10 +75,12 @@ Backup and editor files (`*~`, `*.swp`, `.git`, ...) are ignored.
 |---|---|
 | `enter <device> [--base N] [--resume]` | `pvcontrol devmode create [N] [--resume]` |
 | `status <device> [container...]` | `pvcontrol devmode status`, `pvcontrol devmode files ls <c>`, `pvcontrol containers ls` |
-| `push <device> [container...] [--delete] [--watch] [--yes] [--keep-owner]` | `pvcontrol devmode files put <c> <path> - --mode M --uid U --gid G` (file on stdin), `... put <c> <path> --type symlink --target T`, `... put <c> <path> --type dir --mode M`; with `--delete` `pvcontrol devmode files rm <c> <path>` (`--recursive` for a directory) |
+| `push <device> [container...] [--watch] [--yes] [--keep-owner]` | `pvcontrol devmode files put <c> <path> - --mode M --uid U --gid G` (file on stdin), `... put <c> <path> --type symlink --target T`, `... put <c> <path> --type dir --mode M`; then `pvcontrol devmode files rm <c> <path> --recursive` for deleted-list paths |
+| `sync <device> [container...] [--no-apply] [--yes] [--keep-owner]` | per container `pvcontrol devmode reset <c>`, the uploads of `push`, `pvcontrol devmode files rm <c> <path> --recursive` for the deleted list; then the steps of `apply` |
 | `pull <device> [container...]` | `pvcontrol devmode files ls <c>`, `pvcontrol devmode files get <c> <path>` |
 | `apply <device> [container...] [--yes]` | `pvcontrol devmode apply <c>`, or `... --reboot` for a system container |
-| `reset <device> <container>` | `pvcontrol devmode reset <c>` |
+| `reset <device> <container...>` | `pvcontrol devmode reset <c>` |
+| `rm <device> <container> <path...> [--recursive]` | `pvcontrol devmode files rm <c> <path> [--recursive]` |
 | `leave <device> [--rev REV]` | `pvcontrol devmode status` (base), `pvcontrol cmd run <base>` |
 | `devices [--no-scan]` | local only |
 | `add-device <alias> <target>` | local only |
@@ -69,17 +88,28 @@ Backup and editor files (`*~`, `*.swp`, `.git`, ...) are ignored.
 Rules:
 
 - `status` compares sha256 and mode of local files with the device manifest.
-  `added`: only local. `changed`: content or mode differs. `deleted`: only on the
-  device; only `push --delete` removes it. It also shows what `apply` will do:
-  `restart` for a container, `reboot` for a system container.
-- `push` keeps the permission bits of the local file. The owner is root (0/0)
-  because local owners rarely mean anything on the device; `--keep-owner` sends
-  the local numeric uid/gid instead. Symlinks are pushed as symlinks and empty
-  local directories as directories. File names can hold any character.
-- `push --delete` removes a directory that is only on the device with
-  `--recursive`, with everything in it.
-- `pull` creates symlinks and empty directories. Special files (device nodes,
-  sockets, pipes) are skipped and reported.
+  `added`: only local. `changed`: content or mode differs. `only on device`: a
+  file the local tree lacks; `sync` removes it, `push` leaves it. `to delete`: a
+  deleted-list path the device has not deleted yet. It also shows what `apply`
+  will do: `restart` for a container, `reboot` for a system container.
+- `push` only adds and updates. Besides the deleted list it removes nothing, so
+  image directories that devmode copied up as parents are never touched.
+- `sync` makes the container exactly the image plus `./devmode/<container>/`
+  minus the deleted list. It first checks the whole local tree of every selected
+  container (paths, types, deleted list) and stops before touching the device if
+  anything is wrong. It prints one line per container, for example
+  `pv-example-app: emptying devmode files, uploading 12 files, deleting 1 image file`,
+  then resets, uploads and deletes per container, and applies all containers
+  once. `--no-apply` skips the apply. Without container names every container
+  with a directory in `./devmode` is synced.
+- `push` and `sync` keep the permission bits of the local file. The owner is root
+  (0/0) because local owners rarely mean anything on the device; `--keep-owner`
+  sends the local numeric uid/gid instead. Symlinks are pushed as symlinks and
+  empty local directories as directories. File names can hold any character.
+- `pull` creates symlinks and directories, writes the deleted list, and skips
+  special files (device nodes, sockets, pipes) with a reason.
+- `reset` empties the devmode files of the named containers on the device. The
+  local tree and the deleted list stay as they are.
 - `apply` of a system container reboots the device. It asks first, or needs
   `--yes`. Without a terminal and without `--yes` it exits with 13.
 - `push --watch` waits 400 ms after the last change, pushes, then applies the

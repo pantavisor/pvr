@@ -142,15 +142,19 @@ func TestComputeDiff(t *testing.T) {
 		{Path: "etc/revived", Type: "file", Mode: 0o644, SHA256: "ff"},
 		{Path: "bin/ln", Type: "symlink", Target: "x"},
 	}
-	d := ComputeDiff(local, m)
+	d := ComputeDiff(local, m, []string{"etc/removed", "usr/lib/x"})
 	if !reflect.DeepEqual(d.Added, []Change{{"etc/new", ""}, {"etc/revived", ""}}) {
 		t.Errorf("added = %v", d.Added)
 	}
 	if !reflect.DeepEqual(d.Changed, []Change{{"etc/content", "content"}, {"etc/mode", "mode"}}) {
 		t.Errorf("changed = %v", d.Changed)
 	}
-	if !reflect.DeepEqual(d.Deleted, []Change{{"etc/gone", ""}}) {
-		t.Errorf("deleted = %v", d.Deleted)
+	if !reflect.DeepEqual(d.OnlyOnDevice, []Change{{"etc/gone", ""}}) {
+		t.Errorf("only on device = %v", d.OnlyOnDevice)
+	}
+	// etc/removed is already deleted on the device, usr/lib/x is not
+	if !reflect.DeepEqual(d.ToDelete, []Change{{"usr/lib/x", ""}}) {
+		t.Errorf("to delete = %v", d.ToDelete)
 	}
 	if d.Unchanged != 2 {
 		t.Errorf("unchanged = %d", d.Unchanged)
@@ -245,12 +249,13 @@ func TestDiffDirs(t *testing.T) {
 		{Path: "newdir", Type: "dir", Mode: 0o700},
 		{Path: "ln", Type: "symlink", Target: "etc"},
 	}
-	d := ComputeDiff(local, m)
+	d := ComputeDiff(local, m, nil)
 	if !reflect.DeepEqual(d.Added, []Change{{"ln", ""}, {"newdir", ""}}) {
 		t.Errorf("added = %v", d.Added)
 	}
-	if !reflect.DeepEqual(d.Deleted, []Change{{"old", ""}, {"old/x", ""}}) {
-		t.Errorf("deleted = %v", d.Deleted)
+	// copied-up parent directories are not device-only; files are
+	if !reflect.DeepEqual(d.OnlyOnDevice, []Change{{"old/x", ""}}) {
+		t.Errorf("only on device = %v", d.OnlyOnDevice)
 	}
 	if len(d.Changed) != 0 || d.Unchanged != 2 {
 		t.Errorf("changed %v unchanged %d", d.Changed, d.Unchanged)

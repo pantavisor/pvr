@@ -36,6 +36,9 @@ func CleanRemotePath(p string) (string, error) {
 	if p == "" || strings.HasPrefix(p, "/") || strings.Contains(p, "\\") {
 		return "", fmt.Errorf("bad path %q", p)
 	}
+	if strings.ContainsAny(p, "\n\r\x00") {
+		return "", fmt.Errorf("bad path %q", p)
+	}
 	for _, part := range strings.Split(p, "/") {
 		if part == ".." {
 			return "", fmt.Errorf("bad path %q", p)
@@ -79,7 +82,7 @@ func RemoteToLocal(root, container, rel string) (string, error) {
 // Ignored tells if a local file is editor or VCS noise that is never pushed.
 func Ignored(name string) bool {
 	switch {
-	case name == ".git", name == ".DS_Store", name == "4913":
+	case name == ".git", name == ".DS_Store", name == "4913", name == DeletedListName:
 		return true
 	case strings.HasSuffix(name, "~"), strings.HasSuffix(name, ".swp"),
 		strings.HasSuffix(name, ".swx"), strings.HasSuffix(name, ".tmp"),

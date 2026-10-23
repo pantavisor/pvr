@@ -17,7 +17,6 @@
 package devmode
 
 import (
-	"path"
 	"sort"
 	"strconv"
 )
@@ -55,18 +54,20 @@ type Change struct {
 	Reason string `json:"reason,omitempty"` // content, mode, type
 }
 
-// Diff is what a push would do for one container.
+// Diff compares the local tree with the device for one container.
 type Diff struct {
 	Added   []Change `json:"added"`
 	Changed []Change `json:"changed"`
-	// Deleted lists files on the device that are missing locally; only
-	// push --delete removes them.
-	Deleted   []Change `json:"deleted"`
+	// OnlyOnDevice lists files the device has that the local tree does not;
+	// sync removes them, push leaves them alone.
+	OnlyOnDevice []Change `json:"only_on_device"`
+	// ToDelete lists deleted-list paths not yet deleted on the device.
+	ToDelete  []Change `json:"to_delete"`
 	Unchanged int      `json:"unchanged"`
 }
 
 func (d Diff) Empty() bool {
-	return len(d.Added)+len(d.Changed)+len(d.Deleted) == 0
+	return len(d.Added)+len(d.Changed)+len(d.OnlyOnDevice)+len(d.ToDelete) == 0
 }
 
 func parseMode(s string) (uint32, bool) {
@@ -75,23 +76,12 @@ func parseMode(s string) (uint32, bool) {
 }
 
 // ComputeDiff compares the local tree with the device manifest.
-func ComputeDiff(local []LocalFile, m Manifest) Diff {
+func ComputeDiff(local []LocalFile, m Manifest, deleted []string) Diff {
 	dev := map[string]Entry{}
 	for _, e := range m.Files {
 		dev[e.Path] = e
 	}
-	dirs := map[string]bool{}
-	for _, l := range local {
-		p := l.Path
-		if l.Type != "dir" {
-			p = path.Dir(p)
-		}
-		for p != "." && p != "/" && !dirs[p] {
-			dirs[p] = true
-			p = path.Dir(p)
-		}
-	}
-	d := Diff{Added: []Change{}, Changed: []Change{}, Deleted: []Change{}}
+	d := Diff{Added: []Change{}, Changed: []Change{}, OnlyOnDevice: []Change{}, ToDelete: []Change{}}
 	seen := map[string]bool{}
 	for _, l := range local {
 		seen[l.Path] = true
@@ -119,16 +109,19 @@ func ComputeDiff(local []LocalFile, m Manifest) Diff {
 			}
 		}
 	}
+	// directories on the device are often parents the overlay copied up, so
+	// only files and symlinks count as device-only
 	for _, e := range m.Files {
-		gone := (e.Type == "file" || e.Type == "symlink") && !seen[e.Path]
-		if e.Type == "dir" && !dirs[e.Path] {
-			gone = true
-		}
-		if gone {
-			d.Deleted = append(d.Deleted, Change{Path: e.Path})
+		if (e.Type == "file" || e.Type == "symlink") && !seen[e.Path] {
+			d.OnlyOnDevice = append(d.OnlyOnDevice, Change{Path: e.Path})
 		}
 	}
-	for _, s := range [][]Change{d.Added, d.Changed, d.Deleted} {
+	for _, p := range deleted {
+		if e, ok := dev[p]; !ok || e.Type != "deleted" {
+			d.ToDelete = append(d.ToDelete, Change{Path: p})
+		}
+	}
+	for _, s := range [][]Change{d.Added, d.Changed, d.OnlyOnDevice, d.ToDelete} {
 		sort.Slice(s, func(i, j int) bool { return s[i].Path < s[j].Path })
 	}
 	return d

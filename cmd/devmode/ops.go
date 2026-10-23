@@ -89,11 +89,12 @@ type Skip struct {
 type PushResult struct {
 	Container string   `json:"container"`
 	Pushed    []string `json:"pushed"`
+	// Deleted lists the image paths removed because they are on the deleted list.
 	Deleted   []string `json:"deleted"`
 	Skipped   []Skip   `json:"skipped"`
 	Unchanged int      `json:"unchanged"`
 	// Apply is what pvr devmode apply will do for this container:
-	// restart, reboot or unknown. Empty when nothing was pushed.
+	// restart, reboot or unknown. Empty when nothing changed.
 	Apply string `json:"apply,omitempty"`
 }
 
@@ -111,7 +112,47 @@ func (e *Env) containersOrLocal(names []string) ([]string, error) {
 	return l, nil
 }
 
-func (e *Env) PushContainer(ctx context.Context, name string, del bool) (PushResult, error) {
+func isNotFound(err error) bool {
+	e, ok := err.(*Error)
+	return ok && strings.Contains(e.Msg, "Not found")
+}
+
+// putLocal uploads one local file, symlink or directory.
+func (e *Env) putLocal(ctx context.Context, name string, l LocalFile) error {
+	local := filepath.Join(e.Dir, name, filepath.FromSlash(l.Path))
+	o := PutOpts{Mode: l.Mode, Type: l.Type, Target: l.Target}
+	if e.KeepOwner {
+		if u, g, ok := localOwner(local); ok {
+			o.UID, o.GID = u, g
+		}
+	}
+	if l.Type != "file" {
+		e.progress("push %s/%s (%s)", name, l.Path, l.Type)
+		return e.C.Put(ctx, name, l.Path, nil, o)
+	}
+	f, err := os.Open(local)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	e.progress("push %s/%s", name, l.Path)
+	return e.C.Put(ctx, name, l.Path, f, o)
+}
+
+// deleteListed removes one deleted-list path from the container's view;
+// true when it was there.
+func (e *Env) deleteListed(ctx context.Context, name, p string) (bool, error) {
+	e.progress("delete %s/%s", name, p)
+	err := e.C.Remove(ctx, name, p, true)
+	if isNotFound(err) {
+		return false, nil
+	}
+	return err == nil, err
+}
+
+// PushContainer adds and updates files, and removes the paths of the
+// deleted list that are not deleted yet. It removes nothing else.
+func (e *Env) PushContainer(ctx context.Context, name string) (PushResult, error) {
 	r := PushResult{Container: name, Pushed: []string{}, Deleted: []string{}, Skipped: []Skip{}}
 	m, err := e.C.Manifest(ctx, name)
 	if err != nil {
@@ -121,63 +162,38 @@ func (e *Env) PushContainer(ctx context.Context, name string, del bool) (PushRes
 	if err != nil {
 		return r, err
 	}
-	d := ComputeDiff(local, m)
-	r.Unchanged = d.Unchanged
-	devDirs := map[string]bool{}
-	for _, f := range m.Files {
-		if f.Type == "dir" {
-			devDirs[f.Path] = true
-		}
+	list, err := ReadDeletedList(e.Dir, name)
+	if err != nil {
+		return r, err
 	}
+	if err := ValidateTree(local, list); err != nil {
+		return r, err
+	}
+	d := ComputeDiff(local, m, list)
+	r.Unchanged = d.Unchanged
 	byPath := map[string]LocalFile{}
 	for _, l := range local {
 		byPath[l.Path] = l
 	}
 	for _, ch := range append(append([]Change{}, d.Added...), d.Changed...) {
-		l := byPath[ch.Path]
-		local := filepath.Join(e.Dir, name, filepath.FromSlash(ch.Path))
-		o := PutOpts{Mode: l.Mode, Type: l.Type, Target: l.Target}
-		if e.KeepOwner {
-			if u, g, ok := localOwner(local); ok {
-				o.UID, o.GID = u, g
-			}
-		}
-		if l.Type != "file" {
-			e.progress("push %s/%s (%s)", name, ch.Path, l.Type)
-			if err := e.C.Put(ctx, name, ch.Path, nil, o); err != nil {
-				return r, err
-			}
-			r.Pushed = append(r.Pushed, ch.Path)
-			continue
-		}
-		f, err := os.Open(local)
-		if err != nil {
-			return r, err
-		}
-		e.progress("push %s/%s", name, ch.Path)
-		err = e.C.Put(ctx, name, ch.Path, f, o)
-		f.Close()
-		if err != nil {
+		if err := e.putLocal(ctx, name, byPath[ch.Path]); err != nil {
 			return r, err
 		}
 		r.Pushed = append(r.Pushed, ch.Path)
 	}
-	if del {
-		for _, ch := range d.Deleted {
-			if under(r.Deleted, ch.Path) {
-				continue // went with its directory
-			}
-			e.progress("delete %s/%s", name, ch.Path)
-			if err := e.C.Remove(ctx, name, ch.Path, devDirs[ch.Path]); err != nil {
-				return r, err
-			}
+	for _, ch := range d.ToDelete {
+		ok, err := e.deleteListed(ctx, name, ch.Path)
+		if err != nil {
+			return r, err
+		}
+		if ok {
 			r.Deleted = append(r.Deleted, ch.Path)
 		}
 	}
 	return r, nil
 }
 
-func (e *Env) Push(ctx context.Context, names []string, del bool) ([]PushResult, error) {
+func (e *Env) Push(ctx context.Context, names []string) ([]PushResult, error) {
 	if _, err := e.C.RequireActive(ctx); err != nil {
 		return nil, err
 	}
@@ -188,7 +204,7 @@ func (e *Env) Push(ctx context.Context, names []string, del bool) ([]PushResult,
 	policies, perr := e.C.RestartPolicies(ctx)
 	var out []PushResult
 	for _, n := range names {
-		r, err := e.PushContainer(ctx, n, del)
+		r, err := e.PushContainer(ctx, n)
 		if len(r.Pushed)+len(r.Deleted) > 0 {
 			r.Apply = "unknown"
 			if perr == nil {
@@ -236,6 +252,8 @@ type PullResult struct {
 	Written   []string `json:"written"`
 	Removed   []string `json:"removed"`
 	Skipped   []Skip   `json:"skipped"`
+	// DeletedList is what was written to the container's .devmode-deleted.
+	DeletedList []string `json:"deleted_list"`
 }
 
 func (e *Env) Pull(ctx context.Context, names []string) ([]PullResult, error) {
@@ -250,7 +268,7 @@ func (e *Env) Pull(ctx context.Context, names []string) ([]PullResult, error) {
 	}
 	var out []PullResult
 	for _, n := range names {
-		r := PullResult{Container: n, Written: []string{}, Removed: []string{}, Skipped: []Skip{}}
+		r := PullResult{Container: n, Written: []string{}, Removed: []string{}, Skipped: []Skip{}, DeletedList: []string{}}
 		m, err := e.C.Manifest(ctx, n)
 		if err != nil {
 			return out, err
@@ -270,6 +288,7 @@ func (e *Env) Pull(ctx context.Context, names []string) ([]PullResult, error) {
 					_ = os.Chmod(dst, os.FileMode(m&0o777)|0o700)
 				}
 			case "deleted":
+				r.DeletedList = append(r.DeletedList, f.Path)
 				if err := os.Remove(dst); err == nil {
 					r.Removed = append(r.Removed, f.Path)
 				}
@@ -296,6 +315,9 @@ func (e *Env) Pull(ctx context.Context, names []string) ([]PullResult, error) {
 				}
 				r.Skipped = append(r.Skipped, Skip{f.Path, reason})
 			}
+		}
+		if err := WriteDeletedList(e.Dir, n, append([]string{}, r.DeletedList...)); err != nil {
+			return out, err
 		}
 		out = append(out, r)
 	}
@@ -451,7 +473,11 @@ func (e *Env) Status(ctx context.Context, names []string) (StatusResult, error) 
 			if err != nil {
 				return res, err
 			}
-			d := ComputeDiff(local, m)
+			list, err := ReadDeletedList(e.Dir, n)
+			if err != nil {
+				return res, err
+			}
+			d := ComputeDiff(local, m, list)
 			cs.Diff = &d
 		}
 		res.Containers = append(res.Containers, cs)
@@ -485,8 +511,185 @@ func (e *Env) printStatus(w io.Writer, r StatusResult) {
 		for _, x := range c.Diff.Changed {
 			fmt.Fprintf(w, "  changed  %s (%s)\n", x.Path, x.Reason)
 		}
-		for _, x := range c.Diff.Deleted {
-			fmt.Fprintf(w, "  deleted  %s (on device only; push --delete removes it)\n", x.Path)
+		for _, x := range c.Diff.OnlyOnDevice {
+			fmt.Fprintf(w, "  only on device  %s (sync removes it)\n", x.Path)
+		}
+		for _, x := range c.Diff.ToDelete {
+			fmt.Fprintf(w, "  to delete       %s (image path on the deleted list)\n", x.Path)
 		}
 	}
+}
+
+// ---- sync ----
+
+type SyncPlan struct {
+	Container string   `json:"container"`
+	Files     int      `json:"files"`
+	Symlinks  int      `json:"symlinks"`
+	Dirs      int      `json:"directories"`
+	Delete    []string `json:"delete"`
+	Summary   string   `json:"summary"`
+	local     []LocalFile
+}
+
+func plural(n int, one, many string) string {
+	if n == 1 {
+		return fmt.Sprintf("%d %s", n, one)
+	}
+	return fmt.Sprintf("%d %s", n, many)
+}
+
+func (p *SyncPlan) summarize() {
+	parts := []string{"emptying devmode files"}
+	var up []string
+	if p.Files > 0 {
+		up = append(up, plural(p.Files, "file", "files"))
+	}
+	if p.Symlinks > 0 {
+		up = append(up, plural(p.Symlinks, "symlink", "symlinks"))
+	}
+	if p.Dirs > 0 {
+		up = append(up, plural(p.Dirs, "directory", "directories"))
+	}
+	if len(up) > 0 {
+		parts = append(parts, "uploading "+strings.Join(up, ", "))
+	}
+	if len(p.Delete) > 0 {
+		parts = append(parts, "deleting "+plural(len(p.Delete), "image file", "image files"))
+	}
+	p.Summary = p.Container + ": " + strings.Join(parts, ", ")
+}
+
+// PlanSync checks the whole local tree of every selected container. It
+// does not talk to the device.
+func (e *Env) PlanSync(names []string) ([]SyncPlan, error) {
+	names, err := e.containersOrLocal(names)
+	if err != nil {
+		return nil, err
+	}
+	var plans []SyncPlan
+	for _, n := range names {
+		if n == "" || n == "." || n == ".." || strings.ContainsAny(n, "/\\ \t\n") {
+			return nil, errf(KindUsage, fmt.Sprintf("bad container name %q", n))
+		}
+		fi, err := os.Stat(filepath.Join(e.Dir, n))
+		if err != nil || !fi.IsDir() {
+			return nil, errf(KindUsage, fmt.Sprintf("no local directory ./%s/%s", e.Dir, n))
+		}
+		local, err := ScanLocal(e.Dir, n)
+		if err != nil {
+			return nil, errf(KindGeneric, fmt.Sprintf("%s: %v", n, err))
+		}
+		list, err := ReadDeletedList(e.Dir, n)
+		if err != nil {
+			return nil, errf(KindGeneric, fmt.Sprintf("%s: %v", n, err))
+		}
+		if err := ValidateTree(local, list); err != nil {
+			return nil, errf(KindGeneric, fmt.Sprintf("%s: %v", n, err))
+		}
+		p := SyncPlan{Container: n, Delete: list, local: local}
+		if p.Delete == nil {
+			p.Delete = []string{}
+		}
+		for _, l := range local {
+			switch l.Type {
+			case "symlink":
+				p.Symlinks++
+			case "dir":
+				p.Dirs++
+			default:
+				p.Files++
+			}
+		}
+		p.summarize()
+		plans = append(plans, p)
+	}
+	return plans, nil
+}
+
+type SyncResult struct {
+	Containers []SyncPlan   `json:"containers"`
+	Apply      *ApplyResult `json:"apply,omitempty"`
+}
+
+// Sync makes each container the image plus its local tree minus its
+// deleted list: reset, upload everything, delete the listed paths, then
+// apply once.
+func (e *Env) Sync(ctx context.Context, names []string, noApply bool) (SyncResult, error) {
+	var res SyncResult
+	plans, err := e.PlanSync(names)
+	if err != nil {
+		return res, err
+	}
+	res.Containers = plans
+	if _, err := e.C.RequireActive(ctx); err != nil {
+		return res, err
+	}
+	for _, p := range plans {
+		e.progress("%s", p.Summary)
+	}
+	for _, p := range plans {
+		e.progress("reset %s", p.Container)
+		if err := e.C.Reset(ctx, p.Container); err != nil {
+			return res, err
+		}
+		for _, l := range p.local {
+			if err := e.putLocal(ctx, p.Container, l); err != nil {
+				return res, err
+			}
+		}
+		for _, d := range p.Delete {
+			if _, err := e.deleteListed(ctx, p.Container, d); err != nil {
+				return res, err
+			}
+		}
+	}
+	if noApply {
+		return res, nil
+	}
+	var applied []string
+	for _, p := range plans {
+		applied = append(applied, p.Container)
+	}
+	ar, err := e.Apply(ctx, applied, false)
+	if err != nil {
+		return res, err
+	}
+	res.Apply = &ar
+	return res, nil
+}
+
+// ---- rm ----
+
+type RmResult struct {
+	Container string   `json:"container"`
+	Removed   []string `json:"removed"`
+}
+
+// Remove deletes paths from the container's view and records them in the
+// deleted list, so sync keeps them deleted.
+func (e *Env) Remove(ctx context.Context, container string, paths []string, recursive bool) (RmResult, error) {
+	r := RmResult{Container: container, Removed: []string{}}
+	if _, err := e.C.RequireActive(ctx); err != nil {
+		return r, err
+	}
+	clean := make([]string, 0, len(paths))
+	for _, p := range paths {
+		c, err := CleanRemotePath(p)
+		if err != nil {
+			return r, errf(KindUsage, err.Error())
+		}
+		clean = append(clean, c)
+	}
+	for _, p := range clean {
+		e.progress("rm %s/%s", container, p)
+		if err := e.C.Remove(ctx, container, p, recursive); err != nil {
+			return r, err
+		}
+		if err := AddDeleted(e.Dir, container, p); err != nil {
+			return r, err
+		}
+		r.Removed = append(r.Removed, p)
+	}
+	return r, nil
 }
