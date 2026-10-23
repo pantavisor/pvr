@@ -38,7 +38,7 @@ require (
 	lure.sh/fakeroot v0.0.0-20231024205152-b2da39c1be0c
 )
 
-require github.com/fsnotify/fsnotify v1.7.0 // indirect
+require github.com/fsnotify/fsnotify v1.7.0
 
 require (
 	github.com/Masterminds/goutils v1.1.0 // indirect
