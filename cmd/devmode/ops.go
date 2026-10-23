@@ -26,6 +26,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"golang.org/x/term"
 )
@@ -39,6 +40,58 @@ type Env struct {
 	KeepOwner bool
 	Out, Err  io.Writer
 	In        *os.File
+	// NoWait makes apply return right after the request.
+	NoWait bool
+	// WaitTimeout is how long apply waits for a container (default 90s).
+	WaitTimeout time.Duration
+	// Poll is the pause between two container checks (default 1s).
+	Poll time.Duration
+}
+
+func (e *Env) timeout() time.Duration {
+	if e.WaitTimeout > 0 {
+		return e.WaitTimeout
+	}
+	return 90 * time.Second
+}
+
+func (e *Env) poll() time.Duration {
+	if e.Poll > 0 {
+		return e.Poll
+	}
+	return time.Second
+}
+
+// waitContainer polls `pvcontrol containers ls` until ok accepts the state
+// of the container.
+func (e *Env) waitContainer(ctx context.Context, name, what string, ok func(ContainerState) bool) (ContainerState, error) {
+	deadline := time.Now().Add(e.timeout())
+	var last ContainerState
+	for {
+		m, err := e.C.Containers(ctx)
+		if err != nil {
+			return last, err
+		}
+		st, found := m[name]
+		if found {
+			last = st
+			if ok(st) {
+				return st, nil
+			}
+		}
+		if time.Now().After(deadline) {
+			status := "not listed"
+			if found {
+				status = st.Status
+			}
+			return last, errf(KindWaitTimeout, fmt.Sprintf("%s: %s did not happen within %s (status %s); see pvcontrol containers ls", name, what, e.timeout(), status))
+		}
+		select {
+		case <-ctx.Done():
+			return last, ctx.Err()
+		case <-time.After(e.poll()):
+		}
+	}
 }
 
 func (e *Env) progress(format string, a ...interface{}) {
@@ -221,7 +274,11 @@ func (e *Env) Push(ctx context.Context, names []string) ([]PushResult, error) {
 
 func (e *Env) printPush(w io.Writer, res []PushResult) {
 	for _, r := range res {
-		fmt.Fprintf(w, "%s: %d pushed, %d deleted, %d unchanged", r.Container, len(r.Pushed), len(r.Deleted), r.Unchanged)
+		fmt.Fprintf(w, "%s: %d pushed", r.Container, len(r.Pushed))
+		if len(r.Deleted) > 0 {
+			fmt.Fprintf(w, ", %s deleted", plural(len(r.Deleted), "image path", "image paths"))
+		}
+		fmt.Fprintf(w, ", %d unchanged", r.Unchanged)
 		if len(r.Skipped) > 0 {
 			fmt.Fprintf(w, ", %d skipped", len(r.Skipped))
 		}
@@ -352,8 +409,18 @@ func (e *Env) pullFile(ctx context.Context, container string, f Entry, dst strin
 
 // ---- apply ----
 
+// ApplyState is what happened to one container.
+type ApplyState struct {
+	Name string `json:"name"`
+	// State is STARTED when the container runs again, or restart_requested
+	// (no wait) or rebooting.
+	State   string  `json:"state"`
+	Seconds float64 `json:"seconds"`
+}
+
 type ApplyResult struct {
-	Restarted []string `json:"restarted"`
+	Containers []ApplyState `json:"containers"`
+	Restarted  []string     `json:"restarted"`
 	// Rebooted is the container whose apply rebooted the device; the
 	// reboot restarts the others too.
 	Rebooted string `json:"rebooted,omitempty"`
@@ -379,7 +446,7 @@ func (e *Env) confirm(prompt string) bool {
 // Apply restarts the containers; system containers need a reboot, which
 // asks first. allowReboot overrides the question (watch mode).
 func (e *Env) Apply(ctx context.Context, names []string, allowReboot bool) (ApplyResult, error) {
-	res := ApplyResult{Restarted: []string{}}
+	res := ApplyResult{Restarted: []string{}, Containers: []ApplyState{}}
 	if _, err := e.C.RequireActive(ctx); err != nil {
 		return res, err
 	}
@@ -402,7 +469,18 @@ func (e *Env) Apply(ctx context.Context, names []string, allowReboot bool) (Appl
 		}
 	}
 	for _, n := range restart {
+		var before ContainerState
+		if !e.NoWait {
+			// a container still restarting from an earlier apply cannot restart again
+			e.progress("waiting for %s to be STARTED", n)
+			var err error
+			before, err = e.waitContainer(ctx, n, "start", func(s ContainerState) bool { return s.Status == "STARTED" })
+			if err != nil {
+				return res, err
+			}
+		}
 		e.progress("restart %s", n)
+		t0 := time.Now()
 		err := e.C.Apply(ctx, n, false)
 		if ae, ok := err.(*Error); ok && ae.Kind == KindRebootNeeded {
 			system = append(system, n)
@@ -411,7 +489,19 @@ func (e *Env) Apply(ctx context.Context, names []string, allowReboot bool) (Appl
 		if err != nil {
 			return res, err
 		}
+		state := "restart_requested"
+		if !e.NoWait {
+			if _, err := e.waitContainer(ctx, n, "restart", func(s ContainerState) bool {
+				return s.Status == "STARTED" && !s.Same(before)
+			}); err != nil {
+				return res, err
+			}
+			state = "STARTED"
+		}
+		secs := time.Since(t0).Seconds()
+		e.progress("%s is %s after %.1fs", n, state, secs)
 		res.Restarted = append(res.Restarted, n)
+		res.Containers = append(res.Containers, ApplyState{n, state, secs})
 	}
 	if len(system) > 0 {
 		if !allowReboot && !e.Yes && !e.confirm(fmt.Sprintf("%s needs a device reboot. Reboot now?", strings.Join(system, ", "))) {
@@ -422,6 +512,7 @@ func (e *Env) Apply(ctx context.Context, names []string, allowReboot bool) (Appl
 			return res, err
 		}
 		res.Reboot, res.Rebooted = true, system[0]
+		res.Containers = append(res.Containers, ApplyState{system[0], "rebooting", 0})
 	}
 	return res, nil
 }

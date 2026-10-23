@@ -75,10 +75,10 @@ devmode deleted on the device, and `push` and `sync` delete the listed paths.
 |---|---|
 | `enter <device> [--base N] [--resume]` | `pvcontrol devmode create [N] [--resume]` |
 | `status <device> [container...]` | `pvcontrol devmode status`, `pvcontrol devmode files ls <c>`, `pvcontrol containers ls` |
-| `push <device> [container...] [--watch] [--yes] [--keep-owner]` | `pvcontrol devmode files put <c> <path> - --mode M --uid U --gid G` (file on stdin), `... put <c> <path> --type symlink --target T`, `... put <c> <path> --type dir --mode M`; then `pvcontrol devmode files rm <c> <path> --recursive` for deleted-list paths |
-| `sync <device> [container...] [--no-apply] [--yes] [--keep-owner]` | per container `pvcontrol devmode reset <c>`, the uploads of `push`, `pvcontrol devmode files rm <c> <path> --recursive` for the deleted list; then the steps of `apply` |
+| `push <device> [container...] [--watch] [--yes] [--keep-owner] [--no-wait] [--timeout D]` | `pvcontrol devmode files put <c> <path> - --mode M --uid U --gid G` (file on stdin), `... put <c> <path> --type symlink --target T`, `... put <c> <path> --type dir --mode M`; then `pvcontrol devmode files rm <c> <path> --recursive` for deleted-list paths |
+| `sync <device> [container...] [--no-apply] [--yes] [--keep-owner] [--no-wait] [--timeout D]` | per container `pvcontrol devmode reset <c>`, the uploads of `push`, `pvcontrol devmode files rm <c> <path> --recursive` for the deleted list; then the steps of `apply` |
 | `pull <device> [container...]` | `pvcontrol devmode files ls <c>`, `pvcontrol devmode files get <c> <path>` |
-| `apply <device> [container...] [--yes]` | `pvcontrol devmode apply <c>`, or `... --reboot` for a system container |
+| `apply <device> [container...] [--yes] [--no-wait] [--timeout D]` | `pvcontrol devmode apply <c>`, or `... --reboot` for a system container; `pvcontrol containers ls` every second to wait |
 | `reset <device> <container...>` | `pvcontrol devmode reset <c>` |
 | `rm <device> <container> <path...> [--recursive]` | `pvcontrol devmode files rm <c> <path> [--recursive]` |
 | `leave <device> [--rev REV]` | `pvcontrol devmode status` (base), `pvcontrol cmd run <base>` |
@@ -110,6 +110,15 @@ Rules:
   special files (device nodes, sockets, pipes) with a reason.
 - `reset` empties the devmode files of the named containers on the device. The
   local tree and the deleted list stay as they are.
+- `apply` returns when the container runs again. Before the request it waits
+  until the container is `STARTED` (a restart takes about 11 s on an appengine,
+  and a second apply during it would be refused). After the request it polls
+  `pvcontrol containers ls` every second until the status is `STARTED` with a
+  different pid, start time or restart count, and prints how long it took. The
+  same wait applies to the apply step of `sync` and to `push --watch`.
+  `--timeout` (default 90s) limits it; when the container does not come back the
+  exit code is 15. `--no-wait` returns right after the request. A reboot is never
+  waited for, because the connection drops.
 - `apply` of a system container reboots the device. It asks first, or needs
   `--yes`. Without a terminal and without `--yes` it exits with 13.
 - `push --watch` waits 400 ms after the last change, pushes, then applies the
@@ -124,7 +133,9 @@ Every command takes `--json` and prints one document:
 {"schema":1,"command":"push","ok":false,"error":{"kind":"not_active","message":"..."},"exit_code":12}
 ```
 
-`push --watch --json` prints one document per cycle.
+`push --watch --json` prints one document per cycle. The `apply` result lists
+per container `{"name", "state", "seconds"}`: `state` is `STARTED`,
+`restart_requested` (with `--no-wait`) or `rebooting`.
 
 | Exit code | Kind | Meaning |
 |---|---|---|
@@ -136,3 +147,4 @@ Every command takes `--json` and prints one document:
 | 12 | `not_active` | the device does not run a devmode revision |
 | 13 | `reboot_needed` | apply needs a reboot and was not confirmed |
 | 14 | `apply_failed` | the device refused the apply |
+| 15 | `wait_timeout` | a restarted container was not `STARTED` again within `--timeout` |

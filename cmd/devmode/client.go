@@ -197,35 +197,71 @@ func (c *Client) Apply(ctx context.Context, container string, reboot bool) error
 	return err
 }
 
-// RestartPolicies maps container name to "container" or "system".
-func (c *Client) RestartPolicies(ctx context.Context) (map[string]string, error) {
+// ContainerState is one row of `pvcontrol containers ls`.
+type ContainerState struct {
+	Name          string          `json:"name"`
+	Status        string          `json:"status"`
+	RestartPolicy string          `json:"restart_policy"`
+	PID           json.RawMessage `json:"pid"`
+	StartedAt     json.RawMessage `json:"started_at"`
+	Restarts      json.RawMessage `json:"restarts"`
+}
+
+// Same tells if two readings are of one run of the container.
+func (s ContainerState) Same(o ContainerState) bool {
+	return string(s.PID) == string(o.PID) && string(s.StartedAt) == string(o.StartedAt) &&
+		string(s.Restarts) == string(o.Restarts)
+}
+
+func (c *Client) Containers(ctx context.Context) (map[string]ContainerState, error) {
 	b, err := c.pvcontrol(ctx, nil, nil, "containers", "ls")
 	if err != nil {
 		return nil, err
 	}
-	return ParsePolicies(b)
+	return ParseContainers(b)
 }
 
-func ParsePolicies(b []byte) (map[string]string, error) {
-	type item struct {
-		Name          string `json:"name"`
-		RestartPolicy string `json:"restart_policy"`
+// RestartPolicies maps container name to "container" or "system".
+func (c *Client) RestartPolicies(ctx context.Context) (map[string]string, error) {
+	m, err := c.Containers(ctx)
+	if err != nil {
+		return nil, err
 	}
-	var list []item
+	p := map[string]string{}
+	for n, s := range m {
+		p[n] = s.RestartPolicy
+	}
+	return p, nil
+}
+
+func ParseContainers(b []byte) (map[string]ContainerState, error) {
+	var list []ContainerState
 	if err := json.Unmarshal(b, &list); err != nil {
 		var wrap struct {
-			Containers []item `json:"containers"`
+			Containers []ContainerState `json:"containers"`
 		}
 		if err2 := json.Unmarshal(b, &wrap); err2 != nil {
 			return nil, errf(KindGeneric, "cannot read container list: "+err.Error())
 		}
 		list = wrap.Containers
 	}
-	m := map[string]string{}
+	m := map[string]ContainerState{}
 	for _, i := range list {
-		m[i.Name] = i.RestartPolicy
+		m[i.Name] = i
 	}
 	return m, nil
+}
+
+func ParsePolicies(b []byte) (map[string]string, error) {
+	m, err := ParseContainers(b)
+	if err != nil {
+		return nil, err
+	}
+	p := map[string]string{}
+	for n, s := range m {
+		p[n] = s.RestartPolicy
+	}
+	return p, nil
 }
 
 // Leave runs the given committed revision again.

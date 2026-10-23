@@ -41,10 +41,10 @@ func (m *multi) Set(v string) error { *m = append(*m, v); return nil }
 
 // options holds every flag any devmode command takes.
 type options struct {
-	json, yes, watch, keepOwner, resume, noScan, noApply, recursive bool
-	exec, dir, base, rev                                            string
-	sshOpts                                                         multi
-	scanTimeout                                                     time.Duration
+	json, yes, watch, keepOwner, resume, noScan, noApply, recursive, noWait bool
+	exec, dir, base, rev                                                    string
+	sshOpts                                                                 multi
+	scanTimeout, timeout                                                    time.Duration
 }
 
 type spec struct {
@@ -65,6 +65,11 @@ func commonFlags(fs *flag.FlagSet, o *options) {
 func transportFlags(fs *flag.FlagSet, o *options) {
 	fs.StringVar(&o.exec, "exec", "", "run commands through this prefix instead of ssh, e.g. 'docker exec -i ae' (then no <device> argument)")
 	fs.Var(&o.sshOpts, "ssh-opt", "extra ssh argument, repeatable, e.g. --ssh-opt=-oIdentityFile=key")
+}
+
+func waitFlags(fs *flag.FlagSet, o *options) {
+	fs.BoolVar(&o.noWait, "no-wait", false, "return right after the restart request, do not wait for the container")
+	fs.DurationVar(&o.timeout, "timeout", 90*time.Second, "how long to wait for a restarted container (exit code 15 when it does not come back)")
 }
 
 func dirFlag(fs *flag.FlagSet, o *options) {
@@ -153,7 +158,7 @@ func (s spec) command() cli.Command {
 			}
 			ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 			defer stop()
-			env := &Env{Dir: o.dir, JSON: o.json, Yes: o.yes, KeepOwner: o.keepOwner,
+			env := &Env{Dir: o.dir, JSON: o.json, Yes: o.yes, KeepOwner: o.keepOwner, NoWait: o.noWait, WaitTimeout: o.timeout,
 				Out: os.Stdout, Err: os.Stderr, In: os.Stdin}
 			if s.device {
 				t, err := resolve(c, o, device)
@@ -235,7 +240,7 @@ func CommandDevmode() cli.Command {
 			},
 		}),
 		dev(spec{
-			name: "push", args: "<device> [container...] [--watch] [--yes] [--keep-owner]", maxPos: -1,
+			name: "push", args: "<device> [container...] [--watch] [--yes] [--keep-owner] [--no-wait] [--timeout D]", maxPos: -1,
 			usage: "Add and update files from ./devmode/<container>/ on the device",
 			desc: "Uploads every file, symlink and empty directory of ./devmode/<container>/ that is new or different:\n" +
 				"'pvcontrol devmode files put <container> <path> - --mode M --uid U --gid G' (file on stdin),\n" +
@@ -245,9 +250,11 @@ func CommandDevmode() cli.Command {
 				"Push removes nothing else; use 'pvr devmode sync' to make the container match the local tree exactly.\n" +
 				"Files keep their permission bits. The owner is root (0/0) unless --keep-owner uses the local numeric uid/gid.\n" +
 				"--watch pushes and applies again whenever the tree changes (400ms quiet time); --yes lets it reboot for system containers.\n" +
+				"With --watch each restart is waited for as in 'pvr devmode apply' (--timeout, --no-wait).\n" +
 				"Without container names every directory in ./devmode is pushed.",
 			flags: func(fs *flag.FlagSet, o *options) {
 				transportFlags(fs, o)
+				waitFlags(fs, o)
 				dirFlag(fs, o)
 				fs.BoolVar(&o.watch, "watch", false, "keep running: push and apply on every change")
 				fs.BoolVar(&o.yes, "yes", false, "allow a device reboot in watch mode")
@@ -273,7 +280,7 @@ func CommandDevmode() cli.Command {
 			},
 		}),
 		dev(spec{
-			name: "sync", args: "<device> [container...] [--no-apply] [--yes] [--keep-owner]", maxPos: -1,
+			name: "sync", args: "<device> [container...] [--no-apply] [--yes] [--keep-owner] [--no-wait] [--timeout D]", maxPos: -1,
 			usage: "Make a container exactly the image plus ./devmode/<container>/ minus the deleted list",
 			desc: "Checks the whole local tree of every selected container first (paths, file types, deleted list)\n" +
 				"and stops before touching the device if anything is wrong. Then it prints one line per container,\n" +
@@ -282,9 +289,11 @@ func CommandDevmode() cli.Command {
 				"for each path on ./devmode/<container>/.devmode-deleted.\n" +
 				"Then the containers are applied once, like 'pvr devmode apply': a system container needs a device reboot,\n" +
 				"which needs --yes or an interactive yes, otherwise exit code 13. --no-apply skips that step.\n" +
+				"Restarts are waited for as in 'pvr devmode apply' (--timeout, --no-wait).\n" +
 				"Without container names every container that has a directory in ./devmode is synced.",
 			flags: func(fs *flag.FlagSet, o *options) {
 				transportFlags(fs, o)
+				waitFlags(fs, o)
 				dirFlag(fs, o)
 				fs.BoolVar(&o.noApply, "no-apply", false, "do not restart the containers afterwards")
 				fs.BoolVar(&o.yes, "yes", false, "allow a device reboot")
@@ -301,7 +310,7 @@ func CommandDevmode() cli.Command {
 						return
 					}
 					if len(r.Apply.Restarted) > 0 {
-						fmt.Fprintf(w, "restarted: %s\n", joinNames(r.Apply.Restarted))
+						printRestarts(w, r.Apply)
 					}
 					if r.Apply.Reboot {
 						fmt.Fprintf(w, "the device reboots now (needed for %s)\n", r.Apply.Rebooted)
@@ -331,13 +340,17 @@ func CommandDevmode() cli.Command {
 			},
 		}),
 		dev(spec{
-			name: "apply", args: "<device> [container...] [--yes]", maxPos: -1,
+			name: "apply", args: "<device> [container...] [--yes] [--no-wait] [--timeout D]", maxPos: -1,
 			usage: "Restart containers so they see the pushed files",
 			desc: "Runs 'pvcontrol devmode apply <container>'. A system container needs a device reboot:\n" +
 				"'pvcontrol devmode apply <container> --reboot' runs after --yes or an interactive yes; otherwise exit code 13.\n" +
+				"A restart is waited for: before the request apply waits until the container is STARTED, after it until the container is STARTED\n" +
+				"again with a different pid or start time (poll 'pvcontrol containers ls' every second, --timeout default 90s, exit code 15 when it\n" +
+				"does not come back). A reboot does not wait. --no-wait returns right after the request.\n" +
 				"Without container names the containers found in ./devmode are applied.",
 			flags: func(fs *flag.FlagSet, o *options) {
 				transportFlags(fs, o)
+				waitFlags(fs, o)
 				dirFlag(fs, o)
 				fs.BoolVar(&o.yes, "yes", false, "allow a device reboot")
 			},
@@ -348,7 +361,7 @@ func CommandDevmode() cli.Command {
 				}
 				return r, func(w io.Writer) {
 					if len(r.Restarted) > 0 {
-						fmt.Fprintf(w, "restarted: %s\n", joinNames(r.Restarted))
+						printRestarts(w, &r)
 					}
 					if r.Reboot {
 						fmt.Fprintf(w, "the device reboots now (needed for %s)\n", r.Rebooted)
@@ -537,7 +550,16 @@ func CommandDevmode() cli.Command {
 		Name:        "devmode",
 		Usage:       "Sync files to a device running a devmode revision",
 		ArgsUsage:   "<enter|status|push|sync|pull|apply|reset|rm|leave|devices|add-device>",
-		Description: "See docs/devmode.md. Every command takes --json. Exit codes: 1 error, 2 usage, 10 device unreachable, 11 devmode not allowed, 12 devmode not active, 13 reboot needed, 14 apply failed.",
+		Description: "See docs/devmode.md. Every command takes --json. Exit codes: 1 error, 2 usage, 10 device unreachable, 11 devmode not allowed, 12 devmode not active, 13 reboot needed, 14 apply failed, 15 container did not come back after a restart.",
 		Subcommands: subs,
+	}
+}
+
+func printRestarts(w io.Writer, r *ApplyResult) {
+	for _, c := range r.Containers {
+		if c.State == "rebooting" {
+			continue
+		}
+		fmt.Fprintf(w, "%s: %s after %.1fs\n", c.Name, c.State, c.Seconds)
 	}
 }

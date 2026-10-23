@@ -3,12 +3,14 @@ package devmode
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
 
 // fakeDev answers pvcontrol calls from canned data and records them.
@@ -17,6 +19,9 @@ type fakeDev struct {
 	manifests map[string]string
 	policies  string
 	notFound  map[string]bool // paths whose rm answers Not found
+	// ls, when set, answers `containers ls`; n counts the calls so far
+	ls      func(n int) string
+	lsCalls int
 }
 
 func (f *fakeDev) Run(_ context.Context, c string, _ io.Reader, out, errw io.Writer) (int, error) {
@@ -25,7 +30,12 @@ func (f *fakeDev) Run(_ context.Context, c string, _ io.Reader, out, errw io.Wri
 	case c == "pvcontrol devmode status":
 		io.WriteString(out, `{"enabled":true,"active":true,"ready":true,"revision":"devmode/r/1","base":"1","containers":[{"name":"a"},{"name":"b"}]}`)
 	case c == "pvcontrol containers ls":
-		io.WriteString(out, f.policies)
+		f.lsCalls++
+		if f.ls != nil {
+			io.WriteString(out, f.ls(f.lsCalls))
+		} else {
+			io.WriteString(out, f.policies)
+		}
 	case strings.HasPrefix(c, "pvcontrol devmode files ls "):
 		n := strings.TrimPrefix(c, "pvcontrol devmode files ls ")
 		m, ok := f.manifests[n]
@@ -50,7 +60,7 @@ func newEnv(t *testing.T, f *fakeDev) (*Env, *bytes.Buffer) {
 	if f.policies == "" {
 		f.policies = `[{"name":"a","restart_policy":"container"},{"name":"b","restart_policy":"system"}]`
 	}
-	return &Env{C: &Client{T: f}, Dir: t.TempDir(), Out: io.Discard, Err: &eb}, &eb
+	return &Env{C: &Client{T: f}, Dir: t.TempDir(), Out: io.Discard, Err: &eb, NoWait: true}, &eb
 }
 
 func put(t *testing.T, e *Env, c, p, s string) {
@@ -303,5 +313,114 @@ func TestStatusLabels(t *testing.T) {
 	}
 	if strings.Contains(out, "gone") || strings.Contains(out, "  deleted") {
 		t.Errorf("already-deleted path or the bare word deleted shown:\n%s", out)
+	}
+}
+
+func row(name, status, pid string, restarts int) string {
+	return fmt.Sprintf(`{"name":"%s","status":"%s","restart_policy":"container","pid":%s,"started_at":"t%s","restarts":%d}`, name, status, pid, pid, restarts)
+}
+
+func waitEnv(t *testing.T, f *fakeDev, timeout time.Duration) *Env {
+	e, _ := newEnv(t, f)
+	e.NoWait = false
+	e.Poll = time.Millisecond
+	e.WaitTimeout = timeout
+	return e
+}
+
+func TestApplyWaitsForRestart(t *testing.T) {
+	var applyAt int
+	f := &fakeDev{}
+	f.ls = func(n int) string {
+		// calls: 1 policies, 2 pre-wait, then the restart goes STOPPING..STARTED
+		seq := []string{"STARTED", "STARTED", "STOPPING", "INSTALLED", "STARTING", "STARTED"}
+		i := n - 1
+		if i >= len(seq) {
+			i = len(seq) - 1
+		}
+		pid := "10"
+		if i == len(seq)-1 {
+			pid = "11"
+		}
+		return "[" + row("a", seq[i], pid, 0) + "]"
+	}
+	e := waitEnv(t, f, 5*time.Second)
+	res, err := e.Apply(context.Background(), []string{"a"}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	applyAt = idx(f.cmds, "pvcontrol devmode apply a")
+	if applyAt < 0 || f.lsCalls < 6 {
+		t.Fatalf("apply at %d, ls calls %d", applyAt, f.lsCalls)
+	}
+	if len(res.Containers) != 1 || res.Containers[0].State != "STARTED" || res.Containers[0].Seconds <= 0 {
+		t.Errorf("containers %+v", res.Containers)
+	}
+}
+
+func TestApplyStartedAgainWithSameRunIsNotEnough(t *testing.T) {
+	f := &fakeDev{}
+	f.ls = func(n int) string { return "[" + row("a", "STARTED", "10", 0) + "]" } // never restarts
+	e := waitEnv(t, f, 30*time.Millisecond)
+	_, err := e.Apply(context.Background(), []string{"a"}, false)
+	if ee, ok := err.(*Error); !ok || ee.Kind != KindWaitTimeout || ee.Kind.ExitCode() != 15 {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestApplyWaitsForMidRestartBeforeRequest(t *testing.T) {
+	f := &fakeDev{}
+	f.ls = func(n int) string {
+		switch {
+		case n <= 3: // policies, then still restarting from an earlier apply
+			return "[" + row("a", "STARTING", "10", 0) + "]"
+		case n == 4:
+			return "[" + row("a", "STARTED", "10", 0) + "]"
+		}
+		return "[" + row("a", "STARTED", "12", 1) + "]"
+	}
+	e := waitEnv(t, f, 5*time.Second)
+	if _, err := e.Apply(context.Background(), []string{"a"}, false); err != nil {
+		t.Fatal(err)
+	}
+	if f.lsCalls < 5 {
+		t.Errorf("ls calls %d", f.lsCalls)
+	}
+	// the request came only after the container was STARTED (4th ls call)
+	n := 0
+	for _, c := range f.cmds {
+		if c == "pvcontrol containers ls" {
+			n++
+		}
+		if strings.HasPrefix(c, "pvcontrol devmode apply a") && n < 4 {
+			t.Errorf("apply requested during the restart (after %d ls calls)", n)
+		}
+	}
+}
+
+func TestApplyNoWaitAndReboot(t *testing.T) {
+	f := &fakeDev{}
+	e, _ := newEnv(t, f) // NoWait
+	res, err := e.Apply(context.Background(), []string{"a"}, false)
+	if err != nil || res.Containers[0].State != "restart_requested" {
+		t.Fatalf("%v %+v", err, res)
+	}
+	// a reboot does not wait: ls never shows a change and it still returns
+	f2 := &fakeDev{}
+	e2 := waitEnv(t, f2, 20*time.Millisecond)
+	e2.Yes = true
+	res, err = e2.Apply(context.Background(), []string{"b"}, false)
+	if err != nil || !res.Reboot || res.Containers[0].State != "rebooting" {
+		t.Fatalf("%v %+v", err, res)
+	}
+}
+
+func TestPushSummaryWording(t *testing.T) {
+	e, _ := newEnv(t, &fakeDev{})
+	var b bytes.Buffer
+	e.printPush(&b, []PushResult{{Container: "a", Pushed: []string{"x"}, Unchanged: 2}, {Container: "b", Pushed: []string{"x"}, Deleted: []string{"p", "q"}}})
+	out := b.String()
+	if !strings.Contains(out, "a: 1 pushed, 2 unchanged") || !strings.Contains(out, "b: 1 pushed, 2 image paths deleted, 0 unchanged") {
+		t.Errorf("%s", out)
 	}
 }
