@@ -201,17 +201,17 @@ func TestLayoutValidation(t *testing.T) {
 		t.Fatal(err)
 	}
 	for name, bad := range map[string]func(*Layout){
-		"escaping source":           func(l *Layout) { l.Partitions[0].Source = "../etc/passwd" },
-		"absolute source":           func(l *Layout) { l.Partitions[0].Source = "/etc/passwd" },
-		"no pvroot":                 func(l *Layout) { l.Partitions[2].Source = "root.ext4" },
-		"other loader":              func(l *Layout) { l.Bootloader = "uboot" },
-		"odd size":                  func(l *Layout) { l.Partitions[1].Size = 1000 },
-		"escaping export":           func(l *Layout) { l.Containers = []string{"../x"} },
-		"oversized partition":       func(l *Layout) { l.Partitions[1].Size = 17 << 30 },
-		"oversized total":           func(l *Layout) { l.Partitions[0].Size = 10 << 30; l.Partitions[1].Size = 10 << 30 },
-		"space in source":           func(l *Layout) { l.Partitions[0].Source = "boot sel.vfat" },
-		"newline in source":         func(l *Layout) { l.Partitions[0].Source = "boot\nsel.vfat" },
-		"quote in source":           func(l *Layout) { l.Partitions[0].Source = "boot\"sel.vfat" },
+		"escaping source":     func(l *Layout) { l.Partitions[0].Source = "../etc/passwd" },
+		"absolute source":     func(l *Layout) { l.Partitions[0].Source = "/etc/passwd" },
+		"no pvroot":           func(l *Layout) { l.Partitions[2].Source = "root.ext4" },
+		"other loader":        func(l *Layout) { l.Bootloader = "uboot" },
+		"odd size":            func(l *Layout) { l.Partitions[1].Size = 1000 },
+		"escaping export":     func(l *Layout) { l.Containers = []string{"../x"} },
+		"oversized partition": func(l *Layout) { l.Partitions[1].Size = 17 << 30 },
+		"oversized total":     func(l *Layout) { l.Partitions[0].Size = 10 << 30; l.Partitions[1].Size = 10 << 30 },
+		"space in source":     func(l *Layout) { l.Partitions[0].Source = "boot sel.vfat" },
+		"newline in source":   func(l *Layout) { l.Partitions[0].Source = "boot\nsel.vfat" },
+		"quote in source":     func(l *Layout) { l.Partitions[0].Source = "boot\"sel.vfat" },
 	} {
 		copy := l
 		copy.Partitions = append([]Partition{}, l.Partitions...)
@@ -405,4 +405,3 @@ func TestUnpackBaseRejectsNegativeSize(t *testing.T) {
 		t.Fatal("unpackBase accepted negative file size")
 	}
 }
-
