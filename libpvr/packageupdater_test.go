@@ -17,9 +17,38 @@
 package libpvr
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"runtime"
 	"testing"
 )
+
+func TestResolveStableDistributionVersion(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body := `[{"id":4,"version":"master-619cb1a3"},{"id":3,"version":"057-rc1"},{"id":2,"version":"056"},{"id":1,"version":"055"}]`
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(body))
+	}))
+	defer server.Close()
+	previousClient := packageHTTPClient
+	packageHTTPClient = &http.Client{Transport: packageTestTransport{server.URL}}
+	t.Cleanup(func() { packageHTTPClient = previousClient })
+
+	version, err := (&Pvr{}).resolveDistributionVersion("stable")
+	if err != nil || version != "056" {
+		t.Fatalf("stable resolved to %q, %v; want 056", version, err)
+	}
+}
+
+type packageTestTransport struct{ serverURL string }
+
+func (transport packageTestTransport) RoundTrip(request *http.Request) (*http.Response, error) {
+	redirected, err := http.NewRequest(request.Method, transport.serverURL+request.URL.RequestURI(), nil)
+	if err != nil {
+		return nil, err
+	}
+	return http.DefaultTransport.RoundTrip(redirected)
+}
 
 func TestResolveDistributionVersion(t *testing.T) {
 	pvr := &Pvr{}
