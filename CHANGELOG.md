@@ -1,4 +1,20 @@
 
+<a name="057"></a>
+## [057](https://gitlab.com/pantacor/pvr/compare/056...057) (2026-10-27)
+
+### Feat
+
+* **self-upgrade:** pick the channel with --channel
+
+### Fix
+
+* **builds:** follow the storage redirect of a build download
+
+### Test
+
+* **libpvr:** resolve the stable channel to the newest final release
+
+
 <a name="055"></a>
 ## [055](https://gitlab.com/pantacor/pvr/compare/054...055) (2026-10-19)
 
