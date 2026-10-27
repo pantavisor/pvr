@@ -184,6 +184,9 @@ func TestDownloadFetchesTheArtifactObject(t *testing.T) {
 			}
 			fmt.Fprintf(w, `{"id":%q,"signed-geturl":"http://%s/local-s3/signed"}`, sha, r.Host)
 		case r.URL.Path == "/local-s3/signed":
+			// Production storage answers the signed URL with a redirect.
+			http.Redirect(w, r, "/local-s3/blob", http.StatusFound)
+		case r.URL.Path == "/local-s3/blob":
 			blobAuth = append(blobAuth, r.Header.Get("Authorization"))
 			_, _ = w.Write(content)
 		default:
@@ -211,6 +214,27 @@ func TestDownloadFetchesTheArtifactObject(t *testing.T) {
 	}
 	if err := app.Run([]string{"pvr", "build", "download", "--name", "other", testID}); err == nil || !strings.Contains(err.Error(), "no artifact named") {
 		t.Fatalf("unknown artifact: %v", err)
+	}
+}
+
+func TestSignedRedirectsStayOnHTTPS(t *testing.T) {
+	req := func(raw string) *http.Request {
+		r, _ := http.NewRequest(http.MethodGet, raw, nil)
+		return r
+	}
+	signed := []*http.Request{req("https://s3.example/signed")}
+	if err := signedRedirects(req("https://cdn.example/blob"), signed); err != nil {
+		t.Fatalf("refused an https redirect: %v", err)
+	}
+	if err := signedRedirects(req("http://cdn.example/blob"), signed); err == nil {
+		t.Fatal("followed a redirect from https to http")
+	}
+	many := make([]*http.Request, 10)
+	for i := range many {
+		many[i] = req("https://s3.example/signed")
+	}
+	if err := signedRedirects(req("https://cdn.example/blob"), many); err == nil {
+		t.Fatal("followed more than 10 redirects")
 	}
 }
 

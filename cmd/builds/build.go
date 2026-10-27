@@ -532,8 +532,10 @@ func download(c *cli.Context) error {
 	if err != nil || (target.Scheme != "https" && target.Scheme != "http") || target.Host == "" || target.User != nil {
 		return errors.New("objects API returned an invalid download URL")
 	}
-	// Large images take long: 5 minutes, plus a second per MiB.
-	blobClient := &http.Client{Transport: transport, Timeout: 5*time.Minute + time.Duration(chosen.Size/(1<<20))*time.Second, CheckRedirect: noRedirects}
+	// Large images take long: 5 minutes, plus a second per MiB. The signed
+	// URL carries no credentials and storage may redirect it (production
+	// answers 302), so redirects are followed, but never from https to http.
+	blobClient := &http.Client{Transport: transport, Timeout: 5*time.Minute + time.Duration(chosen.Size/(1<<20))*time.Second, CheckRedirect: signedRedirects}
 	blob, err := blobClient.Get(target.String())
 	if err != nil {
 		return errors.New("artifact download failed; check connectivity and TLS trust")
@@ -547,6 +549,18 @@ func download(c *cli.Context) error {
 	}
 	_, err = fmt.Fprintln(c.App.Writer, output)
 	return err
+}
+
+// signedRedirects lets a signed download URL redirect, as object storage
+// does, up to 10 times and never from https to plain http.
+func signedRedirects(req *http.Request, via []*http.Request) error {
+	if len(via) >= 10 {
+		return errors.New("artifact download: too many redirects")
+	}
+	if via[0].URL.Scheme == "https" && req.URL.Scheme != "https" {
+		return errors.New("artifact download: redirect leaves https")
+	}
+	return nil
 }
 
 // artifact is a build output stored as an object of the account.
