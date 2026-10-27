@@ -24,12 +24,18 @@ import (
 	"gitlab.com/pantacor/pvr/libpvr"
 )
 
-// CommandSelfUpgrade update the PVR CLI using the latest version of the docker container
+// CommandSelfUpgrade updates the PVR CLI from the selected distribution channel.
 func CommandSelfUpgrade() cli.Command {
 	return cli.Command{
 		Name:      "self-upgrade",
 		ArgsUsage: "",
 		Usage:     "Update pvr command to the latest version",
+		Flags: []cli.Flag{
+			cli.StringFlag{
+				Name:  "channel",
+				Usage: "Distribution channel or version to install (e.g. stable, master, 056); overrides global-config for this upgrade",
+			},
+		},
 		Action: func(c *cli.Context) error {
 			wd, err := os.Getwd()
 			if err != nil {
@@ -39,6 +45,9 @@ func CommandSelfUpgrade() cli.Command {
 			session, err := libpvr.NewSession(c.App)
 			if err != nil {
 				return cli.NewExitError(err.Error(), 4)
+			}
+			if channel := c.String("channel"); channel != "" {
+				session.Configuration.DistributionTag = channel
 			}
 
 			pvr, err := libpvr.NewPvr(session, wd)

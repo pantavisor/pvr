@@ -12,6 +12,26 @@ curl -sL https://gitlab.com/pantacor/pvr/-/raw/master/install.sh | bash
 Pre-built binaries for various architectures are available on the
 [GitLab package registry](https://gitlab.com/pantacor/pvr/-/packages).
 
+To upgrade a system installation to the latest stable release:
+
+```bash
+sudo pvr self-upgrade --channel stable
+```
+
+`--channel` overrides `DistributionTag` for this upgrade without saving it.
+It also accepts `master` (or `latest`) and explicit versions such as `056`.
+Without it, pvr uses the current user's global configuration: `sudo pvr`
+normally reads root's configuration, independently of your own `pvr global-config`.
+On older clients without `--channel`, set the channel for root first:
+
+```bash
+sudo pvr global-config DistributionTag=stable
+sudo pvr self-upgrade
+```
+
+Master builds can report the preceding release number when built before a
+new release tag is created. The revision identifies the actual source commit.
+
 ### Build from source
 
 ```bash
