@@ -344,8 +344,44 @@ func TestImageBaseAndImageBuilds(t *testing.T) {
 	if received.Mode != "image" || received.DeviceImage == nil || received.DeviceImage.Factory != testID || received.DeviceImage.Base != "" {
 		t.Errorf("image of a factory: %+v", received.DeviceImage)
 	}
+	// No identity: the builder's default OEM; autojoin and Wi-Fi name
+	// config secrets only.
+	app, _ = testApp(t, server.URL)
+	if err := app.Run([]string{"pvr", "build", "start", "--project", "nano", "--base", testID, "--autojoin-secret", "nano-autotok",
+		"--wifi-ssid", "Lab Net", "--wifi-password-secret", "lab-wifi"}); err != nil {
+		t.Fatal(err)
+	}
+	img = received.DeviceImage
+	if img == nil || img.Identity != "" || img.AutojoinSecret != "nano-autotok" || img.WiFi == nil || img.WiFi.SSID != "Lab Net" || img.WiFi.PasswordSecret != "lab-wifi" {
+		t.Errorf("default OEM image: %+v", img)
+	}
+	app, _ = testApp(t, server.URL)
+	if err := app.Run([]string{"pvr", "build", "start", "--project", "nano", "--base", testID, "--wifi-ssid", "open"}); err != nil {
+		t.Fatal(err)
+	}
+	if img = received.DeviceImage; img == nil || img.WiFi == nil || img.WiFi.SSID != "open" || img.WiFi.PasswordSecret != "" || img.AutojoinSecret != "" {
+		t.Errorf("open network: %+v", img)
+	}
+	app, _ = testApp(t, server.URL)
+	if err := app.Run([]string{"pvr", "build", "start", "--project", "nano", "--base", testID, "--make-factory"}); err != nil {
+		t.Fatal(err)
+	}
 	for _, args := range [][]string{
 		{"--base", testID, "--factory", testID, "--identity", "acme"},
+		{"--base", testID, "--identity", ""},
+		{"--base", testID, "--make-factory", "--autojoin-secret", "tok"},
+		{"--base", testID, "--make-factory", "--wifi-ssid", "lab"},
+		{"--base", testID, "--make-factory", "--wifi-ssid", "lab", "--wifi-password-secret", "pw"},
+		{"--base", testID, "--autojoin-secret", "bad name"},
+		{"--base", testID, "--autojoin-secret", ""},
+		{"--base", testID, "--wifi-password-secret", "pw"},
+		{"--base", testID, "--wifi-ssid", "lab", "--wifi-password-secret", "-pw"},
+		{"--base", testID, "--wifi-ssid", ""},
+		{"--base", testID, "--wifi-ssid", strings.Repeat("s", 33)},
+		{"--base", testID, "--wifi-ssid", "lab\nnet"},
+		{"--base", testID, "--wifi-ssid", "lab\x00"},
+		{"--mode", "docker", "--image", "a@sha256:" + testID, "--autojoin-secret", "tok"},
+		{"--git-url", "https://github.com/a/b", "--wifi-ssid", "lab"},
 		{"--base", testID, "--identity", "acme", "--make-factory", "--app-build", testID},
 		{"--mode", "git", "--git-url", "https://github.com/a/b", "--identity", "acme"},
 		{"--base", testID, "--identity", "acme", "--device", "golden"},

@@ -66,10 +66,13 @@ type imageBase struct {
 }
 
 type deviceImage struct {
-	Base         string       `json:"base,omitempty"`
-	Factory      string       `json:"factory,omitempty"`
-	MakeFactory  bool         `json:"make_factory,omitempty"`
-	Identity     string       `json:"identity"`
+	Base        string `json:"base,omitempty"`
+	Factory     string `json:"factory,omitempty"`
+	MakeFactory bool   `json:"make_factory,omitempty"`
+	// Identity is the signing identity whose trust the images get; none
+	// is the builder's default OEM (pv-oem-developer-001, public developer
+	// keys, development devices only).
+	Identity     string       `json:"identity,omitempty"`
 	Apps         []string     `json:"apps,omitempty"`
 	Device       *imageDevice `json:"device,omitempty"`
 	Policies     []string     `json:"policies,omitempty"`
@@ -78,6 +81,16 @@ type deviceImage struct {
 	// GroupTimeouts set device.json group timeouts in the BSP the platform
 	// key signs: of a factory build or an image built from a base.
 	GroupTimeouts map[string]int `json:"group_timeouts,omitempty"`
+	// AutojoinSecret and WiFi.PasswordSecret name config secrets the
+	// builder reads; their values never pass through pvr.
+	AutojoinSecret string     `json:"autojoin_secret,omitempty"`
+	WiFi           *imageWiFi `json:"wifi,omitempty"`
+}
+
+// imageWiFi is the network the images join; open without a password.
+type imageWiFi struct {
+	SSID           string `json:"ssid"`
+	PasswordSecret string `json:"password_secret,omitempty"`
 }
 
 type imageDevice struct {
@@ -86,7 +99,8 @@ type imageDevice struct {
 }
 
 // imageFlags are the flags of an image build; deviceImageFrom reads them.
-var imageFlags = []string{"base", "factory", "make-factory", "identity", "app-build", "device", "policy", "secureboot", "pantahub-host", "group-timeout"}
+var imageFlags = []string{"base", "factory", "make-factory", "identity", "app-build", "device", "policy", "secureboot", "pantahub-host", "group-timeout",
+	"autojoin-secret", "wifi-ssid", "wifi-password-secret"}
 
 func deviceImageFrom(c *cli.Context) (*deviceImage, error) {
 	img := &deviceImage{Base: c.String("base"), Factory: c.String("factory"), MakeFactory: c.Bool("make-factory"), Identity: c.String("identity"), Apps: c.StringSlice("app-build"),
@@ -102,11 +116,27 @@ func deviceImageFrom(c *cli.Context) (*deviceImage, error) {
 	if (img.Base == "") == (img.Factory == "") || (img.Base != "" && !executionID.MatchString(img.Base)) || (img.Factory != "" && !executionID.MatchString(img.Factory)) {
 		return nil, errors.New("--base (an image base build) or --factory (a factory build) is needed, one of them")
 	}
-	if img.MakeFactory && (img.Factory != "" || len(img.Apps) > 0 || c.String("device") != "" || c.String("oem") != "") {
-		return nil, errors.New("--make-factory makes secret-free factory images of --base: no apps, device or oem")
+	if img.MakeFactory && (img.Factory != "" || len(img.Apps) > 0 || c.String("device") != "" || c.String("oem") != "" ||
+		c.IsSet("autojoin-secret") || c.IsSet("wifi-ssid") || c.IsSet("wifi-password-secret")) {
+		return nil, errors.New("--make-factory makes secret-free factory images of --base: no apps, device, oem, autojoin or wifi")
 	}
-	if !identityName.MatchString(img.Identity) {
+	if c.IsSet("identity") && !identityName.MatchString(img.Identity) {
 		return nil, errors.New("--identity names a signing identity with a platform key (see pvr signing ls)")
+	}
+	if c.IsSet("autojoin-secret") {
+		if img.AutojoinSecret = c.String("autojoin-secret"); !secretName.MatchString(img.AutojoinSecret) {
+			return nil, errors.New("--autojoin-secret names the config secret holding the join token (see pvr secret ls)")
+		}
+	}
+	ssid, password := c.String("wifi-ssid"), c.String("wifi-password-secret")
+	if c.IsSet("wifi-ssid") && (ssid == "" || len(ssid) > 32 || strings.ContainsAny(ssid, "\n\r\x00")) {
+		return nil, errors.New("--wifi-ssid is 1 to 32 bytes, without newlines or NUL")
+	}
+	if c.IsSet("wifi-password-secret") && (ssid == "" || !secretName.MatchString(password)) {
+		return nil, errors.New("--wifi-password-secret names the config secret holding the password of --wifi-ssid (see pvr secret ls)")
+	}
+	if ssid != "" {
+		img.WiFi = &imageWiFi{SSID: ssid, PasswordSecret: password}
 	}
 	for _, id := range img.Apps {
 		if !executionID.MatchString(id) {
@@ -658,13 +688,16 @@ func CommandBuild() cli.Command {
 				cli.StringFlag{Name: "base", Usage: "image build: id of the image base build (sets --mode image)"},
 				cli.StringFlag{Name: "factory", Usage: "image build: id of a factory build of the identity to start from (sets --mode image): no BSP signing, seconds"},
 				cli.BoolFlag{Name: "make-factory", Usage: "image build: make secret-free factory images of --base, one per --policy, for later image builds"},
-				cli.StringFlag{Name: "identity", Usage: "image build: signing identity whose trust the images get; its platform key signs the BSP"},
+				cli.StringFlag{Name: "identity", Usage: "image build: signing identity whose trust the images get; its platform key signs the BSP (default: the builder's pv-oem-developer-001, public developer keys, development devices only)"},
 				cli.StringSliceFlag{Name: "app-build", Usage: "image build: id of an app build whose export joins the images; repeat for several"},
 				cli.StringFlag{Name: "device", Usage: "image build: <device id or nick>@<revision> whose apps join the images"},
 				cli.StringSliceFlag{Name: "policy", Usage: "image build: PV_POLICY of one image, such as green; repeat for one image each"},
 				cli.StringFlag{Name: "secureboot", Usage: "image build: PV_SECUREBOOT_MODE, strict (default), lenient, audit or disabled"},
 				cli.StringFlag{Name: "pantahub-host", Usage: "image build: creds.host the devices join"},
 				cli.StringSliceFlag{Name: "group-timeout", Usage: "image build: NAME=SECONDS, timeout of a container group of the BSP's device.json, such as root=120 (with --base); repeat for several"},
+				cli.StringFlag{Name: "autojoin-secret", Usage: "image build: config secret holding the join token the devices claim themselves with (not with --make-factory)"},
+				cli.StringFlag{Name: "wifi-ssid", Usage: "image build: Wi-Fi network the devices join, open unless --wifi-password-secret (not with --make-factory)"},
+				cli.StringFlag{Name: "wifi-password-secret", Usage: "image build: config secret holding the password of --wifi-ssid"},
 			}},
 			{Name: "status", ArgsUsage: "<id>", Usage: "inspect execution status and metadata", Action: simple(http.MethodGet, "")},
 			{Name: "logs", ArgsUsage: "<id>", Usage: "get the most recent log entries as JSON (polling snapshot)", Action: simple(http.MethodGet, "/logs")},
