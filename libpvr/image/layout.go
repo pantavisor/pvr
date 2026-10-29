@@ -2,19 +2,25 @@
 package image
 
 import (
+	"crypto/sha256"
 	"encoding/binary"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hash/crc32"
 	"io"
 	"os"
 	"path"
 	"strings"
 	"unicode"
+	"unicode/utf16"
 )
 
 // Layout is the layout.json of an image base: how a flashable image of the
-// base's machine is laid out.
+// base's machine is laid out. Version 1 is the rpiab msdos layout; version 2
+// adds the uboot bootloader, gpt tables, partition files and an initrd that
+// is the BSP file itself.
 type Layout struct {
 	Version    int         `json:"version"`
 	Machine    string      `json:"machine"`
@@ -23,7 +29,8 @@ type Layout struct {
 	Align      int64       `json:"align"`
 	Partitions []Partition `json:"partitions"`
 	// Initrd is where the pantavisor initrd is: a vfat image the BSP
-	// carries gzipped, and the initrd's path in it.
+	// carries gzipped, and the initrd's path in it; without a path (version
+	// 2), the BSP file is the gzipped cpio initrd.
 	Initrd struct {
 		BSP  string `json:"bsp"`
 		Path string `json:"path"`
@@ -55,6 +62,7 @@ type FactoryInfo struct {
 
 // Partition sources: a file of the base, a gzipped file of the BSP
 // ("bsp:bsp/<file>"), or the pvroot storage made of the factory revision.
+// Name is the partition's name in a gpt table, Label its filesystem's.
 type Partition struct {
 	Name   string `json:"name"`
 	FS     string `json:"fs"`
@@ -62,12 +70,18 @@ type Partition struct {
 	Size   int64  `json:"size"`
 	Active bool   `json:"active"`
 	Source string `json:"source"`
+	// Files are files of the base copied into the pvroot partition, by
+	// their path in it (version 2), such as the board's boot/boot.scr.
+	Files map[string]string `json:"files,omitempty"`
 }
 
 const (
-	sourcePvroot         = "pvroot"
-	sourceBSP            = "bsp:"
-	sector               = 512
+	sourcePvroot = "pvroot"
+	sourceBSP    = "bsp:"
+	sector       = 512
+	// gptSectors are the sectors of a gpt table: its header and 128
+	// entries of 128 bytes, at both ends of the disk.
+	gptSectors           = 1 + 128*128/sector
 	maxLayoutBytes int64 = 16 << 30 // 16 GiB
 	// maxImageBaseBytes caps the unpacked size of an image base.
 	maxImageBaseBytes int64 = 16 << 30 // 16 GiB
@@ -89,28 +103,65 @@ func baseFile(name string) bool {
 	return true
 }
 
+// Bootloaders and partition tables of each layout version.
+var (
+	layoutBootloaders = map[int]map[string]bool{1: {"rpiab": true}, 2: {"rpiab": true, "uboot": true}}
+	layoutTables      = map[int]map[string]bool{1: {"msdos": true}, 2: {"msdos": true, "gpt": true}}
+)
+
+// pvrootDirs are what the assembly writes in the pvroot partition: its
+// files may not go there.
+var pvrootDirs = []string{"objects", "trails", "config", "logs"}
+
 func (l *Layout) validate() error {
-	if l.Version != 1 {
+	if layoutBootloaders[l.Version] == nil {
 		return fmt.Errorf("image base layout version %d is not supported: update pvr", l.Version)
 	}
-	if l.Bootloader != "rpiab" {
-		return fmt.Errorf("image base bootloader %q is not supported: only rpiab", l.Bootloader)
+	if !layoutBootloaders[l.Version][l.Bootloader] {
+		return fmt.Errorf("image base bootloader %q is not supported by layout version %d", l.Bootloader, l.Version)
 	}
-	if l.Table != "msdos" {
-		return fmt.Errorf("image base partition table %q is not supported: only msdos", l.Table)
+	if !layoutTables[l.Version][l.Table] {
+		return fmt.Errorf("image base partition table %q is not supported by layout version %d", l.Table, l.Version)
 	}
 	if l.Align < sector || l.Align%sector != 0 || l.Align > 64<<20 {
 		return errors.New("image base align is a multiple of 512 bytes up to 64 MiB")
 	}
-	if len(l.Partitions) == 0 || len(l.Partitions) > 4 {
-		return errors.New("image base has 1 to 4 partitions")
+	maxPartitions := 4
+	if l.Table == "gpt" {
+		maxPartitions = 128
 	}
-	if !baseFile(l.Initrd.BSP) || !strings.HasPrefix(l.Initrd.BSP, "bsp/") || !baseFile(l.Initrd.Path) {
-		return errors.New("image base initrd names a gzipped vfat file of the BSP and a file in it")
+	if len(l.Partitions) == 0 || len(l.Partitions) > maxPartitions {
+		return fmt.Errorf("image base has 1 to %d partitions", maxPartitions)
+	}
+	if !baseFile(l.Initrd.BSP) || !strings.HasPrefix(l.Initrd.BSP, "bsp/") || (l.Initrd.Path != "" || l.Version == 1) && !baseFile(l.Initrd.Path) {
+		return errors.New("image base initrd names a gzipped vfat file of the BSP and a file in it, or a gzipped cpio file of the BSP")
 	}
 	pvroot := 0
 	var totalSize int64
 	for _, p := range l.Partitions {
+		if l.Table == "gpt" && (p.Name == "" || len(p.Name) > 36 || strings.IndexFunc(p.Name, func(r rune) bool { return r < 0x20 || r > 0x7e }) >= 0) {
+			return fmt.Errorf("image base gpt partition %q needs a name of 1 to 36 printable ASCII characters", p.Name)
+		}
+		if l.Initrd.Path == "" && p.Source == sourceBSP+l.Initrd.BSP {
+			return fmt.Errorf("image base partition %s source is the initrd, not a vfat image", p.Name)
+		}
+		if len(p.Files) > 0 && (l.Version == 1 || p.Source != sourcePvroot) {
+			return fmt.Errorf("image base partition %s has files: only the pvroot partition of a version 2 layout has", p.Name)
+		}
+		if len(p.Files) > 64 {
+			return fmt.Errorf("image base partition %s has more than 64 files", p.Name)
+		}
+		for dst, src := range p.Files {
+			top, _, _ := strings.Cut(dst, "/")
+			if !baseFile(dst) || !baseFile(src) || src == "layout.json" {
+				return fmt.Errorf("image base partition %s file %q is not a file of the base put in the partition", p.Name, dst)
+			}
+			for _, dir := range pvrootDirs {
+				if top == dir {
+					return fmt.Errorf("image base partition %s file %q goes where the storage is written", p.Name, dst)
+				}
+			}
+		}
 		switch {
 		case p.Source == sourcePvroot:
 			pvroot++
@@ -214,4 +265,118 @@ func writeMBR(w io.WriterAt, entries []mbrEntry, id uint32) error {
 
 func alignUp(n, align int64) int64 {
 	return (n + align - 1) / align * align
+}
+
+// gptEntry is one partition of a gpt table, in bytes.
+type gptEntry struct {
+	start, size int64
+	kind, id    [16]byte
+	name        string
+	active      bool
+}
+
+// Partition types: Linux filesystem data and Microsoft basic data, which
+// U-Boot and Linux read vfat from.
+var (
+	gptLinux = guid("0FC63DAF-8483-4772-8E79-3D69D8477DE4")
+	gptVfat  = guid("EBD0A0A2-B9E5-4433-87C0-68B6B72699C7")
+)
+
+func gptKind(fs string) [16]byte {
+	if fs == "vfat" {
+		return gptVfat
+	}
+	return gptLinux
+}
+
+// guid encodes a GUID as gpt stores it: its first three fields little-endian.
+func guid(s string) [16]byte {
+	raw, err := hex.DecodeString(strings.ReplaceAll(s, "-", ""))
+	if err != nil || len(raw) != 16 {
+		panic("bad GUID " + s)
+	}
+	var g [16]byte
+	copy(g[:], raw)
+	g[0], g[1], g[2], g[3] = raw[3], raw[2], raw[1], raw[0]
+	g[4], g[5], g[6], g[7] = raw[5], raw[4], raw[7], raw[6]
+	return g
+}
+
+// seededGUID is a version 4 GUID made of seed and what, so the same image
+// gets the same GUIDs.
+func seededGUID(seed []byte, what string) [16]byte {
+	sum := sha256.Sum256(append(append([]byte{}, seed...), what...))
+	var g [16]byte
+	copy(g[:], sum[:16])
+	g[7] = g[7]&0x0f | 0x40
+	g[8] = g[8]&0x3f | 0x80
+	return g
+}
+
+// writeGPT writes a gpt table of entries on a disk of size bytes, with its
+// protective msdos table, primary header and entries at the start and their
+// backup at the end. An active entry gets the legacy BIOS bootable attribute.
+func writeGPT(w io.WriterAt, entries []gptEntry, size int64, disk [16]byte) error {
+	sectors := size / sector
+	if size%sector != 0 || sectors < 2*gptSectors+2 || len(entries) > 128 {
+		return errors.New("disk too small for a gpt table")
+	}
+	first, last := int64(1+gptSectors), sectors-1-gptSectors
+	var array [128 * 128]byte
+	for i, e := range entries {
+		if e.start%sector != 0 || e.size%sector != 0 || e.size == 0 || e.start/sector < first || (e.start+e.size)/sector-1 > last {
+			return errors.New("partition is not in the usable sectors of the gpt table")
+		}
+		p := array[128*i : 128*(i+1)]
+		copy(p[0:16], e.kind[:])
+		copy(p[16:32], e.id[:])
+		binary.LittleEndian.PutUint64(p[32:], uint64(e.start/sector))
+		binary.LittleEndian.PutUint64(p[40:], uint64((e.start+e.size)/sector-1))
+		if e.active {
+			binary.LittleEndian.PutUint64(p[48:], 1<<2)
+		}
+		for j, r := range utf16.Encode([]rune(e.name)) {
+			if j == 36 {
+				return errors.New("gpt partition name exceeds 36 characters")
+			}
+			binary.LittleEndian.PutUint16(p[56+2*j:], r)
+		}
+	}
+	arrayCRC := crc32.ChecksumIEEE(array[:])
+	header := func(current, backup, table int64) []byte {
+		var h [sector]byte
+		copy(h[:], "EFI PART")
+		binary.LittleEndian.PutUint32(h[8:], 0x00010000)
+		binary.LittleEndian.PutUint32(h[12:], 92)
+		binary.LittleEndian.PutUint64(h[24:], uint64(current))
+		binary.LittleEndian.PutUint64(h[32:], uint64(backup))
+		binary.LittleEndian.PutUint64(h[40:], uint64(first))
+		binary.LittleEndian.PutUint64(h[48:], uint64(last))
+		copy(h[56:72], disk[:])
+		binary.LittleEndian.PutUint64(h[72:], uint64(table))
+		binary.LittleEndian.PutUint32(h[80:], 128)
+		binary.LittleEndian.PutUint32(h[84:], 128)
+		binary.LittleEndian.PutUint32(h[88:], arrayCRC)
+		binary.LittleEndian.PutUint32(h[16:], crc32.ChecksumIEEE(h[:92]))
+		return h[:]
+	}
+	// The protective table covers the whole disk, or what it can address.
+	protective := min(size-sector, 0xffffffff*sector)
+	if err := writeMBR(w, []mbrEntry{{start: sector, size: protective, kind: 0xee}}, 0); err != nil {
+		return err
+	}
+	for _, part := range []struct {
+		data []byte
+		at   int64
+	}{
+		{header(1, sectors-1, 2), sector},
+		{array[:], 2 * sector},
+		{array[:], (last + 1) * sector},
+		{header(sectors-1, 1, last+1), (sectors - 1) * sector},
+	} {
+		if _, err := w.WriteAt(part.data, part.at); err != nil {
+			return err
+		}
+	}
+	return nil
 }

@@ -86,7 +86,9 @@ core containers, the boot selector and the partition layout):
     configuration part, ...) are merged into the factory revision;
   - every signature is verified with the store a device would use, and in
     strict mode every key must be signed;
-  - the partitions are written as the base's layout says.
+  - the partitions are written as the base's layout says: an msdos or gpt
+    table, the storage partition with the base's boot files (such as a
+    U-Boot boot.scr) and, for the uboot bootloader, boot/uboot.txt.
 
 --trust is the directory 'pvr signing trust <identity> -o DIR' writes; its
 pantavisor.config gives the defaults of --oem-name and --secureboot.

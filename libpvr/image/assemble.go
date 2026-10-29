@@ -400,11 +400,34 @@ func (a *assembler) deployBase() error {
 	return a.pvr("checkout")
 }
 
-// remaster rewrites the initrd inside the BSP's boot vfat: the identity's
-// trust, PV_OEM_NAME, PV_SECUREBOOT_MODE and PV_POLICY (with its policy
-// file, which Pantavisor needs to boot).
+// remaster rewrites the initrd, inside the BSP's boot vfat or the BSP file
+// itself: the identity's trust, PV_OEM_NAME, PV_SECUREBOOT_MODE and
+// PV_POLICY (with its policy file, which Pantavisor needs to boot).
 func (a *assembler) remaster() error {
 	bspFile := filepath.Join(a.repo, filepath.FromSlash(a.layout.Initrd.BSP))
+	edits, err := a.initrdEdits()
+	if err != nil {
+		return err
+	}
+	if a.layout.Initrd.Path == "" {
+		// Renamed over the BSP file, which may be a hard link to an object.
+		remastered := filepath.Join(a.work, "initrd.new")
+		if err := rewriteInitrd(bspFile, remastered, edits, gzip.BestCompression); err != nil {
+			return fmt.Errorf("BSP %s: %w", a.layout.Initrd.BSP, err)
+		}
+		if err := os.Rename(remastered, bspFile); err != nil {
+			return err
+		}
+	} else if err := a.remasterVfat(bspFile, edits); err != nil {
+		return err
+	}
+	fmt.Fprintf(a.Log, "Initrd: PV_OEM_NAME=%s PV_SECUREBOOT_MODE=%s PV_POLICY=%s, trust of %s\n", a.OEMName, a.SecureBoot, a.Policy, a.Trust)
+	return nil
+}
+
+// remasterVfat rewrites the initrd at the layout's path in the gzipped vfat
+// bspFile, keeping the vfat as the boot partition.
+func (a *assembler) remasterVfat(bspFile string, edits map[string]Edit) error {
 	vfat := a.bootVfat()
 	if err := gunzipFile(bspFile, vfat); err != nil {
 		return fmt.Errorf("BSP %s: %w", a.layout.Initrd.BSP, err)
@@ -413,13 +436,25 @@ func (a *assembler) remaster() error {
 	if err := a.command(a.work, "mcopy", "-n", "-i", vfat, "::"+a.layout.Initrd.Path, initrd); err != nil {
 		return err
 	}
+	remastered := initrd + ".new"
+	if err := rewriteInitrd(initrd, remastered, edits, gzip.DefaultCompression); err != nil {
+		return err
+	}
+	if err := a.command(a.work, "mcopy", "-o", "-i", vfat, remastered, "::"+a.layout.Initrd.Path); err != nil {
+		return err
+	}
+	return gzipFile(vfat, bspFile)
+}
+
+// initrdEdits are the initrd's files of the identity, policy and mode.
+func (a *assembler) initrdEdits() (map[string]Edit, error) {
 	platform, err := os.ReadFile(filepath.Join(a.Trust, platformStore))
 	if err != nil {
-		return err
+		return nil, err
 	}
 	oem, err := os.ReadFile(filepath.Join(a.Trust, oemStore))
 	if err != nil {
-		return err
+		return nil, err
 	}
 	config := map[string]string{"PV_OEM_NAME": a.OEMName, "PV_SECUREBOOT_MODE": a.SecureBoot}
 	edits := map[string]Edit{
@@ -437,23 +472,14 @@ func (a *assembler) remaster() error {
 		}
 	}
 	edits["etc/pantavisor.config"] = SetKeys(config)
-	remastered := initrd + ".new"
-	if err := rewriteInitrd(initrd, remastered, edits); err != nil {
-		return err
-	}
-	if err := a.command(a.work, "mcopy", "-o", "-i", vfat, remastered, "::"+a.layout.Initrd.Path); err != nil {
-		return err
-	}
-	if err := gzipFile(vfat, bspFile); err != nil {
-		return err
-	}
-	fmt.Fprintf(a.Log, "Initrd: PV_OEM_NAME=%s PV_SECUREBOOT_MODE=%s PV_POLICY=%s, trust of %s\n", a.OEMName, a.SecureBoot, a.Policy, a.Trust)
-	return nil
+	return edits, nil
 }
 
 func (a *assembler) bootVfat() string { return filepath.Join(a.work, "boot.vfat") }
 
-func rewriteInitrd(src, dst string, edits map[string]Edit) error {
+// rewriteInitrd writes the gzipped cpio src with edits to dst, gzipped at
+// level.
+func rewriteInitrd(src, dst string, edits map[string]Edit, level int) error {
 	in, err := os.Open(src)
 	if err != nil {
 		return err
@@ -470,7 +496,10 @@ func rewriteInitrd(src, dst string, edits map[string]Edit) error {
 		return err
 	}
 	defer out.Close()
-	zw := gzip.NewWriter(out)
+	zw, err := gzip.NewWriterLevel(out, level)
+	if err != nil {
+		return err
+	}
 	const maxInitrdBytes = 1 << 30 // 1 GiB
 	lr := &io.LimitedReader{R: zr, N: maxInitrdBytes + 1}
 	if err := RewriteNewc(lr, zw, edits); err != nil {
@@ -650,8 +679,8 @@ func (a *assembler) signBase() error {
 }
 
 // writeFactory writes the factory image: the signed revision, the boot
-// partition, the base's other partition files and the identity's public
-// trust. No key: the platform key never leaves this run.
+// partition (with a vfat initrd), the base's other partition files and the
+// identity's public trust. No key: the platform key never leaves this run.
 func (a *assembler) writeFactory() error {
 	export := filepath.Join(a.work, "factory.pvrexport.tgz")
 	if err := a.pvr("export", export); err != nil {
@@ -673,11 +702,16 @@ func (a *assembler) writeFactory() error {
 	layout.Partitions = append([]Partition{}, a.layout.Partitions...)
 	files := map[string]string{
 		"bsp.pvrexport.tgz":      export,
-		"boot.vfat":              a.bootVfat(),
 		"trust/" + platformStore: filepath.Join(a.Trust, platformStore),
 		"trust/" + oemStore:      filepath.Join(a.Trust, oemStore),
 	}
+	if a.layout.Initrd.Path != "" {
+		files["boot.vfat"] = a.bootVfat()
+	}
 	for i, p := range layout.Partitions {
+		for _, src := range p.Files {
+			files[src] = filepath.Join(a.base, filepath.FromSlash(src))
+		}
 		switch {
 		case p.Source == sourceBSP+a.layout.Initrd.BSP:
 			layout.Partitions[i].Source = "boot.vfat"
@@ -913,7 +947,78 @@ func (a *assembler) writeRootfs() error {
 	if config, err = SetKeys(overrides)(config); err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(a.rootfs, "config", "pantahub.config"), config, 0o644)
+	if err := os.WriteFile(filepath.Join(a.rootfs, "config", "pantahub.config"), config, 0o644); err != nil {
+		return err
+	}
+	return a.writeBootFiles()
+}
+
+// writeBootFiles copies the pvroot partition's files of the base into the
+// storage and, for the uboot bootloader, the boot/uboot.txt Pantavisor
+// keeps its revision in, at revision 0, unless the base has one, and the
+// trail's .pv/ boot links U-Boot loads the kernel and initrd from.
+func (a *assembler) writeBootFiles() error {
+	for _, p := range a.layout.Partitions {
+		if p.Source != sourcePvroot {
+			continue
+		}
+		dsts := make([]string, 0, len(p.Files))
+		for dst := range p.Files {
+			dsts = append(dsts, dst)
+		}
+		sort.Strings(dsts)
+		for _, dst := range dsts {
+			if err := copyNew(filepath.Join(a.base, filepath.FromSlash(p.Files[dst])), filepath.Join(a.rootfs, filepath.FromSlash(dst))); err != nil {
+				return fmt.Errorf("partition %s file %s: %w", p.Name, dst, err)
+			}
+			fmt.Fprintf(a.Log, "Partition %s: %s from the base's %s\n", p.Name, dst, p.Files[dst])
+		}
+	}
+	if a.layout.Bootloader != "uboot" {
+		return nil
+	}
+	// Hard links to the trail's BSP objects, as pvr deploy makes them: the
+	// remastered initrd, signed already.
+	trail := filepath.Join(a.rootfs, "trails", "0")
+	if err := (&libpvr.Pvr{Dir: trail}).DeployPvLinks(); err != nil {
+		return fmt.Errorf("boot links of the trail (.pv/): %w", err)
+	}
+	f, err := os.OpenFile(filepath.Join(a.rootfs, "boot", "uboot.txt"), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
+	if os.IsExist(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	_, err = f.WriteString("pv_rev=0\n")
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+	return err
+}
+
+// copyNew copies the regular file src to dst, which may not exist.
+func copyNew(src, dst string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	if info, err := in.Stat(); err != nil || !info.Mode().IsRegular() {
+		return errors.New("not a regular file of the base")
+	}
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+		return err
+	}
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
+	if err != nil {
+		return err
+	}
+	_, err = io.Copy(out, in)
+	if cerr := out.Close(); err == nil {
+		err = cerr
+	}
+	return err
 }
 
 func dirSize(dir string) (int64, int, error) {
@@ -990,8 +1095,15 @@ func (a *assembler) writeImage() error {
 		return err
 	}
 	defer out.Close()
+	gpt := a.layout.Table == "gpt"
 	var entries []mbrEntry
+	var gptEntries []gptEntry
+	sum := sha256.Sum256([]byte(a.OEMName + "\x00" + a.Policy + "\x00" + a.Output))
 	offset := a.layout.Align
+	if gpt {
+		// After the gpt table's header and entries.
+		offset = alignUp((1+gptSectors)*sector, a.layout.Align)
+	}
 	for _, p := range a.layout.Partitions {
 		src, size := "", p.Size
 		switch {
@@ -1017,15 +1129,27 @@ func (a *assembler) writeImage() error {
 			return fmt.Errorf("partition %s: %w", p.Name, err)
 		}
 		entries = append(entries, mbrEntry{start: offset, size: size, kind: mbrKind(p.FS), active: p.Active})
+		gptEntries = append(gptEntries, gptEntry{start: offset, size: size, kind: gptKind(p.FS), id: seededGUID(sum[:], "partition "+p.Name),
+			name: p.Name, active: p.Active})
 		fmt.Fprintf(a.Log, "Partition %d %s (%s): %d MiB at %d MiB\n", len(entries), p.Name, p.FS, size>>20, offset>>20)
 		offset += size
 	}
-	if err := out.Truncate(alignUp(offset, a.layout.Align)); err != nil {
-		return err
-	}
-	sum := sha256.Sum256([]byte(a.OEMName + "\x00" + a.Policy + "\x00" + a.Output))
-	if err := writeMBR(out, entries, binary.LittleEndian.Uint32(sum[:4])); err != nil {
-		return err
+	if gpt {
+		// Room for the backup gpt table.
+		size := alignUp(offset+gptSectors*sector, a.layout.Align)
+		if err := out.Truncate(size); err != nil {
+			return err
+		}
+		if err := writeGPT(out, gptEntries, size, seededGUID(sum[:], "disk")); err != nil {
+			return err
+		}
+	} else {
+		if err := out.Truncate(alignUp(offset, a.layout.Align)); err != nil {
+			return err
+		}
+		if err := writeMBR(out, entries, binary.LittleEndian.Uint32(sum[:4])); err != nil {
+			return err
+		}
 	}
 	if err := out.Close(); err != nil {
 		return err
