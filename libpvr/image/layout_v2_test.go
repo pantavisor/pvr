@@ -328,6 +328,16 @@ func TestAssembleGPTImage(t *testing.T) {
 	if label := strings.TrimRight(string(img[parts[0].start*sector+1024+120:][:16]), "\x00"); label != "root" {
 		t.Errorf("ext4 label %q", label)
 	}
+	// U-Boot writes pv.env into the storage: no checksums its writer
+	// leaves stale, and the 4 KiB blocks of the card the storage grows to.
+	stats, err := exec.Command("debugfs", "-R", "stats", root).Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	features := regexp.MustCompile(`Filesystem features:\s+(.*)`).FindStringSubmatch(string(stats))
+	if features == nil || strings.Contains(features[1], "metadata_csum") || !strings.Contains(string(stats), "Block size:               4096") {
+		t.Errorf("storage ext4 for U-Boot: %s", stats[:min(len(stats), 2000)])
+	}
 	for file, want := range map[string]string{"/boot/boot.scr": "boot script", "/oemEnv.txt": "oem=1\n", "/boot/uboot.txt": "pv_rev=0\n",
 		"/trails/0/bsp/kernel.img": "kernel", "/trails/0/.pv/pv-kernel.img": "kernel", "/trails/0/.pv/pv-initrd.img": string(initrd)} {
 		out, err := exec.Command("debugfs", "-R", "cat "+file, root).Output()

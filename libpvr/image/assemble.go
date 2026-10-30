@@ -1052,7 +1052,18 @@ func (a *assembler) mkfs(p Partition) (string, int64, error) {
 	}
 	size := alignUp(content+content/4+int64(files)*8192+64<<20, a.layout.Align)
 	file := filepath.Join(a.work, "root.ext4")
-	if err := a.command(a.work, "mkfs.ext4", "-q", "-F", "-L", p.Label, "-E", "root_owner=0:0", "-d", a.rootfs, file, strconv.FormatInt(size/1024, 10)+"k"); err != nil {
+	args := []string{"-q", "-F", "-L", p.Label, "-E", "root_owner=0:0"}
+	if a.layout.Bootloader == "uboot" {
+		// U-Boot's boot script writes pv.env into this filesystem, and
+		// U-Boot's ext4 writer keeps only the old group descriptor
+		// checksums: without metadata_csum the blocks it writes stay valid
+		// for Linux, and without metadata_csum_seed older e2fsprogs on the
+		// device can still grow it. 4 KiB blocks, as mkfs picks for the
+		// card the storage autogrows to, not for this small image.
+		args = append(args, "-b", "4096", "-O", "^metadata_csum,^metadata_csum_seed")
+	}
+	args = append(args, "-d", a.rootfs, file, strconv.FormatInt(size/1024, 10)+"k")
+	if err := a.command(a.work, "mkfs.ext4", args...); err != nil {
 		return "", 0, err
 	}
 	var script bytes.Buffer
