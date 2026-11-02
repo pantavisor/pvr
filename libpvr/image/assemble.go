@@ -317,9 +317,13 @@ func keyValues(data []byte) map[string]string {
 }
 
 func (a *assembler) command(dir, name string, args ...string) error {
+	return a.commandEnv(a.env, dir, name, args...)
+}
+
+func (a *assembler) commandEnv(env []string, dir, name string, args ...string) error {
 	cmd := exec.Command(name, args...)
 	cmd.Dir = dir
-	cmd.Env = a.env
+	cmd.Env = env
 	cmd.Stdout = a.Log
 	cmd.Stderr = a.Log
 	if err := cmd.Run(); err != nil {
@@ -1044,6 +1048,21 @@ func dirSize(dir string) (int64, int, error) {
 	return size, count, err
 }
 
+// ubootMke2fsConf is the ext4 of a uboot layout's storage: features that
+// U-Boot writes correctly and every e2fsprogs since 1.43 knows.
+const ubootMke2fsConf = `[defaults]
+	base_features = sparse_super,large_file,filetype,resize_inode,dir_index,ext_attr
+	default_mntopts = acl,user_xattr
+	enable_periodic_fsck = 0
+	inode_size = 256
+	inode_ratio = 16384
+
+[fs_types]
+	ext4 = {
+		features = has_journal,extent,huge_file,flex_bg,64bit,dir_nlink,extra_isize
+	}
+`
+
 // mkfs makes the ext4 storage of the pvroot, owned by root whoever runs it.
 func (a *assembler) mkfs(p Partition) (string, int64, error) {
 	content, files, err := dirSize(a.rootfs)
@@ -1053,17 +1072,24 @@ func (a *assembler) mkfs(p Partition) (string, int64, error) {
 	size := alignUp(content+content/4+int64(files)*8192+64<<20, a.layout.Align)
 	file := filepath.Join(a.work, "root.ext4")
 	args := []string{"-q", "-F", "-L", p.Label, "-E", "root_owner=0:0"}
+	env := a.env
 	if a.layout.Bootloader == "uboot" {
-		// U-Boot's boot script writes pv.env into this filesystem, and
 		// U-Boot's ext4 writer keeps only the old group descriptor
-		// checksums: without metadata_csum the blocks it writes stay valid
-		// for Linux, and without metadata_csum_seed older e2fsprogs on the
-		// device can still grow it. 4 KiB blocks, as mkfs picks for the
+		// checksums, and the device's e2fsprogs, which autogrow runs to
+		// fsck and resize this filesystem, can be older than the host's:
+		// a fixed feature set, not the host's mke2fs.conf, so that no
+		// metadata_csum, metadata_csum_seed or orphan_file (e2fsprogs
+		// 1.47) reaches the device. 4 KiB blocks, as mkfs picks for the
 		// card the storage autogrows to, not for this small image.
-		args = append(args, "-b", "4096", "-O", "^metadata_csum,^metadata_csum_seed")
+		conf := filepath.Join(a.work, "mke2fs.conf")
+		if err := os.WriteFile(conf, []byte(ubootMke2fsConf), 0o644); err != nil {
+			return "", 0, err
+		}
+		env = append(append([]string{}, a.env...), "MKE2FS_CONFIG="+conf)
+		args = append(args, "-b", "4096")
 	}
 	args = append(args, "-d", a.rootfs, file, strconv.FormatInt(size/1024, 10)+"k")
-	if err := a.command(a.work, "mkfs.ext4", args...); err != nil {
+	if err := a.commandEnv(env, a.work, "mkfs.ext4", args...); err != nil {
 		return "", 0, err
 	}
 	var script bytes.Buffer
