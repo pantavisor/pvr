@@ -1,4 +1,31 @@
 
+<a name="058"></a>
+## [058](https://gitlab.com/pantacor/pvr/compare/057...058) (2026-11-06)
+
+### Chore
+
+* **image:** name the example image policies prod and dev
+
+### Docs
+
+* **wifi:** fix the claiming help in pvr wifi and pvr claim
+
+### Feat
+
+* **builds:** join token and Wi-Fi options for image builds
+* **image:** uboot/gpt image base layout (version 2)
+* **wifi:** bump pvwificonnect to v1.11.0 and add device-scan --ready
+
+### Fix
+
+* **image:** fixed ext4 feature set for U-Boot storage
+* **image:** U-Boot storage ext4 without metadata checksums
+
+### Style
+
+* **image:** gofmt image_test.go
+
+
 <a name="057"></a>
 ## [057](https://gitlab.com/pantacor/pvr/compare/056...057) (2026-10-27)
 
