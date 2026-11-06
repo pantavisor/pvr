@@ -36,7 +36,7 @@ func CommandIdentify() cli.Command {
 		Usage:   "Ask an Improv BLE device to identify itself",
 		Description: "Send an Improv Identify RPC so the target device signals its physical " +
 			"location (e.g. blinking an LED or beeping).",
-		ArgsUsage: "[address]",
+		ArgsUsage: "<address>",
 		Flags: []cli.Flag{
 			cli.DurationFlag{
 				Name:        "connect-timeout",

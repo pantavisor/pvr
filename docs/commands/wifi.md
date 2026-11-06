@@ -26,11 +26,25 @@ membership in the `bluetooth` group, or root.
 Addresses are MACs on Linux (`AA:BB:CC:DD:EE:FF`). Every subcommand below
 except `device-scan` takes the address as a positional argument.
 
+### Which device is which
+
+pvwificonnect advertises as `PV-<model>-<id>`, e.g. `PV-RPi5-3F2A`: `<model>`
+is a short board name (`RPi5`, `CM5`, `RPi3B+`, ...) and `<id>` the last four
+hex digits of the device's Bluetooth address. The name can be changed with
+`ble.device_name` in its `config.json`.
+
+The scan also shows each device's Improv state: `authorized` while it waits
+for Wi-Fi credentials, `provisioned` once it is online. An online device stops
+advertising when its pairing window ends (10 minutes after boot or after it
+came online, `ble.pairing_window`); run `pvwificonnect-cli ble-pairing` on the
+device to make it discoverable again.
+
 ---
 
 ## pvr wifi device-scan
 
-Scan for nearby BLE devices advertising the Improv Wi-Fi service.
+Scan for nearby BLE devices advertising the Improv Wi-Fi service, and print
+their address, name, signal and state.
 
 ```bash
 pvr wifi device-scan
@@ -95,7 +109,8 @@ Read firmware and device information from an Improv device.
 pvr wifi device-info <BLE_ADDRESS>
 ```
 
-Output: firmware name, firmware version, hardware variant, device name.
+Output: firmware name, firmware version, hardware variant, device name, and
+the Pantavisor device-id once the device has one.
 
 **Flags:**
 
@@ -147,11 +162,26 @@ pvr wifi claim-info <BLE_ADDRESS>
 pvr wifi claim-info <BLE_ADDRESS> --json
 ```
 
-Outputs the device ID and claim challenge needed to claim the device on
-Pantacor Hub. This is a Pantacor extension to Improv (RPC `0x07`, advertised as
-the `pantavisor-claim` capability), so it only works against `pvwificonnect`
-devices. Retries until the device has claim material — it only exists after the
-device's first rendezvous with the hub, which needs the Wi-Fi link to be up.
+Prints the device-id and claim challenge. This only **reads** them; claiming
+is done on the hub, with [`pvr claim`](auth.md#pvr-claim) or the Pantacor Hub
+web app:
+
+```bash
+pvr claim <device-id> --challenge <challenge>
+```
+
+This is a Pantacor extension to Improv (RPC `0x07`, advertised as the
+`pantavisor-claim` capability), so it only works against `pvwificonnect`
+devices.
+
+- **Not online yet**: the device gets its device-id and challenge when it first
+  registers with Pantacor Hub, so provision it first. Until then it answers
+  "not ready" and the command retries every `--retry-interval` up to
+  `--retry-timeout`.
+- **Already claimed**: there is no challenge left; the command prints only the
+  device-id and `status: already claimed`.
+- **No longer advertising**: an online device stops advertising when its
+  pairing window ends. Run `pvwificonnect-cli ble-pairing` on it first.
 
 **Flags:**
 

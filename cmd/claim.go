@@ -25,11 +25,16 @@ import (
 
 func CommandClaim() cli.Command {
 	return cli.Command{
-		Name:        "claim",
-		Aliases:     []string{"cl"},
-		ArgsUsage:   "<device-endpoint> - Endpoint for Device to claim,\n                                 e.g. https://api.pantahub.com/devices/xxxxxxxxxx",
-		Usage:       "Claim ownership of a device through challenge",
-		Description: "Use a secret challenge only accessible to device owners to claim\n   ownership of a device that has registered itself with pantahub\n\n. Will prompt for challenge if not provided as argument.",
+		Name:      "claim",
+		Aliases:   []string{"cl"},
+		ArgsUsage: "<device>",
+		Usage:     "Claim ownership of a device through challenge",
+		Description: "Claim a device that has registered itself with Pantacor Hub, using the\n" +
+			"   challenge only someone with access to the device can read.\n\n" +
+			"   <device> is the device-id, or a full device URL such as\n" +
+			"   https://api.pantahub.com/devices/<device-id>. Prompts for the challenge\n" +
+			"   when --challenge is not given.\n\n" +
+			"   Over Bluetooth, pvr wifi claim-info <address> prints both values.",
 		Flags: []cli.Flag{
 			cli.StringFlag{Name: "c, challenge", Usage: "Secret Challenge"},
 		},

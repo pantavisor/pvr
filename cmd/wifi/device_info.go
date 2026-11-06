@@ -35,8 +35,9 @@ func CommandDeviceInfo() cli.Command {
 		Aliases: []string{"di"},
 		Usage:   "Read firmware and device information from an Improv BLE device",
 		Description: "Send an Improv Device Info RPC and print the firmware name, firmware " +
-			"version, hardware variant, and device name reported by the device.",
-		ArgsUsage: "[address]",
+			"version, hardware variant and device name reported by the device, and the " +
+			"Pantavisor device-id when the device has one.",
+		ArgsUsage: "<address>",
 		Flags: []cli.Flag{
 			cli.DurationFlag{
 				Name:        "connect-timeout",

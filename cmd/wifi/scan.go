@@ -34,10 +34,14 @@ func CommandDeviceScan() cli.Command {
 	)
 
 	cmd := cli.Command{
-		Name:        "device-scan",
-		Aliases:     []string{"ds"},
-		Usage:       "Scan for Improv BLE devices",
-		Description: "Scan for nearby BLE devices advertising the Improv Wi-Fi service.",
+		Name:    "device-scan",
+		Aliases: []string{"ds"},
+		Usage:   "Scan for Improv BLE devices",
+		Description: "Scan for nearby BLE devices advertising the Improv Wi-Fi service and\n" +
+			"   print their address, name, signal and state. pvwificonnect devices are\n" +
+			"   named PV-<model>-<id>, e.g. PV-RPi5-3F2A, where <id> ends the address.\n" +
+			"   STATE is \"authorized\" while a device waits for Wi-Fi credentials and\n" +
+			"   \"provisioned\" once it is online.",
 		Flags: []cli.Flag{
 			cli.DurationFlag{
 				Name:        "timeout",

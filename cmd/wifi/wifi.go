@@ -25,14 +25,18 @@ func CommandWifi() cli.Command {
 	cmd := cli.Command{
 		Name:    "wifi",
 		Aliases: []string{"wf"},
-		Usage:   "pvr wifi <device-scan|provision|identify|device-info|hostname|wifi-scan|claim-info>",
-		Description: "\n1.Scan for Improv BLE devices\n" +
-			"2.Provision an Improv BLE device with Wi-Fi credentials\n" +
-			"3.Ask a device to identify itself\n" +
-			"4.Read firmware and device information\n" +
-			"5.Get or set the device hostname\n" +
-			"6.Scan for Wi-Fi networks from the device\n" +
-			"7.Read Pantavisor claim material",
+		Usage:   "Set up Pantavisor devices over Bluetooth LE (Improv Wi-Fi)",
+		Description: "\n   Join a Pantavisor device to Wi-Fi over Bluetooth LE with the Improv Wi-Fi\n" +
+			"   protocol, and read what you need to claim it. On the device end is\n" +
+			"   pvwificonnect, which advertises while it waits for Wi-Fi. Needs Linux with\n" +
+			"   BlueZ running and access to the adapter (the bluetooth group, or root).\n\n" +
+			"   Typical flow:\n\n" +
+			"     pvr wifi device-scan                               # find the device and its address\n" +
+			"     pvr wifi provision <address> --ssid MyWiFi         # prompts for the password\n" +
+			"     pvr wifi claim-info <address>                      # device-id and challenge\n" +
+			"     pvr claim <device-id> --challenge <challenge>      # claim it on Pantacor Hub\n\n" +
+			"   claim-info only reads the claim material; claiming is done on the hub, by\n" +
+			"   pvr claim or the Pantacor Hub web app.",
 		Subcommands: wifiSubcommands(),
 	}
 	return cmd

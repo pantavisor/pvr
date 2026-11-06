@@ -38,12 +38,20 @@ func CommandClaimInfo() cli.Command {
 	cmd := cli.Command{
 		Name:    "claim-info",
 		Aliases: []string{"ci"},
-		Usage:   "Read Pantavisor claim material from a pvwificonnect BLE device",
-		Description: "Send the Pantavisor Claim RPC (pvwificonnect extension) and print the " +
-			"device-id and claim challenge needed to claim the device on Pantacor Hub. " +
-			"The device only has claim material after its first rendezvous with the hub; " +
-			"until then it reports an error and this command retries up to --retry-timeout.",
-		ArgsUsage: "[address]",
+		Usage:   "Read the device-id and claim challenge of a pvwificonnect device",
+		Description: "Read the device-id and claim challenge from a pvwificonnect device over\n" +
+			"   BLE (the Pantavisor Claim RPC, a pvwificonnect extension to Improv). This\n" +
+			"   does not claim the device: pass what it prints to\n\n" +
+			"     pvr claim <device-id> --challenge <challenge>\n\n" +
+			"   The device gets its device-id and challenge when it first registers with\n" +
+			"   Pantacor Hub, so it has to be online first (pvr wifi provision). Until then\n" +
+			"   it answers \"not ready\" and this command retries every --retry-interval up\n" +
+			"   to --retry-timeout. A device that is already claimed has no challenge left:\n" +
+			"   the command prints its device-id and \"already claimed\".\n\n" +
+			"   An online device stops advertising over BLE once its pairing window has\n" +
+			"   passed (10 minutes after boot or after coming online, by default). To read\n" +
+			"   the claim material later, run pvwificonnect-cli ble-pairing on the device.",
+		ArgsUsage: "<address>",
 		Flags: []cli.Flag{
 			cli.DurationFlag{
 				Name:        "connect-timeout",
@@ -53,7 +61,7 @@ func CommandClaimInfo() cli.Command {
 			},
 			cli.DurationFlag{
 				Name:        "retry-timeout",
-				Usage:       "total time to keep retrying while the device has no claim material yet",
+				Usage:       "total time to keep retrying while the device is not registered with the hub yet",
 				Value:       60 * time.Second,
 				Destination: &claimRetryWait,
 			},

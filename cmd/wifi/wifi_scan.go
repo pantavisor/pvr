@@ -36,7 +36,7 @@ func CommandWifiScan() cli.Command {
 		Usage:   "Ask an Improv BLE device to scan for Wi-Fi networks",
 		Description: "Send an Improv Scan RPC and print the networks the device reports. " +
 			"The Improv protocol terminates the stream with an empty RPC Result.",
-		ArgsUsage: "[address]",
+		ArgsUsage: "<address>",
 		Flags: []cli.Flag{
 			cli.DurationFlag{
 				Name:        "connect-timeout",

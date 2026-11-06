@@ -41,7 +41,7 @@ func CommandProvision() cli.Command {
 		Usage:   "Provision an Improv BLE device with Wi-Fi credentials",
 		Description: "Connect to an Improv device over BLE and send Wi-Fi credentials using " +
 			"the Improv Wi-Fi RPC protocol.",
-		ArgsUsage: "[address]",
+		ArgsUsage: "<address>",
 		Flags: []cli.Flag{
 			cli.StringFlag{
 				Name:        "ssid",

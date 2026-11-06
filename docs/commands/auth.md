@@ -118,6 +118,9 @@ pvr claim https://api.pantahub.com/devices/xxxxxxxxxx
 pvr claim <device-id-or-nick> --challenge=<secret>
 ```
 
+For a device set up over Bluetooth, [`pvr wifi claim-info`](wifi.md#pvr-wifi-claim-info)
+prints the device-id and challenge.
+
 Alias: `cl`
 
 **Flags:**
