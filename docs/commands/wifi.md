@@ -50,6 +50,7 @@ their address, name, signal and state.
 pvr wifi device-scan
 pvr wifi device-scan --timeout=30s
 pvr wifi device-scan --json
+pvr wifi device-scan --ready      # only devices waiting for Wi-Fi credentials
 ```
 
 **Flags:**
@@ -58,6 +59,7 @@ pvr wifi device-scan --json
 |------|-------------|
 | `--timeout` | Scan duration. Default: `15s`. `0` = forever |
 | `--json` | Emit one JSON object per device |
+| `--ready` | Only list devices waiting for Wi-Fi credentials |
 
 ---
 

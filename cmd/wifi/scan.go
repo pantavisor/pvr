@@ -31,6 +31,7 @@ func CommandDeviceScan() cli.Command {
 	var (
 		scanTimeout time.Duration
 		scanJSON    bool
+		scanReady   bool
 	)
 
 	cmd := cli.Command{
@@ -41,7 +42,7 @@ func CommandDeviceScan() cli.Command {
 			"   print their address, name, signal and state. pvwificonnect devices are\n" +
 			"   named PV-<model>-<id>, e.g. PV-RPi5-3F2A, where <id> ends the address.\n" +
 			"   STATE is \"authorized\" while a device waits for Wi-Fi credentials and\n" +
-			"   \"provisioned\" once it is online.",
+			"   \"provisioned\" once it is online; --ready lists only the ones waiting.",
 		Flags: []cli.Flag{
 			cli.DurationFlag{
 				Name:        "timeout",
@@ -54,11 +55,17 @@ func CommandDeviceScan() cli.Command {
 				Usage:       "emit one JSON object per device",
 				Destination: &scanJSON,
 			},
+			cli.BoolFlag{
+				Name:        "ready",
+				Usage:       "only list devices waiting for Wi-Fi credentials",
+				Destination: &scanReady,
+			},
 		},
 		Action: func(c *cli.Context) error {
 			return wificlient.Scan(context.Background(), wificlient.ScanArgs{
 				Timeout: scanTimeout,
 				JSON:    scanJSON,
+				Ready:   scanReady,
 			})
 		},
 	}

@@ -30,7 +30,7 @@ require (
 	github.com/udhos/equalfile v0.3.0
 	github.com/urfave/cli v1.22.16
 	gitlab.com/pantacor/pantahub-base v0.0.0-20220922224408-d1e8099e66c0
-	gitlab.com/pantacor/pvwificonnect v1.7.0
+	gitlab.com/pantacor/pvwificonnect v1.11.0
 	go.mongodb.org/mongo-driver v1.9.0
 	golang.org/x/sys v0.39.0
 	golang.org/x/term v0.37.0
