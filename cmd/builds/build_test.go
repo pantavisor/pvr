@@ -322,16 +322,16 @@ func TestImageBaseAndImageBuilds(t *testing.T) {
 	}
 	app, _ = testApp(t, server.URL)
 	if err := app.Run([]string{"pvr", "build", "start", "--project", "cm5", "--target", "image", "--base", testID, "--identity", "acme",
-		"--app-build", testID, "--device", "golden@3", "--policy", "green", "--policy", "red"}); err != nil {
+		"--app-build", testID, "--device", "golden@3", "--policy", "prod", "--policy", "dev"}); err != nil {
 		t.Fatal(err)
 	}
 	img := received.DeviceImage
 	if received.Mode != "image" || received.LimitSeconds != 1800 || received.Platform != "" || img == nil || img.Base != testID || img.Identity != "acme" ||
-		len(img.Apps) != 1 || img.Device == nil || img.Device.Device != "golden" || img.Device.Revision != 3 || strings.Join(img.Policies, ",") != "green,red" {
+		len(img.Apps) != 1 || img.Device == nil || img.Device.Device != "golden" || img.Device.Revision != 3 || strings.Join(img.Policies, ",") != "prod,dev" {
 		t.Errorf("image: %+v %+v", received, img)
 	}
 	app, _ = testApp(t, server.URL)
-	if err := app.Run([]string{"pvr", "build", "start", "--project", "cm5", "--base", testID, "--identity", "acme", "--make-factory", "--policy", "green"}); err != nil {
+	if err := app.Run([]string{"pvr", "build", "start", "--project", "cm5", "--base", testID, "--identity", "acme", "--make-factory", "--policy", "prod"}); err != nil {
 		t.Fatal(err)
 	}
 	if received.DeviceImage == nil || !received.DeviceImage.MakeFactory || received.DeviceImage.Base != testID {

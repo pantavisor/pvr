@@ -65,8 +65,8 @@ func TestRewriteNewcKeepsWhatItDoesNotEdit(t *testing.T) {
 	var out bytes.Buffer
 	err := RewriteNewc(bytes.NewReader(in), &out, map[string]Edit{
 		"/etc/pantavisor/pvs/trust/ca-certificates.crt": Replace([]byte("identity")),
-		"etc/pantavisor.config":                         SetKeys(map[string]string{"PV_OEM_NAME": "acme", "PV_POLICY": "green"}),
-		"etc/pantavisor/policies/green.config":          Replace([]byte("# green\n")),
+		"etc/pantavisor.config":                         SetKeys(map[string]string{"PV_OEM_NAME": "acme", "PV_POLICY": "prod"}),
+		"etc/pantavisor/policies/prod.config":          Replace([]byte("# prod\n")),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -81,11 +81,11 @@ func TestRewriteNewcKeepsWhatItDoesNotEdit(t *testing.T) {
 	if string(got["etc/pantavisor/pvs/trust/ca-certificates.crt"].data) != "identity" {
 		t.Fatal("trust not replaced")
 	}
-	if config := string(got["etc/pantavisor.config"].data); config != "PV_OEM_NAME=acme\n# comment\nPV_STORAGE_DEVICE=LABEL=root\nPV_POLICY=green\n" {
+	if config := string(got["etc/pantavisor.config"].data); config != "PV_OEM_NAME=acme\n# comment\nPV_STORAGE_DEVICE=LABEL=root\nPV_POLICY=prod\n" {
 		t.Fatalf("config: %q", config)
 	}
-	dir, policy := got["etc/pantavisor/policies"], got["etc/pantavisor/policies/green.config"]
-	if dir == nil || dir.mode() != modeDir|0o755 || policy == nil || string(policy.data) != "# green\n" || policy.mode() != modeFile|0o644 {
+	dir, policy := got["etc/pantavisor/policies"], got["etc/pantavisor/policies/prod.config"]
+	if dir == nil || dir.mode() != modeDir|0o755 || policy == nil || string(policy.data) != "# prod\n" || policy.mode() != modeFile|0o644 {
 		t.Fatal("policy file and its directory not added")
 	}
 	if dir.fields[0] <= 11 || policy.fields[0] <= dir.fields[0] {
@@ -100,7 +100,7 @@ func TestRewriteNewcKeepsWhatItDoesNotEdit(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !strings.Contains(string(list), "etc/pantavisor/policies/green.config") {
+		if !strings.Contains(string(list), "etc/pantavisor/policies/prod.config") {
 			t.Fatalf("cpio lists %s", list)
 		}
 	}
@@ -227,7 +227,7 @@ func TestFactoryLayoutValidation(t *testing.T) {
 	l := Layout{Version: 1, Bootloader: "rpiab", Table: "msdos", Align: 4 << 20,
 		Partitions: []Partition{{Name: "boot", FS: "vfat", Size: 1 << 20, Source: "boot.vfat"}, {Name: "root", FS: "ext4", Label: "root", Source: "pvroot"}}}
 	l.Initrd.BSP, l.Initrd.Path = "bsp/pantavisor-rpi.img.gz", "pantavisor"
-	l.Factory = &FactoryInfo{Identity: "acme", Policy: "green", SecureBoot: "strict", PlatformSHA256: sha, OEMSHA256: sha, Base: sha}
+	l.Factory = &FactoryInfo{Identity: "acme", Policy: "prod", SecureBoot: "strict", PlatformSHA256: sha, OEMSHA256: sha, Base: sha}
 	if err := l.validate(); err != nil {
 		t.Fatal(err)
 	}

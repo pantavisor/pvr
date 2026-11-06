@@ -103,7 +103,7 @@ func TestRemasterCpioInitrd(t *testing.T) {
 	work := t.TempDir()
 	a := &assembler{work: work, repo: filepath.Join(work, "repo"), layout: &Layout{}}
 	a.layout.Initrd.BSP = "bsp/pantavisor"
-	a.Trust, a.OEMName, a.SecureBoot, a.Policy, a.Log = filepath.Join(work, "trust"), "pv-oem-developer-001", "lenient", "green", io.Discard
+	a.Trust, a.OEMName, a.SecureBoot, a.Policy, a.Log = filepath.Join(work, "trust"), "pv-oem-developer-001", "lenient", "prod", io.Discard
 	for _, dir := range []string{filepath.Join(a.repo, "bsp"), a.Trust} {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			t.Fatal(err)
@@ -153,13 +153,13 @@ func TestRemasterCpioInitrd(t *testing.T) {
 	}
 	files := readAll(t, raw)
 	config := keyValues(files["etc/pantavisor.config"].data)
-	if config["PV_STORAGE_DEVICE"] != "LABEL=root" || config["PV_OEM_NAME"] != "pv-oem-developer-001" || config["PV_SECUREBOOT_MODE"] != "lenient" || config["PV_POLICY"] != "green" {
+	if config["PV_STORAGE_DEVICE"] != "LABEL=root" || config["PV_OEM_NAME"] != "pv-oem-developer-001" || config["PV_SECUREBOOT_MODE"] != "lenient" || config["PV_POLICY"] != "prod" {
 		t.Errorf("pantavisor.config: %q", files["etc/pantavisor.config"].data)
 	}
 	if string(files[trustDir+"/"+platformStore].data) != "developer platform CA" || string(files[trustDir+"/"+oemStore].data) != "developer OEM CA" {
 		t.Error("trust not replaced")
 	}
-	if files["etc/pantavisor/policies/green.config"] == nil || string(files["init"].data) != "#!/bin/sh\n" {
+	if files["etc/pantavisor/policies/prod.config"] == nil || string(files["init"].data) != "#!/bin/sh\n" {
 		t.Error("policy missing or other files changed")
 	}
 	if err := os.WriteFile(bspFile, []byte("not gzip"), 0o644); err != nil {

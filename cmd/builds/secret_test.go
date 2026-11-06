@@ -112,7 +112,7 @@ func TestBuildStartSendsTheOEMPart(t *testing.T) {
 	defer server.Close()
 	app, _ := testApp(t, server.URL)
 	path := t.TempDir() + "/oem.json"
-	_ = os.WriteFile(path, []byte(`{"configs": {"green": {"PH_FACTORY_AUTOTOK": {"secret": "green-autotok"}}}}`), 0o600)
+	_ = os.WriteFile(path, []byte(`{"configs": {"prod": {"PH_FACTORY_AUTOTOK": {"secret": "prod-autotok"}}}}`), 0o600)
 	if err := app.Run([]string{"pvr", "build", "start", "--project", "demo", "--git-url", "https://github.com/acme/app", "--signing-secret", "acme-oem", "--oem", path}); err != nil {
 		t.Fatal(err)
 	}
