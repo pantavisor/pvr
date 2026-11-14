@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-Installs pvr from GitLab Packages.
+Installs pvr from GitHub Releases (or GitLab Packages with PVR_SOURCE=gitlab).
 
 .DESCRIPTION
 Downloads and installs the latest or specified version of pvr for Windows.
@@ -12,6 +12,10 @@ Installs the latest stable version of pvr.
 .EXAMPLE
 $env:PVR_CHANNEL="develop"; .\install.ps1
 Installs the latest develop version of pvr.
+
+.EXAMPLE
+$env:PVR_SOURCE="gitlab"; .\install.ps1
+Installs from GitLab Packages instead of GitHub Releases (transition option).
 
 .EXAMPLE
 $env:PVR_VERSION="046"; .\install.ps1
@@ -28,6 +32,12 @@ if ([string]::IsNullOrWhiteSpace($Version)) { $Version = "latest" }
 
 $Channel = $env:PVR_CHANNEL
 if ([string]::IsNullOrWhiteSpace($Channel)) { $Channel = "stable" }
+
+$Source = $env:PVR_SOURCE
+if ([string]::IsNullOrWhiteSpace($Source)) { $Source = "github" }
+
+$GitHubRepo = $env:PVR_GITHUB_REPO
+if ([string]::IsNullOrWhiteSpace($GitHubRepo)) { $GitHubRepo = "pantavisor/pvr" }
 
 $GitLabHost = $env:GITLAB_HOST
 if ([string]::IsNullOrWhiteSpace($GitLabHost)) { $GitLabHost = "gitlab.com" }
@@ -54,6 +64,20 @@ function Write-Err($Message) {
 }
 
 function Get-LatestVersion {
+    if ($Source -eq "github") {
+        # stable = newest release (latest skips prereleases); other channels = rolling snapshot
+        if ($Channel -ne "stable") { return "main-snapshot" }
+        $headers = @{}
+        if ($env:GITHUB_TOKEN) { $headers["Authorization"] = "Bearer $env:GITHUB_TOKEN" }
+        try {
+            $release = Invoke-RestMethod -Uri "https://api.github.com/repos/$GitHubRepo/releases/latest" -Headers $headers -UseBasicParsing
+            return $release.tag_name
+        } catch {
+            Write-Err "Failed to fetch version from GitHub: $_"
+            exit 1
+        }
+    }
+
     $url = "https://$GitLabHost/api/v4/projects/$ProjectId/packages?per_page=100&order_by=created_at&sort=desc"
     try {
         $response = Invoke-RestMethod -Uri $url -UseBasicParsing
@@ -97,7 +121,11 @@ if ($Version -eq "latest") {
 
 $os_name = "windows"
 $filename = "pvr.${Version}.${os_name}.${arch}.zip"
-$url = "https://${GitLabHost}/api/v4/projects/${ProjectId}/packages/generic/pvr/${Version}/${filename}"
+if ($Source -eq "github") {
+    $url = "https://github.com/${GitHubRepo}/releases/download/${Version}/${filename}"
+} else {
+    $url = "https://${GitLabHost}/api/v4/projects/${ProjectId}/packages/generic/pvr/${Version}/${filename}"
+}
 
 Write-Info "Downloading pvr $Version for $os_name/$arch..."
 Write-Info "URL: $url"

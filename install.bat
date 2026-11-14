@@ -1,6 +1,6 @@
 @echo off
 REM Wrapper script to install pvr on Windows
-REM This script delegates to install.ps1
+REM This script delegates to install.ps1 (GitHub Releases by default, PVR_SOURCE=gitlab for GitLab)
 
 setlocal
 
