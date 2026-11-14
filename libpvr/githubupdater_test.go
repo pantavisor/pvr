@@ -76,7 +76,7 @@ func testPvr(t *testing.T, tag string) *Pvr {
 	}}
 }
 
-// The digest in the release matches the installed marker: nothing is downloaded.
+// The digest in the release matches the installed version file: nothing is downloaded.
 func TestUpdateFromGitHubAlreadyCurrent(t *testing.T) {
 	arch, ext, err := packageArchExt()
 	if err != nil {

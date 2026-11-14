@@ -20,11 +20,11 @@ GitLab, and how a release is cut during the move.
 | Rolling build of the default branch | package `master` | prerelease `main-snapshot` |
 | Docker images | `registry.gitlab.com/pantacor/pvr` | `ghcr.io/pantavisor/pvr` |
 | CI | `.gitlab-ci.yml` | `.github/workflows/` |
-| Test fixture (100 MB) | in git | release asset `test-data/initial_state_01.tar.gz` |
+| Test data (100 MB) | in git | release asset `test-data/initial_state_01.tar.gz` |
 
 The history on `main-draft` is the GitLab `master` history without the 100 MB
-test fixture, so commit hashes from 2023-05 on differ from GitLab's. The tags
-were rewritten the same way. The fixture is downloaded and checked against its
+test data file, so commit hashes from 2023-05 on differ from GitLab's. The tags
+were rewritten the same way. The file is downloaded and checked against its
 sha256 by `_test/helpers` when the tests run; do not delete the `test-data`
 release.
 
