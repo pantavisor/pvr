@@ -9,6 +9,31 @@ dir=$(sh -c "cd $(dirname $cmd); pwd")
 
 pvr="$dir/pvr"
 
+# The initial state tarball is 100 MB, too big for git; it is a release asset.
+TEST_DATA_URL="https://github.com/pantavisor/pvr/releases/download/test-data/initial_state_01.tar.gz"
+TEST_DATA_SHA256="1a2fee45662524a1ee2cd34d3c4665d663f871e6c1f019ebacba340ec720f034"
+
+fetch_test_data() {
+    f="$dir/mocks/data/initial_state_01.tar.gz"
+    if [ -f "$f" ] && [ "$(sha256sum "$f" | cut -d' ' -f1)" = "$TEST_DATA_SHA256" ]; then
+        return 0
+    fi
+    echo "downloading test data from $TEST_DATA_URL" >&2
+    rm -f "$f"
+    if command -v curl >/dev/null 2>&1; then
+        curl -fsSL -o "$f" "$TEST_DATA_URL"
+    else
+        wget -q -O "$f" "$TEST_DATA_URL"
+    fi
+    if [ "$(sha256sum "$f" | cut -d' ' -f1)" != "$TEST_DATA_SHA256" ]; then
+        echo "checksum mismatch for $f" >&2
+        rm -f "$f"
+        exit 1
+    fi
+}
+
+fetch_test_data
+
 clean_results() {
     rm -rf $dir/results/* >/dev/null 2>&1
     rm -rf $dir/results/.pv >/dev/null 2>&1
