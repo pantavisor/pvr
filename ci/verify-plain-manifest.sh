@@ -2,8 +2,9 @@
 #
 # verify-plain-manifest.sh <project-path> <tag> [<tag> ...]
 #
-# Fails the CI job if any of the given tags in the GitLab container registry is
-# NOT a plain Docker v2 image manifest.
+# Fails the CI job if any of the given tags in the container registry is
+# NOT a plain Docker v2 image manifest. Works against GitLab (default) and
+# GitHub (REGISTRY=ghcr.io).
 #
 # Why this exists: `pvr self-upgrade` on already-deployed clients uses
 # libpvr/dockerlib_legacy.go, which requests ONLY
@@ -14,12 +15,13 @@
 #
 # This guard requests each channel tag EXACTLY as an old pvr client does and
 # fails if the response isn't a plain v2 manifest, so such an image can never
-# be shipped again. .gitlab-ci.yml sets BUILDX_NO_DEFAULT_ATTESTATIONS=1 to
+# be shipped again. The CI configs set BUILDX_NO_DEFAULT_ATTESTATIONS=1 to
 # prevent it; this is the belt-and-suspenders check that it actually worked.
 #
 set -eu
 
-REGISTRY="registry.gitlab.com"
+# REGISTRY=ghcr.io needs REGISTRY_USER and REGISTRY_TOKEN (a token that can read the package).
+REGISTRY="${REGISTRY:-registry.gitlab.com}"
 PLAIN="application/vnd.docker.distribution.manifest.v2+json"
 
 if [ "$#" -lt 2 ]; then
@@ -30,9 +32,12 @@ fi
 REPO="$1"
 shift
 
-# Pull token scoped to this repository. In CI, CI_JOB_TOKEN authenticates as
-# gitlab-ci-token; fall back to an anonymous token for public projects.
-if [ -n "${CI_JOB_TOKEN:-}" ]; then
+# Pull token scoped to this repository.
+if [ "$REGISTRY" = "ghcr.io" ]; then
+	TOKEN=$(curl -sf -u "${REGISTRY_USER:-token}:${REGISTRY_TOKEN:-}" \
+		"https://ghcr.io/token?service=ghcr.io&scope=repository:${REPO}:pull" \
+		| sed -n 's/.*"token":"\([^"]*\)".*/\1/p')
+elif [ -n "${CI_JOB_TOKEN:-}" ]; then
 	TOKEN=$(curl -sf -u "gitlab-ci-token:${CI_JOB_TOKEN}" \
 		"https://gitlab.com/jwt/auth?service=container_registry&scope=repository:${REPO}:pull" \
 		| sed -n 's/.*"token":"\([^"]*\)".*/\1/p')

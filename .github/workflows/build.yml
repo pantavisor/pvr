@@ -1,0 +1,152 @@
+name: build
+
+on:
+  push:
+    branches: ['**']
+    tags: ['**']
+  # Same-repo branches are built by the push trigger; this covers forks, which cannot push images.
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  IMAGE: ghcr.io/pantavisor/pvr
+  # buildkit would wrap the image in an OCI index with an attestation, and
+  # pvr self-upgrade (libpvr/dockerlib_legacy.go) only reads plain v2 manifests.
+  BUILDX_NO_DEFAULT_ATTESTATIONS: "1"
+
+jobs:
+  build:
+    # Fork pull requests get a build only; push events are skipped for them.
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [default, go1.21]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Work out image tags
+        id: tags
+        env:
+          VARIANT: ${{ matrix.variant }}
+          EVENT: ${{ github.event_name }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -eu
+          sha=$(printf %s "$GITHUB_SHA" | cut -c1-8)
+          # Same as GitLab's CI_COMMIT_REF_SLUG: lowercase, non-alphanumerics to '-', 63 chars, no edge '-'.
+          slug=$(printf %s "$REF_NAME" | tr 'A-Z' 'a-z' | sed 's/[^a-z0-9]/-/g' | cut -c1-63 | sed 's/^-*//; s/-*$//')
+          sfx=""
+          [ "$VARIANT" = go1.21 ] && sfx="-go1.21"
+          if [ "$EVENT" = pull_request ]; then
+            slug=$(printf %s "$GITHUB_HEAD_REF" | tr 'A-Z' 'a-z' | sed 's/[^a-z0-9]/-/g' | cut -c1-63 | sed 's/^-*//; s/-*$//')
+          fi
+          if [ "$REF_TYPE" = tag ]; then
+            dockertag=stable
+            tags="${sha}${sfx} stable${sfx} ${REF_NAME}${sfx}"
+            verify="stable${sfx} ${sha}${sfx}"
+            [ "$VARIANT" = default ] && verify="$verify ${REF_NAME}"
+          elif [ "$REF_NAME" = main ] || [ "$REF_NAME" = main-draft ]; then
+            dockertag=latest
+            tags="${sha}${sfx} latest${sfx}"
+            verify="latest${sfx} ${sha}${sfx}"
+          else
+            dockertag="${slug}-${sha}"
+            if [ "$VARIANT" = go1.21 ]; then
+              tags="${slug}-go1.21 ${slug}-go1.21-${sha} ${sha}-go1.21"
+              verify="${slug}-go1.21 ${sha}-go1.21"
+            else
+              tags="${slug} ${slug}-${sha} ${sha}"
+              verify="${slug} ${sha}"
+            fi
+          fi
+          first=${tags%% *}
+          {
+            echo "sha=$sha"
+            echo "slug=$slug"
+            echo "dockertag=$dockertag"
+            echo "tags=$tags"
+            echo "verify=$verify"
+            echo "first=$first"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Build image
+        env:
+          VARIANT: ${{ matrix.variant }}
+          DOCKERTAG: ${{ steps.tags.outputs.dockertag }}
+          TAGS: ${{ steps.tags.outputs.tags }}
+        run: |
+          set -eu
+          file=Dockerfile
+          [ "$VARIANT" = go1.21 ] && file=Dockerfile.go1.21
+          targs=""
+          for t in $TAGS; do targs="$targs --tag $IMAGE:$t"; done
+          docker build -f "$file" --build-arg "DOCKERTAG=$DOCKERTAG" $targs .
+
+      - name: Log in to ghcr.io
+        if: github.event_name == 'push'
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: echo "$TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+
+      - name: Push image
+        if: github.event_name == 'push'
+        env:
+          TAGS: ${{ steps.tags.outputs.tags }}
+        run: |
+          set -eu
+          for t in $TAGS; do docker push "$IMAGE:$t"; done
+
+      # Old pvr self-upgrade reads plain v2 manifests only.
+      - name: Check manifests are plain v2
+        if: github.event_name == 'push'
+        env:
+          VERIFY: ${{ steps.tags.outputs.verify }}
+          REGISTRY: ghcr.io
+          REGISTRY_USER: ${{ github.actor }}
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: sh ci/verify-plain-manifest.sh pantavisor/pvr $VERIFY
+
+      - name: Package binaries
+        env:
+          VARIANT: ${{ matrix.variant }}
+          FIRST: ${{ steps.tags.outputs.first }}
+          VERSION: ${{ steps.tags.outputs.slug }}
+        run: ci/package-assets.sh "$VARIANT" "$VERSION" dist "$IMAGE:$FIRST"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: pvr-${{ matrix.variant }}
+          path: dist/
+          retention-days: 14
+
+  # The utils image is built from the pvr image of the develop branch.
+  utils:
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Build and push utils image
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -eu
+          sha=$(printf %s "$GITHUB_SHA" | cut -c1-8)
+          echo "$TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker build -f Dockerfile.utils --build-arg "PVR_IMAGE=$IMAGE:develop" \
+            --tag "$IMAGE:utils-develop" --tag "$IMAGE:utils-develop-$sha" .
+          docker push "$IMAGE:utils-develop"
+          docker push "$IMAGE:utils-develop-$sha"

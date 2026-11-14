@@ -1,0 +1,122 @@
+name: release
+
+# Tag push: GitHub Release `<tag>`. Push to main / main-draft: rolling prerelease `main-snapshot`.
+# workflow_dispatch with a tag builds (or rebuilds) the release of an existing tag.
+on:
+  push:
+    tags: ['[0-9][0-9][0-9]*']
+    branches: [main, main-draft]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to release, for example 059
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.event_name == 'push' && github.ref_type == 'branch' && 'snapshot' || inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      BUILDX_NO_DEFAULT_ATTESTATIONS: "1"
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      # The workflow checkout carries the ci scripts, which old tags do not have.
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          path: wf
+
+      - name: Pick what to release
+        id: what
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          set -eu
+          if [ "$GITHUB_REF_TYPE" = branch ]; then
+            echo "version=main-snapshot" >> "$GITHUB_OUTPUT"
+            echo "ref=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+            echo "dockertag=latest" >> "$GITHUB_OUTPUT"
+          else
+            tag=${INPUT_TAG:-$GITHUB_REF_NAME}
+            echo "version=$tag" >> "$GITHUB_OUTPUT"
+            echo "ref=refs/tags/$tag" >> "$GITHUB_OUTPUT"
+            echo "dockertag=stable" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ steps.what.outputs.ref }}
+          path: src
+
+      - name: Build images
+        env:
+          DOCKERTAG: ${{ steps.what.outputs.dockertag }}
+        run: |
+          set -eu
+          cd src
+          docker build --build-arg "DOCKERTAG=$DOCKERTAG" -t pvr-build:default .
+          docker build -f Dockerfile.go1.21 --build-arg "DOCKERTAG=$DOCKERTAG" -t pvr-build:go1.21 .
+
+      - name: Package assets
+        env:
+          VERSION: ${{ steps.what.outputs.version }}
+        run: |
+          set -eu
+          wf/ci/package-assets.sh src "$VERSION" dist src
+          wf/ci/package-assets.sh default "$VERSION" dist pvr-build:default
+          wf/ci/package-assets.sh go1.21 "$VERSION" dist pvr-build:go1.21
+          ls -l dist
+          (cd dist && sha256sum *)
+
+      - name: Write release notes
+        env:
+          VERSION: ${{ steps.what.outputs.version }}
+        run: |
+          set -eu
+          if [ "$VERSION" = main-snapshot ]; then
+            printf 'Rolling build of %s, rebuilt on every push to main.\n' "$GITHUB_SHA" > notes.md
+          else
+            # The CHANGELOG section of this tag, up to the next version anchor.
+            awk -v h="## [$VERSION]" 'index($0, "<a name=") == 1 { if (on) exit; next } index($0, h) == 1 { on = 1 } on' src/CHANGELOG.md | sed '1d' | sed '/./,$!d' > notes.md
+            [ -s notes.md ] || echo "Release $VERSION" > notes.md
+          fi
+          cat notes.md
+
+      - name: Publish tagged release
+        if: steps.what.outputs.version != 'main-snapshot'
+        env:
+          VERSION: ${{ steps.what.outputs.version }}
+        run: |
+          set -eu
+          if printf %s "$VERSION" | grep -Eq '^[0-9]+(-rev[0-9]+)?$'; then
+            flags="--latest"
+          else
+            flags="--prerelease --latest=false"
+          fi
+          if gh release view "$VERSION" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$VERSION" dist/* --clobber -R "$GITHUB_REPOSITORY"
+            gh release edit "$VERSION" --notes-file notes.md $flags -R "$GITHUB_REPOSITORY"
+          else
+            gh release create "$VERSION" dist/* --title "$VERSION" --notes-file notes.md --verify-tag $flags -R "$GITHUB_REPOSITORY"
+          fi
+
+      - name: Publish main-snapshot
+        if: steps.what.outputs.version == 'main-snapshot'
+        run: |
+          set -eu
+          cd src
+          git tag -f main-snapshot "$GITHUB_SHA"
+          git push -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" refs/tags/main-snapshot
+          cd ..
+          if gh release view main-snapshot -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload main-snapshot dist/* --clobber -R "$GITHUB_REPOSITORY"
+            gh release edit main-snapshot --notes-file notes.md --prerelease --latest=false -R "$GITHUB_REPOSITORY"
+          else
+            gh release create main-snapshot dist/* --title main-snapshot --notes-file notes.md --prerelease --latest=false --verify-tag -R "$GITHUB_REPOSITORY"
+          fi
