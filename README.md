@@ -6,11 +6,19 @@ versioned JSON document with an object store backend.
 ## Quick Install
 
 ```bash
-curl -sL https://gitlab.com/pantacor/pvr/-/raw/master/install.sh | bash
+curl -sL https://raw.githubusercontent.com/pantavisor/pvr/main/install.sh | bash
 ```
 
 Pre-built binaries for various architectures are available on the
-[GitLab package registry](https://gitlab.com/pantacor/pvr/-/packages).
+[GitHub releases page](https://github.com/pantavisor/pvr/releases). The
+install script and `pvr self-upgrade` read GitHub releases and fall back to
+the old GitLab packages; see [docs/github-migration.md](docs/github-migration.md).
+
+Or with Go:
+
+```bash
+go install github.com/pantavisor/pvr@latest
+```
 
 To upgrade a system installation to the latest stable release:
 
@@ -19,7 +27,8 @@ sudo pvr self-upgrade --channel stable
 ```
 
 `--channel` overrides `DistributionTag` for this upgrade without saving it.
-It also accepts `master` (or `latest`) and explicit versions such as `056`.
+It also accepts `master` (or `latest`, `main`), which is the rolling
+`main-snapshot` build, and explicit versions such as `056`.
 Without it, pvr uses the current user's global configuration: `sudo pvr`
 normally reads root's configuration, independently of your own `pvr global-config`.
 On older clients without `--channel`, set the channel for root first:
@@ -35,7 +44,7 @@ new release tag is created. The revision identifies the actual source commit.
 ### Build from source
 
 ```bash
-git clone https://gitlab.com/pantacor/pvr.git
+git clone https://github.com/pantavisor/pvr.git
 cd pvr
 go build -o ~/bin/pvr ./cmd/pvr
 ```
@@ -103,3 +112,9 @@ For template variables and how the manifest generation system works, see
 | `PVR_HTTP_PROXY` | `system` | HTTP proxy mode (`no`, URL, or `system`) |
 | `PVR_INSECURE` | false | Skip TLS verification |
 | `PVR_DEBUG` | false | Enable debug output |
+
+## Contributing
+
+Issues and pull requests go to <https://github.com/pantavisor/pvr>; see
+[CONTRIBUTING.md](CONTRIBUTING.md). pvr moved from GitLab to GitHub, see
+[docs/github-migration.md](docs/github-migration.md).

@@ -45,10 +45,28 @@ Update the PVR binary to the latest version.
 pvr self-upgrade
 ```
 
-Requires root/sudo to write to the installation path. Downloads and extracts
-the latest release from the GitLab package registry.
+Requires root/sudo to write to the installation path. Downloads the release
+asset from [GitHub releases](https://github.com/pantavisor/pvr/releases),
+verifies its sha256 and installs it. If GitHub is unreachable, or the version
+only exists on GitLab (up to 059), it falls back to the GitLab package
+registry, then to the docker images on `ghcr.io/pantavisor/pvr` and
+`registry.gitlab.com/pantacor/pvr`. The message says which source was used.
 
-**Flags:** none
+```bash
+sudo pvr self-upgrade --channel stable      # newest release
+sudo pvr self-upgrade --channel main        # rolling main-snapshot build
+sudo pvr self-upgrade --channel 059         # a specific version
+```
+
+`stable` is the newest release tag (`NNN` or `NNN-revNNN`); `latest`, `master`,
+`develop` and `main` are the rolling `main-snapshot` prerelease; anything else
+is taken as a release tag. Set `GITHUB_TOKEN` to avoid GitHub API rate limits.
+
+**Flags:**
+
+| Flag | Description |
+|------|-------------|
+| `--channel` | Distribution channel or version to install; overrides global-config for this upgrade |
 
 ---
 
