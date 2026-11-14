@@ -69,6 +69,9 @@ type deviceImage struct {
 	Base        string `json:"base,omitempty"`
 	Factory     string `json:"factory,omitempty"`
 	MakeFactory bool   `json:"make_factory,omitempty"`
+	// Release is a meta-pantavisor CI release's full image to remix, for
+	// the default OEM: no image base build.
+	Release *imageRelease `json:"release,omitempty"`
 	// Identity is the signing identity whose trust the images get; none
 	// is the builder's default OEM (pv-oem-developer-001, public developer
 	// keys, development devices only).
@@ -93,13 +96,18 @@ type imageWiFi struct {
 	PasswordSecret string `json:"password_secret,omitempty"`
 }
 
+type imageRelease struct {
+	Version string `json:"version"`
+	Board   string `json:"board"`
+}
+
 type imageDevice struct {
 	Device   string `json:"device"`
 	Revision int    `json:"revision"`
 }
 
 // imageFlags are the flags of an image build; deviceImageFrom reads them.
-var imageFlags = []string{"base", "factory", "make-factory", "identity", "app-build", "device", "policy", "secureboot", "pantahub-host", "group-timeout",
+var imageFlags = []string{"base", "factory", "release", "make-factory", "identity", "app-build", "device", "policy", "secureboot", "pantahub-host", "group-timeout",
 	"autojoin-secret", "wifi-ssid", "wifi-password-secret"}
 
 func deviceImageFrom(c *cli.Context) (*deviceImage, error) {
@@ -113,8 +121,24 @@ func deviceImageFrom(c *cli.Context) (*deviceImage, error) {
 		return nil, errors.New("--group-timeout changes the BSP's device.json: give it to the factory build or to an image built from --base")
 	}
 	img.GroupTimeouts = timeouts
-	if (img.Base == "") == (img.Factory == "") || (img.Base != "" && !executionID.MatchString(img.Base)) || (img.Factory != "" && !executionID.MatchString(img.Factory)) {
-		return nil, errors.New("--base (an image base build) or --factory (a factory build) is needed, one of them")
+	if r := c.String("release"); r != "" {
+		version, board, ok := strings.Cut(r, "/")
+		if !ok || version == "" || board == "" || strings.Contains(board, "/") {
+			return nil, errors.New("--release is VERSION/BOARD of a meta-pantavisor CI release, such as 030/rpi-scarthgap (see https://pantavisor.io/downloads)")
+		}
+		img.Release = &imageRelease{Version: version, Board: board}
+	}
+	sources := 0
+	for _, set := range []bool{img.Base != "", img.Factory != "", img.Release != nil} {
+		if set {
+			sources++
+		}
+	}
+	if sources != 1 || (img.Base != "" && !executionID.MatchString(img.Base)) || (img.Factory != "" && !executionID.MatchString(img.Factory)) {
+		return nil, errors.New("--base (an image base build), --factory (a factory build) or --release (a meta-pantavisor CI release) is needed, one of them")
+	}
+	if img.Release != nil && ((img.Identity != "" && img.Identity != image.DefaultOEMName) || img.MakeFactory || len(img.Policies) > 0 || len(timeouts) > 0) {
+		return nil, errors.New("--release images are of the default OEM (" + image.DefaultOEMName + ") and keep the release's initrd: no --identity, --policy, --make-factory or --group-timeout; those need --base")
 	}
 	if img.MakeFactory && (img.Factory != "" || len(img.Apps) > 0 || c.String("device") != "" || c.String("oem") != "" ||
 		c.IsSet("autojoin-secret") || c.IsSet("wifi-ssid") || c.IsSet("wifi-password-secret")) {
@@ -322,7 +346,7 @@ func start(c *cli.Context) error {
 	if c.String("git-url") != "" && !c.IsSet("mode") {
 		in.Mode = "git"
 	}
-	if (c.String("base") != "" || c.String("factory") != "") && !c.IsSet("mode") {
+	if (c.String("base") != "" || c.String("factory") != "" || c.String("release") != "") && !c.IsSet("mode") {
 		in.Mode = "image"
 	}
 	for _, flag := range imageFlags {
@@ -686,6 +710,7 @@ func CommandBuild() cli.Command {
 				cli.StringFlag{Name: "idempotency-key", Usage: "stable submission key; generated and printed when omitted"},
 				cli.StringFlag{Name: "image-base", Usage: "git build of meta-pantavisor: build its image base with these comma-separated kas files instead of an app (see the Hub's /docs/guide/builds-images)"},
 				cli.StringFlag{Name: "base", Usage: "image build: id of the image base build (sets --mode image)"},
+				cli.StringFlag{Name: "release", Usage: "image build: VERSION/BOARD of a meta-pantavisor CI release to remix instead of --base, such as 030/rpi-scarthgap (sets --mode image): default OEM, no image base build"},
 				cli.StringFlag{Name: "factory", Usage: "image build: id of a factory build of the identity to start from (sets --mode image): no BSP signing, seconds"},
 				cli.BoolFlag{Name: "make-factory", Usage: "image build: make secret-free factory images of --base, one per --policy, for later image builds"},
 				cli.StringFlag{Name: "identity", Usage: "image build: signing identity whose trust the images get; its platform key signs the BSP (default: the builder's pv-oem-developer-001, public developer keys, development devices only)"},
