@@ -1,4 +1,13 @@
 
+<a name="059"></a>
+## [059](https://gitlab.com/pantacor/pvr/compare/058...059) (2026-11-14)
+
+### Feat
+
+* **build:** --release VERSION/BOARD for image builds of a meta-pantavisor CI release
+* **image:** assemble from a full image (.wic or CI release tarball)
+
+
 <a name="058"></a>
 ## [058](https://gitlab.com/pantacor/pvr/compare/057...058) (2026-11-06)
 
