@@ -37,12 +37,13 @@ curl -fsSL https://raw.githubusercontent.com/pantavisor/pvr/main/install.sh | ba
 # the old source, for as long as it is kept in sync
 curl -fsSL https://raw.githubusercontent.com/pantavisor/pvr/main/install.sh | PVR_SOURCE=gitlab bash
 
-# with Go
-go install github.com/pantavisor/pvr@latest
-
 # upgrade an installed pvr
 sudo pvr self-upgrade --channel stable
 ```
+
+`go install github.com/pantavisor/pvr@latest` does not work, because `go.mod`
+has `replace` directives, which `go install` rejects. Build from a clone
+instead (`go build -o pvr .`).
 
 Channels: `stable` is the newest release (`NNN` or `NNN-revNNN`); `latest`,
 `master`, `develop` and `main` are the rolling `main-snapshot`; anything else

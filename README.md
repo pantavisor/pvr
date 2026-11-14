@@ -14,12 +14,6 @@ Pre-built binaries for various architectures are available on the
 install script and `pvr self-upgrade` read GitHub releases and fall back to
 the old GitLab packages; see [docs/github-migration.md](docs/github-migration.md).
 
-Or with Go:
-
-```bash
-go install github.com/pantavisor/pvr@latest
-```
-
 To upgrade a system installation to the latest stable release:
 
 ```bash
