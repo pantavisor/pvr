@@ -28,7 +28,7 @@
 #
 set -eu
 
-IMAGE="registry.gitlab.com/pantacor/pvr"
+IMAGE="${IMAGE:-registry.gitlab.com/pantacor/pvr}"
 
 if [ "$#" -lt 1 ]; then
 	echo "usage: $0 <tag> [<tag> ...]" >&2

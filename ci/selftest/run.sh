@@ -9,8 +9,9 @@
 #     path (the path that broke when :stable/:develop became attestation
 #     indexes -- this is the regression guard)
 #   - a master build self-upgrading via the generic-package path
+#   - install.sh from GitHub releases (059 and main-snapshot)
 #
-# Requires: docker, network access to gitlab.com. Runs against the LIVE
+# Requires: docker, network access to gitlab.com and github.com. Runs against the LIVE
 # registry/packages, so it also confirms the published channels are healthy.
 #
 # Usage:  ci/selftest/run.sh

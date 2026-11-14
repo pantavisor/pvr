@@ -2,7 +2,7 @@
 
 A clean-container test that exercises the two real ways pvr lands on a machine
 and keeps itself current, against the **live** GitLab registry and package
-registry.
+registry (the bridge for old clients) and GitHub releases.
 
 ```sh
 ci/selftest/run.sh
@@ -15,6 +15,7 @@ ci/selftest/run.sh
 | `install.sh` stable / develop channels | GitLab generic packages |
 | release `051` client, `DistributionTag` = stable / develop / latest | docker-registry **manifest** path |
 | `master` build, self-upgrade | GitLab generic **package** path |
+| `install.sh` from GitHub releases (`059`, `main-snapshot`) | GitHub release assets |
 
 The release-client cases are the regression guard for the incident where the
 `:stable` and `:develop` docker tags were pushed as buildkit OCI **attestation
@@ -28,7 +29,7 @@ channel manifest from being published in the first place.
 
 ## Notes
 
-- Requires `docker` and outbound access to `gitlab.com`.
+- Requires `docker` and outbound access to `gitlab.com` and `github.com`.
 - Runs on the host architecture (amd64 or arm64); the docker image bundles
   every arch's binary, so self-upgrade extracts the right one via
   `GetPlatform()`.

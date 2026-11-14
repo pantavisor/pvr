@@ -1,4 +1,4 @@
-ARG PVR_IMAGE=registry.gitlab.com/pantacor/pvr:develop
+ARG PVR_IMAGE=ghcr.io/pantavisor/pvr:develop
 FROM ${PVR_IMAGE} AS pvr
 
 FROM alpine:3.18
