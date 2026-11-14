@@ -20,9 +20,9 @@ import (
 	"time"
 
 	"github.com/go-resty/resty"
+	"github.com/pantavisor/pvr/libpvr"
+	"github.com/pantavisor/pvr/libpvr/image"
 	"github.com/urfave/cli"
-	"gitlab.com/pantacor/pvr/libpvr"
-	"gitlab.com/pantacor/pvr/libpvr/image"
 )
 
 // maxArtifact is the largest artifact object (one S3 upload); builds made

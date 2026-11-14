@@ -19,8 +19,8 @@ package app
 import (
 	"os"
 
+	"github.com/pantavisor/pvr/libpvr"
 	"github.com/urfave/cli"
-	"gitlab.com/pantacor/pvr/libpvr"
 )
 
 // CommandAppList : pvr app ls command to list all apps

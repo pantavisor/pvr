@@ -22,9 +22,9 @@ import (
 	"log"
 	"strings"
 
+	"github.com/pantavisor/pvr/libpvr"
+	"github.com/pantavisor/pvr/utils/pvjson"
 	"github.com/urfave/cli"
-	"gitlab.com/pantacor/pvr/libpvr"
-	"gitlab.com/pantacor/pvr/utils/pvjson"
 )
 
 // metaFieldForAuth resolves which meta field the current credentials may

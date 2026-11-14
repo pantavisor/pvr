@@ -26,8 +26,8 @@ import (
 	"sync"
 	"syscall"
 
+	"github.com/pantavisor/pvr/libpvr"
 	"github.com/urfave/cli"
-	"gitlab.com/pantacor/pvr/libpvr"
 )
 
 // commandArgs returns the positional arguments of a command declared with

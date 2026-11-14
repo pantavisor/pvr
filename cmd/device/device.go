@@ -17,8 +17,8 @@
 package device
 
 import (
+	"github.com/pantavisor/pvr/cmd/device/tokens"
 	"github.com/urfave/cli"
-	"gitlab.com/pantacor/pvr/cmd/device/tokens"
 )
 
 // CommandDevice : pvr device command

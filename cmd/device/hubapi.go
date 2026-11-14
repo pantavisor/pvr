@@ -33,7 +33,7 @@ import (
 	"time"
 
 	"github.com/go-resty/resty"
-	"gitlab.com/pantacor/pvr/libpvr"
+	"github.com/pantavisor/pvr/libpvr"
 )
 
 // hubCaller makes one authenticated call: body, when not nil, is sent as

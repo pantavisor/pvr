@@ -48,7 +48,7 @@ import (
 	"github.com/genuinetools/reg/registry"
 	"github.com/genuinetools/reg/repoutils"
 	"github.com/google/go-containerregistry/pkg/authn"
-	"gitlab.com/pantacor/pvr/utils/pvjson"
+	"github.com/pantavisor/pvr/utils/pvjson"
 )
 
 const (

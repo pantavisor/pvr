@@ -21,7 +21,7 @@ import (
 	"log"
 	"strings"
 
-	"gitlab.com/pantacor/pvr/libpvr"
+	"github.com/pantavisor/pvr/libpvr"
 
 	"github.com/urfave/cli"
 )

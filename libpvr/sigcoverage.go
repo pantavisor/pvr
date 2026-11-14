@@ -17,7 +17,7 @@ import (
 	"fmt"
 	"sort"
 
-	"gitlab.com/pantacor/pvr/utils/pvjson"
+	"github.com/pantavisor/pvr/utils/pvjson"
 )
 
 // SignatureCoverage reports which keys of state the pvs@2 signature stored

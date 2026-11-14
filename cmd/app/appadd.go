@@ -22,11 +22,11 @@ import (
 	"os"
 	"strings"
 
-	"gitlab.com/pantacor/pvr/libpvr"
-	"gitlab.com/pantacor/pvr/models"
+	"github.com/pantavisor/pvr/libpvr"
+	"github.com/pantavisor/pvr/models"
 
+	"github.com/pantavisor/pvr/utils/pvjson"
 	"github.com/urfave/cli"
-	"gitlab.com/pantacor/pvr/utils/pvjson"
 )
 
 // SourceFlagUsage : Source Flag Usage Description

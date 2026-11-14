@@ -25,8 +25,8 @@ import (
 	"strings"
 
 	"github.com/go-resty/resty"
+	"github.com/pantavisor/pvr/libpvr"
 	"github.com/urfave/cli"
-	"gitlab.com/pantacor/pvr/libpvr"
 )
 
 // short curl flags that take a value as the next argv element (only when the

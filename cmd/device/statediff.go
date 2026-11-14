@@ -23,10 +23,10 @@ import (
 	"strings"
 
 	"github.com/highercomve/jsondiff"
+	"github.com/pantavisor/pvr/libpvr"
+	"github.com/pantavisor/pvr/utils/pvjson"
 	"github.com/pmezard/go-difflib/difflib"
 	"github.com/urfave/cli"
-	"gitlab.com/pantacor/pvr/libpvr"
-	"gitlab.com/pantacor/pvr/utils/pvjson"
 )
 
 func CommandStateDiff() cli.Command {

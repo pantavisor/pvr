@@ -42,11 +42,11 @@ export DEBUG OPTIMIZE
 ifeq ($(DEBUG), 1)
     BUILD_TYPE = debug
     GCFLAGS = -gcflags="all=-N -l"
-    LDFLAGS = -ldflags="-X 'gitlab.com/pantacor/pvr/cmd.Version=$(VERSION)' -X 'gitlab.com/pantacor/pvr/cmd.Revision=$(REVISION)' -extldflags=-static"
+    LDFLAGS = -ldflags="-X 'github.com/pantavisor/pvr/cmd.Version=$(VERSION)' -X 'github.com/pantavisor/pvr/cmd.Revision=$(REVISION)' -extldflags=-static"
 else
     BUILD_TYPE = release
     GCFLAGS = -gcflags="all=-N -l"
-    LDFLAGS = -ldflags="-s -w -X 'gitlab.com/pantacor/pvr/cmd.Version=$(VERSION)' -X 'gitlab.com/pantacor/pvr/cmd.Revision=$(REVISION)' -extldflags=-static"
+    LDFLAGS = -ldflags="-s -w -X 'github.com/pantavisor/pvr/cmd.Version=$(VERSION)' -X 'github.com/pantavisor/pvr/cmd.Revision=$(REVISION)' -extldflags=-static"
 endif
 
 BUILD_DIR ?= build

@@ -26,9 +26,9 @@ import (
 	"time"
 
 	"github.com/go-resty/resty"
+	"github.com/pantavisor/pvr/utils/pvjson"
 	"github.com/skratchdot/open-golang/open"
 	"gitlab.com/pantacor/pantahub-base/logs"
-	"gitlab.com/pantacor/pvr/utils/pvjson"
 )
 
 const (

@@ -23,8 +23,8 @@ import (
 	"os"
 	"path"
 
+	"github.com/pantavisor/pvr/libpvr"
 	"github.com/urfave/cli"
-	"gitlab.com/pantacor/pvr/libpvr"
 )
 
 func CommandClone() cli.Command {

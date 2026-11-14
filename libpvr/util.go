@@ -46,8 +46,8 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/pantavisor/pvr/utils/pvjson"
 	"github.com/udhos/equalfile"
-	"gitlab.com/pantacor/pvr/utils/pvjson"
 
 	"github.com/Masterminds/sprig"
 	"github.com/go-resty/resty"

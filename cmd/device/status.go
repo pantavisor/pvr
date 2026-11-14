@@ -22,9 +22,9 @@ import (
 	"strings"
 
 	"github.com/go-resty/resty"
+	"github.com/pantavisor/pvr/libpvr"
+	"github.com/pantavisor/pvr/utils/pvjson"
 	"github.com/urfave/cli"
-	"gitlab.com/pantacor/pvr/libpvr"
-	"gitlab.com/pantacor/pvr/utils/pvjson"
 )
 
 func CommandStatus() cli.Command {

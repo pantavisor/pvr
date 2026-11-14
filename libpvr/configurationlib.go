@@ -23,7 +23,7 @@ import (
 	"reflect"
 	"regexp"
 
-	"gitlab.com/pantacor/pvr/utils/pvjson"
+	"github.com/pantavisor/pvr/utils/pvjson"
 )
 
 const (

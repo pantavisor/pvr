@@ -1,4 +1,4 @@
-module gitlab.com/pantacor/pvr
+module github.com/pantavisor/pvr
 
 go 1.21
 

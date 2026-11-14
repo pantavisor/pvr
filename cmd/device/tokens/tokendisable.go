@@ -21,8 +21,8 @@ import (
 	"strconv"
 
 	"github.com/olekukonko/tablewriter"
+	"github.com/pantavisor/pvr/libpvr"
 	"github.com/urfave/cli"
-	"gitlab.com/pantacor/pvr/libpvr"
 )
 
 func CommandTokenDisable() cli.Command {

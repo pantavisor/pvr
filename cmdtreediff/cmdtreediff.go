@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"os"
 
-	"gitlab.com/pantacor/pvr/libpvr"
+	"github.com/pantavisor/pvr/libpvr"
 )
 
 func main() {

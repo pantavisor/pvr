@@ -22,8 +22,8 @@ import (
 	"time"
 
 	duration "github.com/ChannelMeter/iso8601duration"
+	"github.com/pantavisor/pvr/libpvr"
 	"github.com/urfave/cli"
-	"gitlab.com/pantacor/pvr/libpvr"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 

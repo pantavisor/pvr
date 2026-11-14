@@ -34,8 +34,8 @@ import (
 	"strings"
 
 	"github.com/go-resty/resty"
-	"gitlab.com/pantacor/pvr/models"
-	"gitlab.com/pantacor/pvr/utils/pvjson"
+	"github.com/pantavisor/pvr/models"
+	"github.com/pantavisor/pvr/utils/pvjson"
 	"gopkg.in/cheggaaa/pb.v1"
 )
 

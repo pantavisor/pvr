@@ -7,8 +7,8 @@ import (
 	"errors"
 	"os"
 
+	"github.com/pantavisor/pvr/libpvr/image"
 	"github.com/urfave/cli"
-	"gitlab.com/pantacor/pvr/libpvr/image"
 )
 
 // CommandImage makes flashable device images.

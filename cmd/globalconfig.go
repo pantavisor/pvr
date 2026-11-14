@@ -21,9 +21,9 @@ import (
 	"log"
 	"os"
 
+	"github.com/pantavisor/pvr/libpvr"
+	"github.com/pantavisor/pvr/utils/pvjson"
 	"github.com/urfave/cli"
-	"gitlab.com/pantacor/pvr/libpvr"
-	"gitlab.com/pantacor/pvr/utils/pvjson"
 )
 
 // CommandGlobalConfig read or set configuration

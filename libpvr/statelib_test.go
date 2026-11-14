@@ -19,8 +19,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/pantavisor/pvr/utils/pvjson"
 	"github.com/stretchr/testify/assert"
-	"gitlab.com/pantacor/pvr/utils/pvjson"
 )
 
 type args struct {

@@ -1,4 +1,5 @@
-FROM registry.gitlab.com/pantacor/pvr:develop AS pvr
+ARG PVR_IMAGE=registry.gitlab.com/pantacor/pvr:develop
+FROM ${PVR_IMAGE} AS pvr
 
 FROM alpine:3.18
 

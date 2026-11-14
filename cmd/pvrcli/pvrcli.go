@@ -28,17 +28,17 @@ import (
 	"syscall"
 
 	"github.com/go-resty/resty"
+	"github.com/pantavisor/pvr/cmd"
+	"github.com/pantavisor/pvr/cmd/app"
+	"github.com/pantavisor/pvr/cmd/builds"
+	"github.com/pantavisor/pvr/cmd/device"
+	"github.com/pantavisor/pvr/cmd/dm"
+	"github.com/pantavisor/pvr/cmd/fakeroot"
+	imagecmd "github.com/pantavisor/pvr/cmd/image"
+	"github.com/pantavisor/pvr/cmd/sig"
+	"github.com/pantavisor/pvr/cmd/wifi"
+	"github.com/pantavisor/pvr/libpvr"
 	"github.com/urfave/cli"
-	"gitlab.com/pantacor/pvr/cmd"
-	"gitlab.com/pantacor/pvr/cmd/app"
-	"gitlab.com/pantacor/pvr/cmd/builds"
-	"gitlab.com/pantacor/pvr/cmd/device"
-	"gitlab.com/pantacor/pvr/cmd/dm"
-	"gitlab.com/pantacor/pvr/cmd/fakeroot"
-	imagecmd "gitlab.com/pantacor/pvr/cmd/image"
-	"gitlab.com/pantacor/pvr/cmd/sig"
-	"gitlab.com/pantacor/pvr/cmd/wifi"
-	"gitlab.com/pantacor/pvr/libpvr"
 )
 
 // envOrDefault returns the value of the environment variable name, or

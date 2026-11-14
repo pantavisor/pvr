@@ -22,8 +22,8 @@ import (
 
 	"fmt"
 
+	"github.com/pantavisor/pvr/libpvr"
 	"github.com/urfave/cli"
-	"gitlab.com/pantacor/pvr/libpvr"
 )
 
 func CommandFastCopy() cli.Command {
