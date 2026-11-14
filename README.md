@@ -1,28 +1,39 @@
-# PVR — Pantavisor Repository
+# pvr
 
-PVR is the Pantavisor repository tool for managing device state as a
-versioned JSON document with an object store backend.
+pvr is the command-line tool for Pantavisor device state. A Pantavisor device
+runs a *state*: a versioned JSON document that lists its BSP, containers,
+volumes and configuration, with large files stored as content-addressed
+objects. pvr lets you check that state out into a directory, change it, commit
+it as a revision, sign it, and push it to a device or to
+[Pantahub](https://pantahub.com), which then updates the device over the air.
+It also builds apps and flashable images, and manages devices, Wi-Fi
+provisioning and account secrets.
 
-## Quick Install
+Pantavisor itself lives at [github.com/pantavisor/pantavisor](https://github.com/pantavisor/pantavisor).
+The full product documentation is at <https://docs.pantavisor.io>.
+
+## Install
 
 ```bash
 curl -sL https://raw.githubusercontent.com/pantavisor/pvr/main/install.sh | bash
 ```
 
-Pre-built binaries for various architectures are available on the
-[GitHub releases page](https://github.com/pantavisor/pvr/releases). The
-install script and `pvr self-upgrade` read GitHub releases and fall back to
-the old GitLab packages; see [docs/github-migration.md](docs/github-migration.md).
+The script installs `pvr` to `~/.local/bin`. Set `PVR_VERSION=059` to pin a
+version. Binaries for Linux (amd64, arm, arm64), macOS (amd64, arm64) and
+Windows (x32, x64) are also published on the
+[GitHub releases page](https://github.com/pantavisor/pvr/releases).
 
-To upgrade a system installation to the latest stable release:
+The install script and `pvr self-upgrade` read GitHub releases and fall back
+to the old GitLab packages, see [docs/github-migration.md](docs/github-migration.md).
+
+To upgrade an installed pvr:
 
 ```bash
 sudo pvr self-upgrade --channel stable
 ```
 
-`--channel` overrides `DistributionTag` for this upgrade without saving it.
-It also accepts `master` (or `latest`, `main`), which is the rolling
-`main-snapshot` build, and explicit versions such as `056`.
+`--channel` overrides `DistributionTag` for this upgrade without saving it. It
+also accepts `master` (or `latest`) and explicit versions such as `056`.
 Without it, pvr uses the current user's global configuration: `sudo pvr`
 normally reads root's configuration, independently of your own `pvr global-config`.
 On older clients without `--channel`, set the channel for root first:
@@ -32,40 +43,57 @@ sudo pvr global-config DistributionTag=stable
 sudo pvr self-upgrade
 ```
 
-Master builds can report the preceding release number when built before a
-new release tag is created. The revision identifies the actual source commit.
-
 ### Build from source
 
 ```bash
 git clone https://github.com/pantavisor/pvr.git
 cd pvr
-go build -o ~/bin/pvr ./cmd/pvr
+go build -o ~/bin/pvr .
 ```
 
-Requires Go 1.21+.
+Requires Go 1.24 (`go.mod`). `make build-linux-amd64` and the other
+`build-*` targets in the `Makefile` produce static binaries.
 
-## Basics
+## Quick start
 
 ```bash
-# Start a new repository
-pvr init
+# Clone the state of a device from Pantahub
+pvr login
+pvr clone https://pvr.pantahub.com/<user>/<device> my-device
+cd my-device
 
-# Clone an existing device state
-pvr clone https://pvr.pantahub.com/user/device my-device
-
-# Add a container app
+# Add a container app from a registry image
 pvr app add nginx --from=nginx:alpine
 
-# Stage, review, and commit
+# Stage, review and commit
 pvr add .
 pvr status
 pvr diff
 pvr commit -m "add nginx"
 
-# Deploy to device
+# Deploy to the device
 pvr post https://api.pantahub.com/trails/<DEVICE_ID>
 ```
+
+Start a new, empty state instead of cloning with `pvr init`.
+
+## Commands
+
+Run `pvr --help` or `pvr <command> --help` for flags. Groups:
+
+| Group | Commands | Reference |
+|-------|----------|-----------|
+| Repository | `init`, `add`, `status`, `diff`, `commit`, `json`, `inspect`, `reset` | [repo.md](docs/commands/repo.md) |
+| Clone and merge | `clone`, `get`, `merge` | [clone-get-merge.md](docs/commands/clone-get-merge.md) |
+| Push | `put`, `post`, `export`, `import`, `putobjects` | [push.md](docs/commands/push.md) |
+| Apps | `app add`, `app ls`, `app info`, `app rm`, `app install`, `app update` | [app.md](docs/commands/app.md) |
+| Remote builds | `build start`, `status`, `logs`, `download`, `cancel`, `list`, `usage`; `secret`, `signing` | [build.md](docs/commands/build.md) |
+| Devices | `device ps`, `logs`, `scan`, `ssh`, `tty`, ... | [device.md](docs/commands/device.md) |
+| Signatures | `sig add`, `update`, `ls`, `download` | [sig.md](docs/commands/sig.md) |
+| Wi-Fi provisioning | `wifi ...` | [wifi.md](docs/commands/wifi.md) |
+| Auth | `login`, `whoami`, `register`, `curl`, `claim` | [auth.md](docs/commands/auth.md) |
+| Low level | `dm-apply`, `dm-convert`, `fakeroot`, `fastcopy`, `deploy`, `global-config` | [lowlevel.md](docs/commands/lowlevel.md) |
+| Utilities | `version`, `completion`, `self-upgrade`, `remoteinfo`, `stepinfo` | [utils.md](docs/commands/utils.md) |
 
 ## Documentation
 
@@ -109,6 +137,11 @@ For template variables and how the manifest generation system works, see
 
 ## Contributing
 
-Issues and pull requests go to <https://github.com/pantavisor/pvr>; see
-[CONTRIBUTING.md](CONTRIBUTING.md). pvr moved from GitLab to GitHub, see
-[docs/github-migration.md](docs/github-migration.md).
+Issues and pull requests are welcome at <https://github.com/pantavisor/pvr>.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for commit style, tests and releases,
+and [AGENTS.md](AGENTS.md) for notes aimed at AI coding agents.
+[llms.txt](llms.txt) indexes the docs for LLMs.
+
+## License
+
+Apache License 2.0, see [LICENSE](LICENSE).

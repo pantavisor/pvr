@@ -5,6 +5,19 @@ Write commit messages as [Conventional Commits](https://www.conventionalcommits.
 generated from them: `.chglog/config.yml` parses the `type(scope): subject`
 header, and the type becomes the section title.
 
+## Tests
+
+```bash
+./run_docker_test.sh   # builds Dockerfile.test and runs the tests in a container
+./run_test.sh          # runs them on the host, needs jq, docker and Go
+./run_test.sh <name>   # run selected tests only
+```
+
+The tests need `_test/mocks/data/initial_state_01.tar.gz` (100 MB). It is not in
+git: `_test/helpers` downloads it from the
+[`test-data` release](https://github.com/pantavisor/pvr/releases/tag/test-data)
+and checks its sha256. Do not delete or re-create that release.
+
 ## Releases
 
 Releases are plain three-digit tags cut from main (`054`, `055`).

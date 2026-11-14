@@ -1,0 +1,31 @@
+# pvr
+
+> pvr is the command-line tool for Pantavisor device state: check out a device's state as JSON, change it, commit, sign, and push it to a device or Pantahub. Written in Go, Apache-2.0.
+
+## Start here
+
+- [README](https://github.com/pantavisor/pvr/blob/main-draft/README.md): what pvr is, install, quick start, command overview
+- [Command index and global flags](https://github.com/pantavisor/pvr/blob/main-draft/docs/index.md)
+- [Product documentation](https://docs.pantavisor.io)
+
+## Command reference
+
+- [Repo commands: init, add, status, diff, commit](https://github.com/pantavisor/pvr/blob/main-draft/docs/commands/repo.md)
+- [Clone, get, merge](https://github.com/pantavisor/pvr/blob/main-draft/docs/commands/clone-get-merge.md)
+- [Push: put, post, export, import](https://github.com/pantavisor/pvr/blob/main-draft/docs/commands/push.md)
+- [Apps](https://github.com/pantavisor/pvr/blob/main-draft/docs/commands/app.md)
+- [Remote builds](https://github.com/pantavisor/pvr/blob/main-draft/docs/commands/build.md)
+- [Devices](https://github.com/pantavisor/pvr/blob/main-draft/docs/commands/device.md)
+- [Signatures](https://github.com/pantavisor/pvr/blob/main-draft/docs/commands/sig.md)
+- [Wi-Fi provisioning](https://github.com/pantavisor/pvr/blob/main-draft/docs/commands/wifi.md)
+- [Auth](https://github.com/pantavisor/pvr/blob/main-draft/docs/commands/auth.md)
+- [Low-level commands](https://github.com/pantavisor/pvr/blob/main-draft/docs/commands/lowlevel.md)
+- [Utilities](https://github.com/pantavisor/pvr/blob/main-draft/docs/commands/utils.md)
+- [App templates](https://github.com/pantavisor/pvr/blob/main-draft/docs/PVR_TEMPLATES.md)
+
+## Contributing
+
+- [CONTRIBUTING](https://github.com/pantavisor/pvr/blob/main-draft/CONTRIBUTING.md): commits, tests, releases
+- [AGENTS](https://github.com/pantavisor/pvr/blob/main-draft/AGENTS.md): layout and rules for AI coding agents
+- [GitLab to GitHub migration](https://github.com/pantavisor/pvr/blob/main-draft/docs/github-migration.md)
+- [Changelog](https://github.com/pantavisor/pvr/blob/main-draft/CHANGELOG.md)
