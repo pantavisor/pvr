@@ -91,6 +91,8 @@ type assembler struct {
 	work, base, repo, rootfs, objects string
 	layout                            *Layout
 	env                               []string
+	// full is set when the base is a full image (fullimage.go).
+	full *fullImage
 }
 
 // Assemble makes the flashable image of opts, from an image base or a
@@ -137,11 +139,15 @@ func run(opts Options, factory bool) (err error) {
 	}
 	a.env = append(os.Environ(), "PVR_CONFIG_DIR="+filepath.Join(a.work, "pvrconfig"), "PVR_DISABLE_SELF_UPGRADE=true")
 
-	if err := a.do(step{"Unpacking the image base", a.unpackBase}, step{"Settling the identity", a.settleIdentity}); err != nil {
+	if err := a.do(step{"Unpacking the base", a.unpack}, step{"Settling the identity", a.settleIdentity}); err != nil {
 		return err
 	}
 	steps := []step{{"Deploying the base's BSP and containers", a.deployBase}}
-	if a.layout.Factory == nil {
+	writeImage := a.writeImage
+	if a.full != nil {
+		steps = []step{{"Restoring the full image's factory revision", a.deployFull}}
+		writeImage = a.writeFullImage
+	} else if a.layout.Factory == nil {
 		steps = append(steps,
 			step{"Putting the identity's trust and configuration in the initrd", a.remaster},
 			step{"Setting the container groups' timeouts", a.setGroupTimeouts},
@@ -156,7 +162,7 @@ func run(opts Options, factory bool) (err error) {
 			step{"Merging the exports", a.mergeExports},
 			step{"Verifying the factory revision as a device will", a.verify},
 			step{"Writing the storage partition", a.writeRootfs},
-			step{"Writing the image", a.writeImage})
+			step{"Writing the image", writeImage})
 	}
 	return a.do(steps...)
 }
@@ -244,6 +250,9 @@ func (a *assembler) settle() error {
 // settleIdentity takes the identity, policy and trust from a factory
 // image, refusing options that differ, or checks what a base needs.
 func (a *assembler) settleIdentity() error {
+	if a.full != nil {
+		return a.settleFull()
+	}
 	if f := a.layout.Factory; f != nil {
 		if a.factory {
 			return errors.New("the base is a factory image already")
@@ -306,6 +315,50 @@ func (a *assembler) settleIdentity() error {
 	return nil
 }
 
+// settleFull checks what a full image takes: its initrd and BSP are
+// signed already, so the trust that verifies them, and nothing to sign.
+func (a *assembler) settleFull() error {
+	switch {
+	case a.factory:
+		return errors.New("a factory image is made of an image base, not of a full image")
+	case a.Policy != "" || len(a.GroupTimeouts) > 0:
+		return errors.New("a full image's initrd and device.json are signed already: a policy or group timeouts need an image base")
+	case a.Key != "" || a.X5c != "":
+		return errors.New("a full image's BSP is signed already: it takes no platform key")
+	case a.Trust == "":
+		return errors.New("a full image needs the trust it was built with (--trust), to verify the revision as its devices will")
+	}
+	for _, store := range []string{platformStore, oemStore} {
+		if info, err := os.Stat(filepath.Join(a.Trust, store)); err != nil || !info.Mode().IsRegular() {
+			return fmt.Errorf("%s is not in %s", store, a.Trust)
+		}
+	}
+	if defaults, err := os.ReadFile(filepath.Join(a.Trust, "pantavisor.config")); err == nil {
+		values := keyValues(defaults)
+		if a.OEMName == "" {
+			a.OEMName = values["PV_OEM_NAME"]
+		}
+		if a.SecureBoot == "" {
+			a.SecureBoot = values["PV_SECUREBOOT_MODE"]
+		}
+	}
+	if a.OEMName == "" {
+		a.OEMName = DefaultOEMName
+	}
+	if a.SecureBoot == "" {
+		// Pantavisor's default, which its developer images keep.
+		a.SecureBoot = "lenient"
+	}
+	if !oemName.MatchString(a.OEMName) {
+		return errors.New("the OEM name (PV_OEM_NAME) is not valid")
+	}
+	if !secureBoot[a.SecureBoot] {
+		return errors.New("secure boot mode is disabled, lenient, strict or audit")
+	}
+	fmt.Fprintf(a.Log, "Full image of %s: its initrd and BSP are kept; verified with secure boot %s\n", a.OEMName, a.SecureBoot)
+	return nil
+}
+
 func keyValues(data []byte) map[string]string {
 	values := map[string]string{}
 	for _, line := range strings.Split(string(data), "\n") {
@@ -333,6 +386,18 @@ func (a *assembler) commandEnv(env []string, dir, name string, args ...string) e
 }
 
 func (a *assembler) pvr(args ...string) error { return a.command(a.repo, a.Pvr, args...) }
+
+// unpack takes the base: a full image, or an image base or factory image.
+func (a *assembler) unpack() error {
+	full, err := isFullImage(a.Base)
+	if err != nil {
+		return fmt.Errorf("base: %w", err)
+	}
+	if full {
+		return a.unpackFullImage()
+	}
+	return a.unpackBase()
+}
 
 // unpackBase extracts the base's regular files: nothing else, nothing that
 // escapes, nothing bigger than an image could be.
@@ -1064,16 +1129,21 @@ const ubootMke2fsConf = `[defaults]
 `
 
 // mkfs makes the ext4 storage of the pvroot, owned by root whoever runs it.
-func (a *assembler) mkfs(p Partition) (string, int64, error) {
+func (a *assembler) mkfs(p Partition) (string, int64, error) { return a.mkfsSized(p, 0) }
+
+// mkfsSized is mkfs of at least min bytes.
+func (a *assembler) mkfsSized(p Partition, min int64) (string, int64, error) {
 	content, files, err := dirSize(a.rootfs)
 	if err != nil {
 		return "", 0, err
 	}
-	size := alignUp(content+content/4+int64(files)*8192+64<<20, a.layout.Align)
+	size := max(alignUp(content+content/4+int64(files)*8192+64<<20, a.layout.Align), min)
 	file := filepath.Join(a.work, "root.ext4")
 	args := []string{"-q", "-F", "-L", p.Label, "-E", "root_owner=0:0"}
 	env := a.env
-	if a.layout.Bootloader == "uboot" {
+	if a.layout.Bootloader == "uboot" || a.full != nil {
+		// A full image's storage gets the same conservative features:
+		// its devices' e2fsprogs may be older than the host's.
 		// U-Boot's ext4 writer keeps only the old group descriptor
 		// checksums, and the device's e2fsprogs, which autogrow runs to
 		// fsck and resize this filesystem, can be older than the host's:
@@ -1191,6 +1261,11 @@ func (a *assembler) writeImage() error {
 	if err := out.Close(); err != nil {
 		return err
 	}
+	return a.finishImage(img)
+}
+
+// finishImage compresses img into the output when it is .xz.
+func (a *assembler) finishImage(img string) error {
 	if img != a.Output {
 		xz, err := os.Create(a.Output)
 		if err != nil {

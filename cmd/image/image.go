@@ -33,7 +33,7 @@ platform key signs the BSP and the base's containers. The factory image
 (.tar) holds no key; 'pvr image assemble --base <factory>' then adds apps and
 the OEM configuration part and writes images in seconds, without the key.`,
 		Flags: []cli.Flag{
-			cli.StringFlag{Name: "base, b", Usage: "image base tarball"},
+			cli.StringFlag{Name: "base, b", Usage: "image base tarball, factory image, or full image (.wic, or a release .tar.gz holding one)"},
 			cli.StringFlag{Name: "trust, t", Usage: "directory with the identity's ca-certificates.crt and ca-oem-certificates.crt ('pvr signing trust')"},
 			cli.StringFlag{Name: "oem-name", Usage: "PV_OEM_NAME: the signing identity's name"},
 			cli.StringFlag{Name: "policy", Usage: "PV_POLICY of the images made of it, such as prod"},
@@ -96,9 +96,22 @@ pantavisor.config gives the defaults of --oem-name and --secureboot.
 --base may be a factory image ('pvr image factory'): its identity, policy and
 trust are used, nothing is signed again, and --key and --x5c are not needed.
 
+--base may also be a full image, such as a release meta-pantavisor's CI
+publishes (https://pantavisor.io/downloads: <board>-<version>.tar.gz holding
+a .wic.bz2), or any .wic (raw, .gz, .bz2, .xz): its initrd and BSP are kept
+as they are, the exports join the factory revision of its storage partition
+(the ext4 holding trails/0), which is written again, grown when it is the
+last partition of an msdos table; the other partitions are kept byte for
+byte. --trust is the trust it was built with (Pantavisor's developer one
+for those releases: PV_OEM_NAME pv-oem-developer-001); no key, policy or
+group timeout, which need an image base. For example:
+
+  pvr image assemble --base rpi-scarthgap-030.tar.gz --trust devtrust \
+    --export app.pvrexport.tgz -o rpi-app.img.xz
+
 Needs mtools, e2fsprogs and, for .img.xz, xz.`,
 		Flags: []cli.Flag{
-			cli.StringFlag{Name: "base, b", Usage: "image base tarball"},
+			cli.StringFlag{Name: "base, b", Usage: "image base tarball, factory image, or full image (.wic, or a release .tar.gz holding one)"},
 			cli.StringSliceFlag{Name: "export, e", Usage: "pvr export to merge into the factory revision; repeat for several, merged in order"},
 			cli.StringFlag{Name: "trust, t", Usage: "directory with the identity's ca-certificates.crt and ca-oem-certificates.crt"},
 			cli.StringFlag{Name: "oem-name", Usage: "PV_OEM_NAME: the signing identity's name"},
