@@ -1,4 +1,12 @@
 
+<a name="061"></a>
+## [061](https://github.com/pantavisor/pvr/compare/060...061) (2026-11-17)
+
+### Fix
+
+* **squashfs:** allow -e exclude paths and lz4 -Xhc
+
+
 <a name="060"></a>
 ## [060](https://github.com/pantavisor/pvr/compare/059...060) (2026-11-17)
 
