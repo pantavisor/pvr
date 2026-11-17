@@ -34,8 +34,11 @@ DEBUG ?= 1
 OPTIMIZE ?= 1
 PRODUCTION ?= 0
 
-VERSION ?= $(shell git describe --tags --abbrev=0 2>/dev/null || echo "dev")
-REVISION ?= $(shell git describe --tags --always 2>/dev/null || echo "dev")
+# Only release tags (three digits first) count; main-snapshot and test-data are skipped.
+# A tagged commit gives the tag, any other commit gives <tag>-<n>-g<sha>.
+RELEASE_TAG_GLOB = [0-9][0-9][0-9]*
+VERSION ?= $(shell git describe --tags --match '$(RELEASE_TAG_GLOB)' 2>/dev/null || echo "dev")
+REVISION ?= $(shell git describe --tags --always --match '$(RELEASE_TAG_GLOB)' 2>/dev/null || echo "dev")
 CGO = CGO_ENABLED=0
 export DEBUG OPTIMIZE
 
