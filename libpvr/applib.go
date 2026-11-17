@@ -817,6 +817,10 @@ var squashfsAllowedOptions = map[string]struct {
 	"-no-x":               {mode: "none"},
 	"-no-pad":             {mode: "none"},
 	"-all-root":           {mode: "none"},
+	"-Xhc":                {mode: "none"},
+	// mksquashfs reads everything after -e as exclude paths, so
+	// squashfsArgs moves the paths to the end of the command line.
+	"-e": {mode: "one", valuePattern: `^[A-Za-z0-9._+@][A-Za-z0-9._+@/-]*$`},
 }
 
 // ValidateSquashfsOptions rejects format_options values that mksquashfs would
@@ -847,8 +851,36 @@ func ValidateSquashfsOptions(options string) error {
 				return fmt.Errorf("squashfs option %q value %q is not valid", flag, value)
 			}
 		}
+		if flag == "-e" && SliceContainsItem(strings.Split(value, "/"), "..") {
+			return fmt.Errorf("squashfs option %q value %q is not valid", flag, value)
+		}
 	}
 	return nil
+}
+
+// squashfsArgs turns validated format options into mksquashfs arguments:
+// the options, then the flags pvr always sets, then one -e list, because
+// mksquashfs treats every argument after -e as a path to exclude.
+func squashfsArgs(formatOptions string) []string {
+	if formatOptions == "" {
+		formatOptions = "-comp xz"
+	}
+	var args, excludes []string
+	fields := strings.Fields(formatOptions)
+	for i := 0; i < len(fields); i++ {
+		if fields[i] == "-e" && i+1 < len(fields) {
+			i++
+			excludes = append(excludes, fields[i])
+			continue
+		}
+		args = append(args, fields[i])
+	}
+	args = append(args, "-reproducible", "-root-mode", "0755", "-mkfs-time", "1", "-all-time", "1")
+	if len(excludes) > 0 {
+		args = append(args, "-e")
+		args = append(args, excludes...)
+	}
+	return args
 }
 
 func (p *Pvr) MakeSquash(rootfsPath string, app *AppData) error {
@@ -885,16 +917,10 @@ func (p *Pvr) MakeSquash(rootfsPath string, app *AppData) error {
 		}
 	}
 
-	var comp []string
-	if app.Appmanifest.FormatOptions == "" {
-		comp = []string{"-comp", "xz"}
-	} else {
-		if err := ValidateSquashfsOptions(app.Appmanifest.FormatOptions); err != nil {
-			return err
-		}
-		comp = strings.Fields(app.Appmanifest.FormatOptions)
+	if err := ValidateSquashfsOptions(app.Appmanifest.FormatOptions); err != nil {
+		return err
 	}
-	comp = append(comp, "-reproducible", "-root-mode", "0755", "-mkfs-time", "1", "-all-time", "1")
+	comp := squashfsArgs(app.Appmanifest.FormatOptions)
 
 	args := []string{makeSquashfsPath, rootfsPath, tempSquashFile}
 	args = append(args, comp...)
