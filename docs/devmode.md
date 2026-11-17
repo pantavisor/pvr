@@ -81,12 +81,17 @@ end. If another connection holds it, they fail with the Hub's message
 Differences from the other transports:
 
 - `leave` returns to the committed revision only; `--rev` must name it.
-- `--keep-owner` is refused; files are written as root.
-- `status` cannot tell whether `PV_DEVMODE_ALLOWED` is on; `enter` fails with
-  exit code 11 when it is not.
-- `status`, `push` and `sync` cannot see which deleted-list paths devmode has already
-  deleted (the Hub does not list them), so they show them as `to delete` each
-  time; deleting them again is harmless.
+- `--keep-owner` works: the ops of `apply_changes` carry `uid` and `gid`. A Hub
+  from before that change refuses them; files owned by root are then sent
+  without an owner, and `--keep-owner` fails with a message saying so.
+- `status` reads `devmode_allowed` from `get_devmode_context`: `false` shows
+  devmode as disabled. When the Hub gives `null` or nothing, `status` reports it
+  as enabled and `enter` fails with exit code 11 when it is not.
+- `status`, `push` and `sync` ask `ls` for deleted image paths (`include_deleted`),
+  so a path devmode already deleted is not deleted again. A Hub that does not
+  know the argument lists none, and they show every deleted-list path as
+  `to delete` each time; deleting it again is harmless.
+- `exec --timeout` is at most 45 seconds; the Hub refuses more.
 
 ## Workflow
 
@@ -191,7 +196,7 @@ pvr devmode logs bench nginx --tail 50
 device must run a devmode revision. The command's output goes to your terminal
 and pvr exits with its exit code: 124 after `--timeout` (30s by default), 128
 plus the signal number when a signal ended it. With `--json` the output is in
-the result. The Hub limits the timeout to 45 seconds. Over pvcontrol a command
+the result. Over the Hub the timeout is at most 45 seconds. Over pvcontrol a command
 that exits with 255 after printing a pv-ctrl error is reported as that error.
 
 `logs` prints the last `--tail` lines (200 by default) of the container's console
@@ -231,12 +236,12 @@ Hub, the tools of `<hub>/mcp`:
 
 | pvr | Tools |
 |---|---|
-| `status` | `get_devmode_context`, `container_status` |
+| `status` | `get_devmode_context` (`devmode_allowed`), `container_status` |
 | `enter` | `lease`, `dev_begin` |
 | `leave` | `get_devmode_context`, `lease`, `dev_end` |
-| `status`, `push`, `sync`, `pull` (device file list) | `ls` (recursive, entries from the devmode changes only), `hash` |
+| `status`, `push`, `sync`, `pull` (device file list) | `ls` (recursive, with `include_deleted`; entries from the devmode changes and deleted image paths), `hash` |
 | `pull` | `get_file` (in parts, or a download link for large files) |
-| `push`, `sync` | `lease`, `apply_changes` with `put`, `mkdir`, `symlink` ops; files over 256 KiB go through `get_object_upload_link` and a `source` |
+| `push`, `sync` | `lease`, `apply_changes` with `put`, `mkdir`, `symlink` ops (with `uid` and `gid`); files over 256 KiB go through `get_object_upload_link` and a `source` |
 | `rm`, deleted list | `lease`, `apply_changes` with `rm` |
 | `reset` | `lease`, `reset_changes` |
 | `apply` | `lease`, `container_ctl` (restart), `container_status` to wait |

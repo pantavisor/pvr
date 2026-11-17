@@ -132,8 +132,11 @@ func (h *HubBackend) Status(ctx context.Context) (Status, error) {
 	if !boolean(r, "connected") {
 		return s, errf(KindUnreachable, "the device is not connected to the Hub now")
 	}
-	// the Hub does not say whether PV_DEVMODE_ALLOWED is set; dev_begin refuses when it is not
+	// an older Hub does not say whether PV_DEVMODE_ALLOWED is set (null or missing); dev_begin refuses then
 	s.Enabled = true
+	if v, ok := r["devmode_allowed"].(bool); ok {
+		s.Enabled = v
+	}
 	s.Active = boolean(r, "devmode")
 	s.Ready = s.Active && !boolean(r, "devmode_starting")
 	s.Revision = str(r, "devmode_on_device")
@@ -239,9 +242,58 @@ func parentOps(p string) []map[string]interface{} {
 	return nil
 }
 
+// Put writes a file, directory or symlink. The ops carry uid and gid; a Hub
+// that does not know them yet refuses the call, and then root-owned files are
+// sent without them.
 func (h *HubBackend) Put(ctx context.Context, container, p string, body io.Reader, o PutOpts) error {
+	if body != nil {
+		// the body may be read twice
+		if _, ok := body.(io.ReadSeeker); !ok {
+			all, err := io.ReadAll(body)
+			if err != nil {
+				return errf(KindGeneric, "cannot read the file: "+err.Error())
+			}
+			body = bytes.NewReader(all)
+		}
+	}
+	ops, err := h.putOps(ctx, p, body, o, true)
+	if err != nil {
+		return err
+	}
+	err = h.apply(ctx, container, ops)
+	if err == nil || !refusesArgument(err, "uid", "gid") {
+		return err
+	}
 	if o.UID != 0 || o.GID != 0 {
-		return errf(KindUsage, "over the Hub files cannot be given an owner other than root; leave out --keep-owner")
+		return errf(KindUsage, "this Hub cannot give files an owner other than root; leave out --keep-owner")
+	}
+	ops, err = h.putOps(ctx, p, body, o, false)
+	if err != nil {
+		return err
+	}
+	return h.apply(ctx, container, ops)
+}
+
+// refusesArgument tells if a Hub error is about one of the named arguments.
+func refusesArgument(err error, names ...string) bool {
+	e, ok := err.(*Error)
+	if !ok || e.Kind != KindGeneric {
+		return false
+	}
+	for _, n := range names {
+		if strings.Contains(e.Msg, n) {
+			return true
+		}
+	}
+	return false
+}
+
+func (h *HubBackend) putOps(ctx context.Context, p string, body io.Reader, o PutOpts, owner bool) ([]map[string]interface{}, error) {
+	setOwner := func(op map[string]interface{}) map[string]interface{} {
+		if owner {
+			op["uid"], op["gid"] = o.UID, o.GID
+		}
+		return op
 	}
 	ops := parentOps(p)
 	switch o.Type {
@@ -250,22 +302,22 @@ func (h *HubBackend) Put(ctx context.Context, container, p string, body io.Reade
 		if m := o.Mode & 0o7777; m != 0 {
 			op["mode"] = fmt.Sprintf("%04o", m)
 		}
-		return h.apply(ctx, container, []map[string]interface{}{op})
+		return []map[string]interface{}{setOwner(op)}, nil
 	case "symlink":
-		return h.apply(ctx, container, append(ops, map[string]interface{}{"op": "symlink", "path": p, "target": o.Target}))
+		return append(ops, setOwner(map[string]interface{}{"op": "symlink", "path": p, "target": o.Target})), nil
 	}
 	if body == nil {
 		body = bytes.NewReader(nil)
 	}
-	put := map[string]interface{}{"op": "put", "path": p, "mode": fmt.Sprintf("%04o", o.Mode&0o7777)}
+	put := setOwner(map[string]interface{}{"op": "put", "path": p, "mode": fmt.Sprintf("%04o", o.Mode&0o7777)})
 	data, sum, size, err := spool(body)
 	if err != nil {
-		return errf(KindGeneric, "cannot read the file: "+err.Error())
+		return nil, errf(KindGeneric, "cannot read the file: "+err.Error())
 	}
 	if size <= hubInlineMax {
 		b, err := io.ReadAll(data)
 		if err != nil {
-			return errf(KindGeneric, err.Error())
+			return nil, errf(KindGeneric, err.Error())
 		}
 		put["base64"] = base64.StdEncoding.EncodeToString(b)
 		if size == 0 {
@@ -274,11 +326,11 @@ func (h *HubBackend) Put(ctx context.Context, container, p string, body io.Reade
 		}
 	} else {
 		if err := h.upload(ctx, sum, size, data); err != nil {
-			return err
+			return nil, err
 		}
 		put["source"] = map[string]interface{}{"sha256": sum, "size": size}
 	}
-	return h.apply(ctx, container, append(ops, put))
+	return append(ops, put), nil
 }
 
 // spool gives back a body that can be read again, with its sha256 and size.
@@ -441,18 +493,35 @@ func cleanPath(p string) string {
 func (h *HubBackend) Manifest(ctx context.Context, container string) (Manifest, error) {
 	m := Manifest{Container: container, Files: []Entry{}}
 	page := ""
+	noDeleted := false
 	for i := 0; i < hubMaxPages; i++ {
 		kv := []interface{}{"container", container, "path", ".", "recursive", true, "max_entries", 2000}
 		if page != "" {
 			kv = append(kv, "page", page)
 		}
+		if !noDeleted {
+			kv = append(kv, "include_deleted", true)
+		}
 		r, err := h.call(ctx, "ls", kv...)
+		if err != nil && !noDeleted && refusesArgument(err, "include_deleted") {
+			// a Hub from before include_deleted: the deleted image paths stay unknown
+			noDeleted = true
+			i--
+			continue
+		}
 		if err != nil {
 			return m, err
 		}
 		for _, e := range list(r, "entries") {
 			p := cleanPath(str(e, "path"))
-			if p == "" || p == "." || str(e, "origin") != "inlay" {
+			if p == "" || p == "." {
+				continue
+			}
+			if boolean(e, "deleted") {
+				m.Files = append(m.Files, Entry{Path: p, Type: "deleted"})
+				continue
+			}
+			if str(e, "origin") != "inlay" {
 				continue
 			}
 			ent := Entry{Path: p, Type: str(e, "type"), Mode: modeText(e["mode"]), Target: str(e, "target")}

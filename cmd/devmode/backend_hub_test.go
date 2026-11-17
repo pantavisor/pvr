@@ -386,7 +386,7 @@ func TestHubPut(t *testing.T) {
 	}
 	a := f.last("apply_changes")
 	ops, _ := json.Marshal(a["ops"])
-	want := `[{"op":"mkdir","parents":true,"path":"etc/app"},{"mode":"0640","op":"put","path":"etc/app/x.conf","base64":"aGVsbG8="}]`
+	want := `[{"op":"mkdir","parents":true,"path":"etc/app"},{"mode":"0640","op":"put","path":"etc/app/x.conf","base64":"aGVsbG8=","uid":0,"gid":0}]`
 	var got, exp []map[string]interface{}
 	json.Unmarshal(ops, &got)
 	json.Unmarshal([]byte(want), &exp)
@@ -399,15 +399,25 @@ func TestHubPut(t *testing.T) {
 		t.Errorf("empty file ops %s", ops)
 	}
 	h.Put(ctx, "a", "d", nil, PutOpts{Mode: 0o750, Type: "dir"})
-	if ops, _ := json.Marshal(f.last("apply_changes")["ops"]); string(ops) != `[{"mode":"0750","op":"mkdir","parents":true,"path":"d"}]` {
+	if ops, _ := json.Marshal(f.last("apply_changes")["ops"]); string(ops) != `[{"gid":0,"mode":"0750","op":"mkdir","parents":true,"path":"d","uid":0}]` {
 		t.Errorf("dir ops %s", ops)
 	}
 	h.Put(ctx, "a", "bin/ln", nil, PutOpts{Type: "symlink", Target: "../x"})
-	if ops, _ := json.Marshal(f.last("apply_changes")["ops"]); !strings.Contains(string(ops), `{"op":"symlink","path":"bin/ln","target":"../x"}`) {
+	if ops, _ := json.Marshal(f.last("apply_changes")["ops"]); !strings.Contains(string(ops), `{"gid":0,"op":"symlink","path":"bin/ln","target":"../x","uid":0}`) {
 		t.Errorf("symlink ops %s", ops)
 	}
-	if err := h.Put(ctx, "a", "f", strings.NewReader("x"), PutOpts{UID: 1000}); err == nil {
-		t.Error("an owner other than root should be refused")
+	// an owner goes to the Hub in all three ops
+	h.Put(ctx, "a", "f", strings.NewReader("x"), PutOpts{Mode: 0o600, UID: 1000, GID: 100})
+	if ops, _ := json.Marshal(f.last("apply_changes")["ops"]); !strings.Contains(string(ops), `"gid":100`) || !strings.Contains(string(ops), `"uid":1000`) {
+		t.Errorf("owner of a file: %s", ops)
+	}
+	h.Put(ctx, "a", "d2", nil, PutOpts{Type: "dir", UID: 5, GID: 6})
+	if ops, _ := json.Marshal(f.last("apply_changes")["ops"]); !strings.Contains(string(ops), `"gid":6`) || !strings.Contains(string(ops), `"uid":5`) {
+		t.Errorf("owner of a dir: %s", ops)
+	}
+	h.Put(ctx, "a", "ln2", nil, PutOpts{Type: "symlink", Target: "x", UID: 7, GID: 8})
+	if ops, _ := json.Marshal(f.last("apply_changes")["ops"]); !strings.Contains(string(ops), `"gid":8`) || !strings.Contains(string(ops), `"uid":7`) {
+		t.Errorf("owner of a symlink: %s", ops)
 	}
 
 	// a large file goes through the object store
@@ -468,6 +478,108 @@ func TestHubRemoveResetApply(t *testing.T) {
 	h.Apply(ctx, "b", true)
 	if a := f.last("container_ctl"); a["action"] != "restart" || a["allow_reboot"] != true || a["container"] != "b" {
 		t.Errorf("container_ctl args %v", a)
+	}
+}
+
+// a Hub from before uid and gid refuses the ops that carry them
+func TestHubPutOldHub(t *testing.T) {
+	f, h, _ := hubFixture(t)
+	ctx := context.Background()
+	var seen []string
+	f.on("apply_changes", func(args map[string]interface{}) (map[string]interface{}, *toolFailure) {
+		b, _ := json.Marshal(args["ops"])
+		seen = append(seen, string(b))
+		if strings.Contains(string(b), `"uid"`) {
+			return nil, &toolFailure{Code: "INVALID_ARGUMENT", Message: `ops[0]: unknown field "uid"`}
+		}
+		return map[string]interface{}{"applied": 1}, nil
+	})
+	// owner root: sent again without uid and gid, the body is not lost
+	if err := h.Put(ctx, "a", "f", io.NopCloser(strings.NewReader("data")), PutOpts{Mode: 0o644}); err != nil {
+		t.Fatal(err)
+	}
+	if len(seen) != 2 || strings.Contains(seen[1], "uid") || !strings.Contains(seen[1], base64.StdEncoding.EncodeToString([]byte("data"))) {
+		t.Errorf("calls %v", seen)
+	}
+	// another owner cannot be given, and the error says so
+	err := h.Put(ctx, "a", "g", strings.NewReader("x"), PutOpts{Mode: 0o644, UID: 1000})
+	if e, ok := err.(*Error); !ok || e.Kind != KindUsage || !strings.Contains(e.Msg, "--keep-owner") {
+		t.Errorf("keep-owner: %v", err)
+	}
+}
+
+func TestHubManifestDeleted(t *testing.T) {
+	f, h, _ := hubFixture(t)
+	var asked []interface{}
+	f.on("ls", func(args map[string]interface{}) (map[string]interface{}, *toolFailure) {
+		asked = append(asked, args["include_deleted"])
+		return map[string]interface{}{"entries": []interface{}{
+			map[string]interface{}{"path": "etc/old.conf", "type": "file", "origin": "image", "deleted": true},
+			map[string]interface{}{"path": "etc/new.conf", "type": "file", "origin": "inlay", "mode": "0644", "size": 1},
+		}}, nil
+	})
+	f.reply("hash", map[string]interface{}{"entries": []interface{}{map[string]interface{}{"path": "etc/new.conf", "sha256": "abc"}}})
+	m, err := h.Manifest(context.Background(), "a")
+	if err != nil || len(asked) != 1 || asked[0] != true {
+		t.Fatalf("%v %v", err, asked)
+	}
+	want := []Entry{{Path: "etc/old.conf", Type: "deleted"}, {Path: "etc/new.conf", Type: "file", Size: 1, Mode: "0644", SHA256: "abc"}}
+	if !reflect.DeepEqual(m.Files, want) {
+		t.Errorf("files %+v", m.Files)
+	}
+	// the deleted path is known, so it is not deleted again
+	d := ComputeDiff(nil, m, []string{"etc/old.conf", "etc/other"})
+	if len(d.ToDelete) != 1 || d.ToDelete[0].Path != "etc/other" {
+		t.Errorf("to delete %+v", d.ToDelete)
+	}
+}
+
+// a Hub that ignores include_deleted never lists deleted entries; one that refuses it is asked again
+func TestHubManifestOldHub(t *testing.T) {
+	f, h, _ := hubFixture(t)
+	calls := 0
+	f.on("ls", func(args map[string]interface{}) (map[string]interface{}, *toolFailure) {
+		calls++
+		if _, ok := args["include_deleted"]; ok {
+			return nil, &toolFailure{Code: "INVALID_ARGUMENT", Message: "unknown argument include_deleted"}
+		}
+		return map[string]interface{}{"entries": []interface{}{map[string]interface{}{"path": "a", "type": "dir", "origin": "inlay"}}}, nil
+	})
+	m, err := h.Manifest(context.Background(), "a")
+	if err != nil || calls != 2 || len(m.Files) != 1 {
+		t.Fatalf("%v calls %d %+v", err, calls, m.Files)
+	}
+	d := ComputeDiff(nil, m, []string{"gone"})
+	if len(d.ToDelete) != 1 {
+		t.Errorf("deleted paths should be listed as before: %+v", d.ToDelete)
+	}
+	// ignoring the argument gives the same manifest as before
+	f.on("ls", func(args map[string]interface{}) (map[string]interface{}, *toolFailure) {
+		return map[string]interface{}{"entries": []interface{}{map[string]interface{}{"path": "a", "type": "dir", "origin": "inlay"}}}, nil
+	})
+	if m2, err := h.Manifest(context.Background(), "a"); err != nil || !reflect.DeepEqual(m.Files, m2.Files) {
+		t.Errorf("%v %+v", err, m2.Files)
+	}
+}
+
+func TestHubStatusAllowed(t *testing.T) {
+	f, h, _ := hubFixture(t)
+	ctx := context.Background()
+	for _, c := range []struct {
+		name string
+		val  interface{}
+		set  bool
+		want bool
+	}{{"true", true, true, true}, {"false", false, true, false}, {"null", nil, true, true}, {"old Hub, missing", nil, false, true}} {
+		r := map[string]interface{}{"connected": true, "devmode": false}
+		if c.set {
+			r["devmode_allowed"] = c.val
+		}
+		f.reply("get_devmode_context", r)
+		st, err := h.Status(ctx)
+		if err != nil || st.Enabled != c.want {
+			t.Errorf("%s: %+v %v", c.name, st, err)
+		}
 	}
 }
 
