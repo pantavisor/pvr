@@ -4,7 +4,7 @@ info:
   title: CHANGELOG
   repository_url: https://github.com/pantavisor/pvr
 options:
-  tag_filter_pattern: "^[0-9]"
+  tag_filter_pattern: "^[0-9]{3}(-rev[0-9]+)?$"
   commits:
     # filters:
     #   Type:
