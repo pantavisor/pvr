@@ -310,7 +310,7 @@ package-deploy:
         # sha256, independent of commit/date/build-host (Yocto recipes pin these
         # checksums). Default mtime is Pantacor Ltd's incorporation date
         # (2016-11-11 UTC = 1478822400); override with SOURCE_DATE_EPOCH.
-        repro_tar() { LC_ALL=C tar --sort=name --format=gnu --owner=0 --group=0 --numeric-owner --mtime="@${SOURCE_DATE_EPOCH:-1478822400}" "$@"; }
+        repro_tar() { LC_ALL=C tar --sort=name --format=gnu --owner=0 --group=0 --numeric-owner --mode='u+rw,go+r,go-w' --mtime="@${SOURCE_DATE_EPOCH:-1478822400}" "$@"; }
 
         # src.tar.gz: feed an explicitly sorted file list via -T - because
         # --sort=name only orders directory traversal, not command-line args.
