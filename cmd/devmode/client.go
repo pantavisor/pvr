@@ -316,8 +316,41 @@ func (c *Client) Exec(ctx context.Context, container string, argv []string, o Ex
 	return r, nil
 }
 
+// Logs reads the console log of the devmode revision where the management
+// container mounts it. The running revision comes from the devmode status;
+// the pantavisor.revision device meta is the committed one.
 func (c *Client) Logs(ctx context.Context, container string, tail int) ([]string, error) {
-	return nil, notAvailable("reading logs")
+	if err := logName("container", container); err != nil {
+		return nil, err
+	}
+	rev, err := runningRevision(ctx, c)
+	if err != nil {
+		return nil, err
+	}
+	if err := logName("revision", rev); err != nil {
+		return nil, err
+	}
+	if tail <= 0 {
+		tail = 200
+	}
+	file := "/pantavisor/logs/" + rev + "/" + consoleLogSource(container)
+	var out, errb bytes.Buffer
+	code, err := c.T.Run(ctx, Join("tail", "-n", strconv.Itoa(tail), file), nil, &out, &errb)
+	if err != nil {
+		return nil, errf(KindUnreachable, err.Error())
+	}
+	if code != 0 {
+		return nil, errf(KindGeneric, fmt.Sprintf("cannot read the console log %s: %s", file, firstTextLine(errb.String(), "tail failed")))
+	}
+	return logLines(out.String()), nil
+}
+
+func firstTextLine(s, def string) string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return def
+	}
+	return strings.SplitN(s, "\n", 2)[0]
 }
 
 func sortedKeys(m map[string]string) []string {

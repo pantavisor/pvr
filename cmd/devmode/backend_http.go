@@ -351,6 +351,39 @@ func (h *HTTPBackend) Exec(ctx context.Context, container string, argv []string,
 		TruncStdout: out.Truncated.Stdout, TruncStderr: out.Truncated.Stderr, DurationMS: out.DurationMS}, nil
 }
 
+// Logs uses the logs CGI of the pvr-sdk container. The revision is given
+// explicitly, because the CGI would read the committed one.
 func (h *HTTPBackend) Logs(ctx context.Context, container string, tail int) ([]string, error) {
-	return nil, notAvailable("reading logs")
+	if err := logName("container", container); err != nil {
+		return nil, err
+	}
+	rev, err := runningRevision(ctx, h)
+	if err != nil {
+		return nil, err
+	}
+	if err := logName("revision", rev); err != nil {
+		return nil, err
+	}
+	// the CGI does not decode the query, so the slashes stay as they are
+	q := "rev=" + rev + "&source=" + consoleLogSource(container) + "&tail=1"
+	if tail > 0 {
+		q += "&n=" + strconv.Itoa(tail)
+	}
+	req, err := http.NewRequestWithContext(ctx, "GET", h.Base+"/cgi-bin/logs?"+q, nil)
+	if err != nil {
+		return nil, errf(KindUsage, err.Error())
+	}
+	resp, err := h.Client.Do(req)
+	if err != nil {
+		return nil, errf(KindUnreachable, err.Error())
+	}
+	defer resp.Body.Close()
+	b, err := io.ReadAll(io.LimitReader(resp.Body, 32<<20))
+	if err != nil {
+		return nil, errf(KindUnreachable, err.Error())
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, errf(KindGeneric, fmt.Sprintf("cannot read the console log of %s in %s (HTTP %d): %s", container, rev, resp.StatusCode, firstTextLine(string(b), "no answer text")))
+	}
+	return logLines(string(b)), nil
 }

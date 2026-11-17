@@ -17,6 +17,9 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -54,8 +57,84 @@ func TestPvcontrolExec(t *testing.T) {
 	if len(rt.cmds) != 1 || rt.cmds[0] != want {
 		t.Errorf("got %q\nwant %q", rt.cmds, want)
 	}
-	if _, err := c.Logs(context.Background(), "web", 10); err == nil || err.(*Error).Kind != KindNotAvailable {
-		t.Errorf("logs: %v", err)
+}
+
+// scriptTransport answers commands with a function.
+type scriptTransport struct {
+	cmds []string
+	run  func(cmd string) (int, string, string)
+}
+
+func (s *scriptTransport) Run(_ context.Context, c string, _ io.Reader, out, errw io.Writer) (int, error) {
+	s.cmds = append(s.cmds, c)
+	code, o, e := s.run(c)
+	io.WriteString(out, o)
+	io.WriteString(errw, e)
+	return code, nil
+}
+func (s *scriptTransport) Close() error { return nil }
+
+func TestPvcontrolLogs(t *testing.T) {
+	st := `{"enabled":true,"active":true,"revision":"devmode/r/0"}`
+	tr := &scriptTransport{run: func(c string) (int, string, string) {
+		if strings.HasPrefix(c, "pvcontrol devmode status") {
+			return 0, st, ""
+		}
+		if strings.Contains(c, "/web/") {
+			return 0, "one\r\ntwo\n", ""
+		}
+		return 1, "", "tail: can't open '/x': No such file or directory\n"
+	}}
+	c := &Client{T: tr}
+	lines, err := c.Logs(context.Background(), "web", 2)
+	if err != nil || strings.Join(lines, ",") != "one,two" {
+		t.Fatalf("%v %v", lines, err)
+	}
+	if want := "tail -n 2 /pantavisor/logs/devmode/r/0/web/lxc/console.log"; tr.cmds[1] != want {
+		t.Errorf("got %q want %q", tr.cmds[1], want)
+	}
+	_, err = c.Logs(context.Background(), "gone", 2)
+	if e, ok := err.(*Error); !ok || e.Kind != KindGeneric || !strings.Contains(e.Msg, "/pantavisor/logs/devmode/r/0/gone/lxc/console.log") || !strings.Contains(e.Msg, "No such file") {
+		t.Errorf("missing file: %v", err)
+	}
+	if _, err := c.Logs(context.Background(), "../etc", 2); err == nil || err.(*Error).Kind != KindUsage {
+		t.Errorf("bad name: %v", err)
+	}
+	st = `{"enabled":true,"active":false}`
+	if _, err := c.Logs(context.Background(), "web", 2); err == nil || err.(*Error).Kind != KindNotActive {
+		t.Errorf("not active: %v", err)
+	}
+}
+
+func TestHTTPLogs(t *testing.T) {
+	var query string
+	f := &fakeCGI{reply: func(call string) (int, string) {
+		return 200, `{"enabled":true,"active":true,"revision":"devmode/r/0"}`
+	}}
+	h := newHTTPBackend(t, f)
+	mux := http.NewServeMux()
+	mux.Handle(cgiPrefix+"/", f)
+	mux.HandleFunc("/cgi-bin/logs", func(w http.ResponseWriter, r *http.Request) {
+		query = r.URL.RawQuery
+		if strings.Contains(query, "source=gone/") {
+			w.WriteHeader(404)
+			io.WriteString(w, "no such log\n")
+			return
+		}
+		io.WriteString(w, "one\ntwo\n")
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	h.Base = srv.URL
+	lines, err := h.Logs(context.Background(), "web", 2)
+	if err != nil || strings.Join(lines, ",") != "one,two" {
+		t.Fatalf("%v %v", lines, err)
+	}
+	if query != "rev=devmode/r/0&source=web/lxc/console.log&tail=1&n=2" {
+		t.Errorf("query %q", query)
+	}
+	if _, err := h.Logs(context.Background(), "gone", 2); err == nil || !strings.Contains(err.Error(), "404") {
+		t.Errorf("missing: %v", err)
 	}
 }
 
@@ -73,9 +152,6 @@ func TestHTTPExec(t *testing.T) {
 	json.Unmarshal([]byte(f.body["POST /containers/web/exec"]), &sent)
 	if sent["timeout_s"] != float64(30) || sent["stdin_b64"] != "eA==" || sent["argv"].([]interface{})[0] != "cat" {
 		t.Errorf("sent %v", sent)
-	}
-	if _, err := h.Logs(context.Background(), "web", 10); err == nil || err.(*Error).Kind != KindNotAvailable {
-		t.Errorf("logs: %v", err)
 	}
 	// a stopped container is an error, not a result
 	f2 := &fakeCGI{reply: func(string) (int, string) { return 409, `{"Error":"Not running a devmode revision"}` }}
@@ -140,12 +216,6 @@ func TestExecCommandLine(t *testing.T) {
 	json.Unmarshal([]byte(f.body["POST /containers/web/exec"]), &sent)
 	if strings.Join(sent.Argv, " ") != "ls -l --json" || sent.TimeoutS != 7 {
 		t.Errorf("sent %+v", sent)
-	}
-
-	// logs over a transport that cannot read them
-	err = app.Run([]string{"pvr", "devmode", "logs", srv.Base, "web"})
-	if code != 16 {
-		t.Errorf("logs exit code %d, err %v", code, err)
 	}
 	// missing command
 	err = app.Run([]string{"pvr", "devmode", "exec", srv.Base, "web"})

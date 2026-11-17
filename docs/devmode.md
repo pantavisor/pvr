@@ -87,7 +87,6 @@ Differences from the other transports:
 - `status`, `push` and `sync` cannot see which deleted-list paths devmode has already
   deleted (the Hub does not list them), so they show them as `to delete` each
   time; deleting them again is harmless.
-- `logs` works only here.
 
 ## Workflow
 
@@ -136,7 +135,7 @@ devmode deleted on the device, and `push` and `sync` delete the listed paths.
 | `rm <device> <container> <path...> [--recursive]` | `pvcontrol devmode files rm <c> <path> [--recursive]` |
 | `leave <device> [--rev REV]` | `pvcontrol devmode status` (base), `pvcontrol cmd run <base>` |
 | `exec <device> <container> [--timeout D] [--cwd DIR] [--env K=V] [--stdin] [--max-output N] -- <command> [args...]` | `pvcontrol containers exec --timeout N <c> -- <command> [args...]` |
-| `logs <device> <container> [--tail N]` | not available over pvcontrol (the Hub transport has it) |
+| `logs <device> <container> [--tail N]` | `pvcontrol devmode status` for the revision, then `tail -n N /pantavisor/logs/<revision>/<container>/lxc/console.log` |
 | `devices [--no-scan]` | local only |
 | `add-device <alias> <target>` | local only |
 
@@ -185,7 +184,7 @@ Rules:
 pvr devmode exec bench nginx -- nginx -t
 pvr devmode exec bench nginx --env DEBUG=1 --cwd /srv -- sh -c 'ls | wc -l'
 echo hello | pvr devmode exec bench nginx --stdin -- tee /tmp/hello
-pvr devmode logs hub:my-device-nick nginx --tail 50
+pvr devmode logs bench nginx --tail 50
 ```
 
 `exec` runs the command without a shell (write `sh -c '...'` to use one). The
@@ -196,12 +195,20 @@ the result. The Hub limits the timeout to 45 seconds. Over pvcontrol a command
 that exits with 255 after printing a pv-ctrl error is reported as that error.
 
 `logs` prints the last `--tail` lines (200 by default) of the container's console
-log. Only the Hub transport has a way to read logs; over pvcontrol and http it
-fails with exit code 16.
+log in the running devmode revision. The device must run a devmode revision.
+Every transport reads the same file, `lxc/console.log` of the container:
+
+- pvcontrol runs `tail -n N /pantavisor/logs/<revision>/<container>/lxc/console.log`
+  in the management container. `<revision>` is the devmode revision from
+  `pvr devmode status` (for example `devmode/r/0`), not the committed one. A
+  missing file is an error that names the path.
+- http reads `/cgi-bin/logs?rev=<revision>&source=<container>/lxc/console.log&tail=1&n=N`
+  of the pvr-sdk container.
+- Hub calls the `logs` tool.
 
 ## What each transport calls
 
-pvcontrol: the commands in the table above.
+pvcontrol: the commands in the table above, and `status` plus `tail` for `logs`.
 
 http, all under `/cgi-bin/pvctrl`, answering with pv-ctrl's status and body:
 
@@ -218,6 +225,7 @@ http, all under `/cgi-bin/pvctrl`, answering with pv-ctrl's status and body:
 | `apply`, `push --watch` | `PUT /containers/<container>[?reboot=1]` with `{"action":"restart"}` |
 | `apply` (restart policies and waiting for the container) | `GET /containers` |
 | `exec` | `POST /containers/<container>/exec` |
+| `logs` | `GET /cgi-bin/logs?rev=<revision>&source=<container>/lxc/console.log&tail=1&n=N` (not under `/cgi-bin/pvctrl`) |
 
 Hub, the tools of `<hub>/mcp`:
 
@@ -259,7 +267,7 @@ per container `{"name", "state", "seconds"}`: `state` is `STARTED`,
 | 13 | `reboot_needed` | apply needs a reboot and was not confirmed |
 | 14 | `apply_failed` | the device refused the apply |
 | 15 | `wait_timeout` | a restarted container was not `STARTED` again within `--timeout` |
-| 16 | `not_available` | this transport cannot do it (`logs` over pvcontrol or http) |
+| 16 | `not_available` | this transport cannot do it (no command uses it now) |
 
 `exec` is the exception: it exits with the exit code of the command, so a
 command that exits with 10 looks like an unreachable device. Use `--json` to

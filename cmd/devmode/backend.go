@@ -16,6 +16,7 @@ package devmode
 import (
 	"context"
 	"io"
+	"strings"
 	"time"
 )
 
@@ -36,8 +37,7 @@ type Backend interface {
 	RestartPolicies(ctx context.Context) (map[string]string, error)
 	// Exec runs a command in a running container, without a shell.
 	Exec(ctx context.Context, container string, argv []string, o ExecOpts) (ExecResult, error)
-	// Logs returns the last lines of the console log of a container. A
-	// transport that cannot read logs answers with KindNotAvailable.
+	// Logs returns the last lines of the console log of a container.
 	Logs(ctx context.Context, container string, tail int) ([]string, error)
 }
 
@@ -90,8 +90,48 @@ func (r ExecResult) Code() int {
 	return 1
 }
 
-func notAvailable(what string) *Error {
-	return errf(KindNotAvailable, what+" is not available over this transport; use a hub:<device> target")
+// consoleLogSource is where pantavisor keeps the console log of a container,
+// below /pantavisor/logs/<revision>/.
+func consoleLogSource(container string) string {
+	return container + "/lxc/console.log"
+}
+
+// logName checks a revision or container name that goes into a log path.
+func logName(what, s string) error {
+	if s == "" || strings.HasPrefix(s, "/") || strings.ContainsAny(s, " \t\r\n?&=%\\") {
+		return errf(KindUsage, "bad "+what+" for a log path: "+s)
+	}
+	for _, p := range strings.Split(s, "/") {
+		if p == "" || p == "." || p == ".." {
+			return errf(KindUsage, "bad "+what+" for a log path: "+s)
+		}
+	}
+	return nil
+}
+
+// logLines splits log text into lines, without the final newline and any CR.
+func logLines(s string) []string {
+	s = strings.TrimRight(s, "\r\n")
+	if s == "" {
+		return []string{}
+	}
+	lines := strings.Split(s, "\n")
+	for i, l := range lines {
+		lines[i] = strings.TrimSuffix(l, "\r")
+	}
+	return lines
+}
+
+// runningRevision is the devmode revision whose logs to read.
+func runningRevision(ctx context.Context, b Backend) (string, error) {
+	st, err := RequireActive(ctx, b)
+	if err != nil {
+		return "", err
+	}
+	if st.Revision == "" {
+		return "", errf(KindGeneric, "the device did not say which revision runs")
+	}
+	return st.Revision, nil
 }
 
 // RequireActive fails with not_allowed or not_active unless a devmode

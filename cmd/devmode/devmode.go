@@ -549,8 +549,8 @@ func CommandDevmode() cli.Command {
 		dev(spec{
 			name: "logs", args: "<device> <container> [--tail N]", minPos: 1, maxPos: 1,
 			usage: "Show the last console log lines of a container",
-			desc: "Prints the last --tail lines (200 by default) of the console log of the container.\n" +
-				"Only the Hub transport (hub:<device>, the logs tool) can read logs; the other transports answer with exit code 16.",
+			desc: "Prints the last --tail lines (200 by default) of the console log of the container in the running devmode revision.\n" +
+				"Over pvcontrol it reads /pantavisor/logs/<revision>/<container>/lxc/console.log, over http the logs CGI of the pvr-sdk container, over the Hub the logs tool.",
 			flags: func(fs *flag.FlagSet, o *options) {
 				transportFlags(fs, o)
 				fs.IntVar(&o.tail, "tail", 200, "number of lines")
