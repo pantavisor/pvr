@@ -324,28 +324,26 @@ func (a *hubAuth) codeFlow(ctx context.Context, t hubTokens, resource, scope str
 		return t, false, errf(KindUnreachable, "cannot reach the Hub: "+urlErrorText(err))
 	}
 	resp.Body.Close()
-	loc := resp.Header.Get("Location")
-	if loc == "" {
+	if resp.Header.Get("Location") == "" {
 		return t, resp.StatusCode == 400 || resp.StatusCode == 401, hubErr("the Hub did not start the approval (HTTP %d)", resp.StatusCode)
 	}
-	lu, err := url.Parse(loc)
-	if err != nil {
-		return t, false, hubErr("the Hub sent a bad approval address")
+	// the pending approval is named by the cookies the Hub set, as for its web app
+	cookies := resp.Cookies()
+	if len(cookies) == 0 {
+		return t, false, hubErr("the Hub did not start the approval (no approval cookies)")
 	}
-	lq := lu.Query()
 
 	for renew := false; ; renew = true {
 		login, err := a.login(renew)
 		if err != nil {
 			return t, false, err
 		}
-		body, _ := json.Marshal(map[string]string{
-			"service": lq.Get("client_id"), "scopes": lq.Get("scope"), "state": lq.Get("state"),
-			"redirect_uri": lq.Get("redirect_uri"), "response_type": lq.Get("response_type"), "auth_code": lq.Get("auth_code"),
-		})
-		creq, _ := http.NewRequestWithContext(ctx, "POST", a.base+"/auth/code", strings.NewReader(string(body)))
+		creq, _ := http.NewRequestWithContext(ctx, "POST", a.base+"/auth/oauth/authorize", strings.NewReader("{}"))
 		creq.Header.Set("Content-Type", "application/json")
 		creq.Header.Set("Authorization", "Bearer "+login)
+		for _, ck := range cookies {
+			creq.AddCookie(&http.Cookie{Name: ck.Name, Value: ck.Value})
+		}
 		var back struct {
 			RedirectURI string `json:"redirect_uri"`
 		}
@@ -357,7 +355,7 @@ func (a *hubAuth) codeFlow(ctx context.Context, t hubTokens, resource, scope str
 			continue // the pvr login ran out; ask for a new one once
 		}
 		if code != 200 {
-			return t, false, hubErr("the Hub did not accept your pvr login to approve pvr as an application (HTTP %d); run pvr login with your user name and password (a personal access token cannot approve it)", code)
+			return t, false, hubErr("the Hub did not accept your pvr login to approve pvr as an application (HTTP %d); run pvr login with your user name and password", code)
 		}
 		bu, err := url.Parse(back.RedirectURI)
 		if err != nil || bu.Query().Get("code") == "" {

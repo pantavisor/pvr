@@ -24,7 +24,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -52,7 +51,9 @@ type fakeHub struct {
 	validRef   map[string]bool
 	challenge  string
 	issued     int
-	loginToken string // what /auth/code accepts
+	loginToken string // what the consent accepts
+	redirect   string
+	state      string
 	// tools answers a tool call; a nil failure means success
 	tools map[string]func(args map[string]interface{}) (map[string]interface{}, *toolFailure)
 	puts  map[string][]byte
@@ -73,33 +74,35 @@ func newFakeHub(t *testing.T) *fakeHub {
 		json.NewEncoder(w).Encode(map[string]string{"client_id": fmt.Sprintf("client-%d", n)})
 	})
 	mux.HandleFunc("/auth/oauth/authorize", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			// the consent, as the Hub's web app sends it: login token plus the approval cookies
+			f.mu.Lock()
+			want, redirect, state := f.loginToken, f.redirect, f.state
+			f.mu.Unlock()
+			if r.Header.Get("Authorization") != "Bearer "+want {
+				http.Error(w, "no", 401)
+				return
+			}
+			ac, err1 := r.Cookie("pkce_auth_code")
+			ru, err2 := r.Cookie("pkce_redirect_uri")
+			if err1 != nil || err2 != nil || ac.Value != "AC" || ru.Value != redirect {
+				http.Error(w, "bad", 400)
+				return
+			}
+			json.NewEncoder(w).Encode(map[string]string{"code": "THECODE", "redirect_uri": redirect + "?code=THECODE&state=" + state})
+			return
+		}
 		q := r.URL.Query()
 		if q.Get("code_challenge_method") != "S256" || !strings.Contains(q.Get("scope"), "offline_access") {
 			http.Error(w, "bad", 400)
 			return
 		}
 		f.mu.Lock()
-		f.challenge = q.Get("code_challenge")
+		f.challenge, f.redirect, f.state = q.Get("code_challenge"), q.Get("redirect_uri"), q.Get("state")
 		f.mu.Unlock()
-		l := url.Values{"client_id": {q.Get("client_id")}, "scope": {q.Get("scope")}, "state": {q.Get("state")},
-			"redirect_uri": {q.Get("redirect_uri")}, "response_type": {"code"}, "auth_code": {"AC"}}
-		http.Redirect(w, r, "/consent?"+l.Encode(), http.StatusFound)
-	})
-	mux.HandleFunc("/auth/code", func(w http.ResponseWriter, r *http.Request) {
-		f.mu.Lock()
-		want := f.loginToken
-		f.mu.Unlock()
-		if r.Header.Get("Authorization") != "Bearer "+want {
-			http.Error(w, "no", 401)
-			return
-		}
-		var in map[string]string
-		json.NewDecoder(r.Body).Decode(&in)
-		if in["auth_code"] != "AC" || in["service"] == "" {
-			http.Error(w, "bad", 400)
-			return
-		}
-		json.NewEncoder(w).Encode(map[string]string{"redirect_uri": in["redirect_uri"] + "?code=THECODE&state=" + in["state"]})
+		http.SetCookie(w, &http.Cookie{Name: "pkce_auth_code", Value: "AC", Path: "/"})
+		http.SetCookie(w, &http.Cookie{Name: "pkce_redirect_uri", Value: q.Get("redirect_uri"), Path: "/"})
+		http.Redirect(w, r, "/oauth2/authorize?auth_code=AC", http.StatusTemporaryRedirect)
 	})
 	mux.HandleFunc("/auth/oauth/token", func(w http.ResponseWriter, r *http.Request) {
 		r.ParseForm()
