@@ -311,11 +311,21 @@ type PullResult struct {
 	Written   []string `json:"written"`
 	Removed   []string `json:"removed"`
 	Skipped   []Skip   `json:"skipped"`
-	// DeletedList is what was written to the container's .devmode-deleted.
+	// Conflicts are paths changed here and on the device; pull left them alone.
+	Conflicts []Skip `json:"conflicts"`
+	// Kept are paths with a local change that the device did not touch.
+	Kept []string `json:"kept"`
+	// Unchanged counts paths that were already as the device has them.
+	Unchanged int `json:"unchanged"`
+	// Method is tar, or delta for a device that cannot send tar files.
+	Method string `json:"method"`
+	// DeletedList is what was written to the container's .devmode-deleted (delta pull only).
 	DeletedList []string `json:"deleted_list"`
 }
 
-func (e *Env) Pull(ctx context.Context, names []string) ([]PullResult, error) {
+// Pull checks out the files of containers into ./devmode/<container>/: all
+// of them, or only the given paths.
+func (e *Env) Pull(ctx context.Context, names, paths []string, force bool) ([]PullResult, error) {
 	st, err := RequireActive(ctx, e.C)
 	if err != nil {
 		return nil, err
@@ -325,69 +335,120 @@ func (e *Env) Pull(ctx context.Context, names []string) ([]PullResult, error) {
 			names = append(names, c.Name)
 		}
 	}
+	var scopes []string
+	for _, p := range paths {
+		c, err := treePath(p)
+		if err != nil {
+			return nil, errf(KindUsage, err.Error())
+		}
+		scopes = append(scopes, c)
+	}
 	var out []PullResult
 	for _, n := range names {
-		r := PullResult{Container: n, Written: []string{}, Removed: []string{}, Skipped: []Skip{}, DeletedList: []string{}}
-		m, err := e.C.Manifest(ctx, n)
-		if err != nil {
-			return out, err
-		}
-		// the folder is where edits start, even before devmode changed anything
 		if strings.ContainsAny(n, "/\\") || n == "" || n == "." || n == ".." {
 			return out, errf(KindUsage, fmt.Sprintf("bad container name %q", n))
 		}
-		if err := os.MkdirAll(filepath.Join(e.Dir, n), 0o755); err != nil {
+		r := PullResult{Container: n, Written: []string{}, Removed: []string{}, Skipped: []Skip{}, Conflicts: []Skip{}, Kept: []string{},
+			DeletedList: []string{}, Method: "tar"}
+		err := e.pullTree(ctx, n, scopes, force, &r)
+		if isNoTar(err) {
+			e.progress("%s: the device cannot send a folder as a tar; pulling file by file", n)
+			r = PullResult{Container: n, Written: []string{}, Removed: []string{}, Skipped: []Skip{}, Conflicts: []Skip{}, Kept: []string{},
+				DeletedList: []string{}, Method: "delta"}
+			err = e.pullDelta(ctx, n, scopes, &r)
+		}
+		out = append(out, r)
+		if err != nil {
 			return out, err
 		}
-		for _, f := range m.Files {
-			dst, err := RemoteToLocal(e.Dir, n, f.Path)
-			if err != nil {
+	}
+	return out, nil
+}
+
+// pullDelta is the pull of a device without tar: the files devmode changed,
+// one by one. It leaves no index, so push and status compare with the device.
+func (e *Env) pullDelta(ctx context.Context, n string, scopes []string, r *PullResult) error {
+	m, err := e.C.Manifest(ctx, n)
+	if err != nil {
+		return err
+	}
+	// the folder is where edits start, even before devmode changed anything
+	if err := os.MkdirAll(filepath.Join(e.Dir, n), 0o755); err != nil {
+		return err
+	}
+	if err := os.Remove(indexPath(e.Dir, n)); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	inAny := func(p string) bool {
+		if len(scopes) == 0 {
+			return true
+		}
+		for _, sc := range scopes {
+			if inScope(sc, p) {
+				return true
+			}
+		}
+		return false
+	}
+	for _, f := range m.Files {
+		if !inAny(f.Path) {
+			continue
+		}
+		dst, err := RemoteToLocal(e.Dir, n, f.Path)
+		if err != nil {
+			r.Skipped = append(r.Skipped, Skip{f.Path, err.Error()})
+			continue
+		}
+		switch f.Type {
+		case "dir":
+			if err := os.MkdirAll(dst, 0o755); err != nil {
+				return err
+			}
+			if m, ok := parseMode(f.Mode); ok {
+				_ = os.Chmod(dst, os.FileMode(m&0o777)|0o700)
+			}
+		case "deleted":
+			r.DeletedList = append(r.DeletedList, f.Path)
+			if err := os.Remove(dst); err == nil {
+				r.Removed = append(r.Removed, f.Path)
+			}
+		case "symlink":
+			_ = os.Remove(dst)
+			if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+				return err
+			}
+			if err := os.Symlink(f.Target, dst); err != nil {
 				r.Skipped = append(r.Skipped, Skip{f.Path, err.Error()})
 				continue
 			}
-			switch f.Type {
-			case "dir":
-				if err := os.MkdirAll(dst, 0o755); err != nil {
-					return out, err
-				}
-				if m, ok := parseMode(f.Mode); ok {
-					_ = os.Chmod(dst, os.FileMode(m&0o777)|0o700)
-				}
-			case "deleted":
-				r.DeletedList = append(r.DeletedList, f.Path)
-				if err := os.Remove(dst); err == nil {
-					r.Removed = append(r.Removed, f.Path)
-				}
-			case "symlink":
-				_ = os.Remove(dst)
-				if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
-					return out, err
-				}
-				if err := os.Symlink(f.Target, dst); err != nil {
-					r.Skipped = append(r.Skipped, Skip{f.Path, err.Error()})
-					continue
-				}
-				r.Written = append(r.Written, f.Path)
-			case "file":
-				e.progress("pull %s/%s", n, f.Path)
-				if err := e.pullFile(ctx, n, f, dst); err != nil {
-					return out, err
-				}
-				r.Written = append(r.Written, f.Path)
-			default:
-				reason := "unknown type " + f.Type
-				if f.Type == "special" {
-					reason = "special file (device node, socket or pipe)"
-				}
-				r.Skipped = append(r.Skipped, Skip{f.Path, reason})
+			r.Written = append(r.Written, f.Path)
+		case "file":
+			e.progress("pull %s/%s", n, f.Path)
+			if err := e.pullFile(ctx, n, f, dst); err != nil {
+				return err
+			}
+			r.Written = append(r.Written, f.Path)
+		default:
+			reason := "unknown type " + f.Type
+			if f.Type == "special" {
+				reason = "special file (device node, socket or pipe)"
+			}
+			r.Skipped = append(r.Skipped, Skip{f.Path, reason})
+		}
+	}
+	if len(scopes) > 0 {
+		// a partial pull keeps the deleted paths outside it
+		cur, err := ReadDeletedList(e.Dir, n)
+		if err != nil {
+			return err
+		}
+		for _, p := range cur {
+			if !inAny(p) {
+				r.DeletedList = append(r.DeletedList, p)
 			}
 		}
-		if err := WriteDeletedList(e.Dir, n, append([]string{}, r.DeletedList...)); err != nil {
-			return out, err
-		}
-		out = append(out, r)
 	}
-	return out, nil
+	return WriteDeletedList(e.Dir, n, append([]string{}, r.DeletedList...))
 }
 
 func (e *Env) pullFile(ctx context.Context, container string, f Entry, dst string) error {

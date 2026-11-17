@@ -41,13 +41,13 @@ func (m *multi) Set(v string) error { *m = append(*m, v); return nil }
 
 // options holds every flag any devmode command takes.
 type options struct {
-	json, yes, watch, keepOwner, resume, noScan, noApply, recursive, noWait bool
-	exec, dir, base, rev                                                    string
-	sshOpts, envVars                                                        multi
-	scanTimeout, timeout                                                    time.Duration
-	stdin                                                                   bool
-	maxOutput, tail                                                         int
-	cwd                                                                     string
+	json, yes, watch, keepOwner, force, resume, noScan, noApply, recursive, noWait bool
+	exec, dir, base, rev                                                           string
+	sshOpts, envVars                                                               multi
+	scanTimeout, timeout                                                           time.Duration
+	stdin                                                                          bool
+	maxOutput, tail                                                                int
+	cwd                                                                            string
 	// rest is what follows -- on the command line (the exec command)
 	rest []string
 }
@@ -63,6 +63,8 @@ type spec struct {
 	noDevice bool // does not need a transport
 	// rest is true when a literal -- ends the options and the rest is a command.
 	rest bool
+	// restOptional lets the -- part be empty.
+	restOptional bool
 }
 
 func commonFlags(fs *flag.FlagSet, o *options) {
@@ -182,7 +184,7 @@ func (s spec) command() cli.Command {
 						break
 					}
 				}
-				if len(o.rest) == 0 {
+				if len(o.rest) == 0 && !s.restOptional {
 					return s.fail(o, errf(KindUsage, "missing command after --\nusage: "+usage))
 				}
 			}
@@ -369,24 +371,29 @@ func CommandDevmode() cli.Command {
 			},
 		}),
 		dev(spec{
-			name: "pull", args: "<device> [container...]", maxPos: -1,
-			usage: "Fetch the devmode files of the device into ./devmode/<container>/",
-			desc: "Runs 'pvcontrol devmode files ls <container>' and 'pvcontrol devmode files get <container> <path>'.\n" +
-				"Files and symlinks are written to ./devmode/<container>/, directories are created.\n" +
-				"Paths that devmode deleted are removed from the local tree and written to ./devmode/<container>/.devmode-deleted\n" +
-				"(one path per line; the file is replaced, or removed when nothing is deleted).\n" +
-				"Special files (device nodes, sockets, pipes) are skipped and reported.",
-			flags: func(fs *flag.FlagSet, o *options) { transportFlags(fs, o); dirFlag(fs, o) },
+			name: "pull", args: "<device> [container...] [--force] [-- path...]", maxPos: -1, rest: true, restOptional: true,
+			usage: "Check out the files of a container into ./devmode/<container>/",
+			desc: "Downloads the container's files (the image plus what devmode changed) as one tar and unpacks them into\n" +
+				"./devmode/<container>/: 'pvcontrol devmode files get <container> [path] --tar'. Edit any file there, then 'pvr devmode push'.\n" +
+				"Without paths the whole container is checked out; paths after -- check out only those files or folders,\n" +
+				"for example 'pvr devmode pull <device> nginx -- etc/nginx/nginx.conf'. A second pull of other paths adds to the checkout.\n" +
+				"./devmode/<container>/.devmode-index records what was checked out (never pushed); status and push compare with it.\n" +
+				"Pulling again updates files you did not change, removes files that are gone from the device, and leaves files you\n" +
+				"changed alone: a file changed here and on the device is reported as a conflict. --force overwrites those.\n" +
+				"Modes are kept; owners only when pvr runs as root, otherwise they are recorded in the index only.\n" +
+				"Special files (device nodes, sockets, pipes) and names that leave the folder are skipped and reported.\n" +
+				"A device that cannot send tar files is pulled file by file ('pvcontrol devmode files ls' and 'get'), without an index.",
+			flags: func(fs *flag.FlagSet, o *options) {
+				transportFlags(fs, o)
+				dirFlag(fs, o)
+				fs.BoolVar(&o.force, "force", false, "overwrite and remove files changed locally")
+			},
 			run: func(ctx context.Context, env *Env, o *options, c *cli.Context, pos []string) (interface{}, func(io.Writer), error) {
-				r, err := env.Pull(ctx, pos)
+				r, err := env.Pull(ctx, pos, o.rest, o.force)
 				if err != nil {
 					return nil, nil, err
 				}
-				return map[string]interface{}{"containers": r}, func(w io.Writer) {
-					for _, x := range r {
-						fmt.Fprintf(w, "%s: %d written, %d removed, %d skipped\n", x.Container, len(x.Written), len(x.Removed), len(x.Skipped))
-					}
-				}, nil
+				return map[string]interface{}{"containers": r}, func(w io.Writer) { printPull(w, r) }, nil
 			},
 		}),
 		dev(spec{
@@ -702,5 +709,25 @@ func printRestarts(w io.Writer, r *ApplyResult) {
 			continue
 		}
 		fmt.Fprintf(w, "%s: %s after %.1fs\n", c.Name, c.State, c.Seconds)
+	}
+}
+
+func printPull(w io.Writer, res []PullResult) {
+	for _, x := range res {
+		if x.Method == "delta" {
+			fmt.Fprintf(w, "%s: %d written, %d removed, %d skipped (pulled file by file, no checkout index)\n", x.Container, len(x.Written), len(x.Removed), len(x.Skipped))
+		} else {
+			fmt.Fprintf(w, "%s: %d written, %d unchanged, %d removed, %d kept (changed here), %d conflicts, %d skipped\n",
+				x.Container, len(x.Written), x.Unchanged, len(x.Removed), len(x.Kept), len(x.Conflicts), len(x.Skipped))
+		}
+		for _, c := range x.Conflicts {
+			fmt.Fprintf(w, "  conflict %s: %s\n", c.Path, c.Reason)
+		}
+		for _, s := range x.Skipped {
+			fmt.Fprintf(w, "  skipped %s: %s\n", s.Path, s.Reason)
+		}
+		if len(x.Conflicts) > 0 {
+			fmt.Fprintln(w, "  left alone; pull again with --force to take the device version")
+		}
 	}
 }

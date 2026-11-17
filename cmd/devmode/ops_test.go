@@ -198,7 +198,7 @@ func TestPushAddsOnlyAndAppliesList(t *testing.T) {
 	  {"path":"tmp","type":"dir","mode":"0755"},
 	  {"path":"etc/old","type":"file","mode":"0644","sha256":"aa"},
 	  {"path":"gone/already","type":"deleted"}]}`
-	f := &fakeDev{manifests: map[string]string{"a": m}}
+	f := &fakeDev{noTar: true, manifests: map[string]string{"a": m}}
 	e, _ := newEnv(t, f)
 	put(t, e, "a", "etc/new", "1")
 	put(t, e, "a", DeletedListName, "gone/already\nusr/doc\n")
@@ -267,9 +267,9 @@ func TestPullWritesDeletedList(t *testing.T) {
 	  {"path":"usr/doc","type":"deleted"},
 	  {"path":"etc/motd","type":"deleted"},
 	  {"path":"dev/null","type":"special"}]}`
-	f := &fakeDev{manifests: map[string]string{"a": m}}
+	f := &fakeDev{noTar: true, manifests: map[string]string{"a": m}}
 	e, _ := newEnv(t, f)
-	res, err := e.Pull(context.Background(), []string{"a"})
+	res, err := e.Pull(context.Background(), []string{"a"}, nil, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -285,7 +285,7 @@ func TestPullWritesDeletedList(t *testing.T) {
 	}
 	// nothing deleted on the device: the list goes away
 	f.manifests["a"] = `{"container":"a","files":[]}`
-	if _, err := e.Pull(context.Background(), []string{"a"}); err != nil {
+	if _, err := e.Pull(context.Background(), []string{"a"}, nil, false); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(filepath.Join(e.Dir, "a", DeletedListName)); err == nil {
@@ -295,15 +295,15 @@ func TestPullWritesDeletedList(t *testing.T) {
 
 // A container with no devmode changes yet still gets its folder, to start editing in.
 func TestPullCreatesTheContainerFolder(t *testing.T) {
-	f := &fakeDev{manifests: map[string]string{"a": `{"container":"a","files":[]}`}}
+	f := &fakeDev{noTar: true, manifests: map[string]string{"a": `{"container":"a","files":[]}`}}
 	e, _ := newEnv(t, f)
-	if _, err := e.Pull(context.Background(), []string{"a"}); err != nil {
+	if _, err := e.Pull(context.Background(), []string{"a"}, nil, false); err != nil {
 		t.Fatal(err)
 	}
 	if fi, err := os.Stat(filepath.Join(e.Dir, "a")); err != nil || !fi.IsDir() {
 		t.Fatalf("no folder: %v", err)
 	}
-	if _, err := e.Pull(context.Background(), []string{"../x"}); err == nil {
+	if _, err := e.Pull(context.Background(), []string{"../x"}, nil, false); err == nil {
 		t.Error("a bad container name was accepted")
 	}
 }
@@ -325,7 +325,7 @@ func TestStatusLabels(t *testing.T) {
 	m := `{"container":"a","files":[
 	  {"path":"etc/x","type":"file","mode":"0644","sha256":"aa"},
 	  {"path":"gone","type":"deleted"}]}`
-	f := &fakeDev{manifests: map[string]string{"a": m}}
+	f := &fakeDev{noTar: true, manifests: map[string]string{"a": m}}
 	e, _ := newEnv(t, f)
 	put(t, e, "a", "new", "1")
 	put(t, e, "a", DeletedListName, "gone\nusr/doc\n")

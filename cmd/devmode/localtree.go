@@ -82,7 +82,7 @@ func RemoteToLocal(root, container, rel string) (string, error) {
 // Ignored tells if a local file is editor or VCS noise that is never pushed.
 func Ignored(name string) bool {
 	switch {
-	case name == ".git", name == ".DS_Store", name == "4913", name == DeletedListName:
+	case name == ".git", name == ".DS_Store", name == "4913", name == DeletedListName, name == IndexName:
 		return true
 	case strings.HasSuffix(name, "~"), strings.HasSuffix(name, ".swp"),
 		strings.HasSuffix(name, ".swx"), strings.HasSuffix(name, ".tmp"),
@@ -129,7 +129,7 @@ func ScanLocal(root, container string) ([]LocalFile, error) {
 		if err != nil {
 			return err
 		}
-		lf.Mode = uint32(info.Mode().Perm())
+		lf.Mode = unixMode(info.Mode())
 		switch {
 		case d.IsDir():
 			// only empty directories are pushed; others come with their files
