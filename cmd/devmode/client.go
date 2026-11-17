@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -264,4 +265,66 @@ func ApplyAction(policy string) string {
 		return "reboot"
 	}
 	return "unknown"
+}
+
+// Exec runs `pvcontrol containers exec`. pvcontrol answers with the exit code
+// of the command, so a command that exits with 255 and prints a pv-ctrl error
+// is told apart from one that fails by itself only by that error text.
+func (c *Client) Exec(ctx context.Context, container string, argv []string, o ExecOpts) (ExecResult, error) {
+	var r ExecResult
+	secs := o.seconds()
+	args := []string{"containers", "exec", "--timeout", strconv.Itoa(secs)}
+	var stdin io.Reader
+	if len(o.Stdin) > 0 {
+		args = append(args, "--stdin")
+		stdin = bytes.NewReader(o.Stdin)
+	}
+	if o.MaxOutput > 0 {
+		args = append(args, "--max-output", strconv.Itoa(o.MaxOutput))
+	}
+	if o.Cwd != "" {
+		args = append(args, "--cwd", o.Cwd)
+	}
+	for _, k := range sortedKeys(o.Env) {
+		args = append(args, "--env", k+"="+o.Env[k])
+	}
+	args = append(args, container, "--")
+	args = append(args, argv...)
+	var out, errb bytes.Buffer
+	code, err := c.T.Run(ctx, Join(append([]string{"pvcontrol"}, args...)...), stdin, &out, &errb)
+	if err != nil {
+		return r, errf(KindUnreachable, err.Error())
+	}
+	if code == 127 && strings.Contains(errb.String(), "pvcontrol") && strings.Contains(errb.String(), "not found") {
+		return r, errf(KindGeneric, "pvcontrol not found on the device")
+	}
+	if code == 75 {
+		return r, errf(KindGeneric, "the device is running too many commands, try again")
+	}
+	if code == 255 {
+		var j struct{ Error string }
+		if json.Unmarshal(bytes.TrimSpace(errb.Bytes()), &j) == nil && j.Error != "" {
+			return r, classify(errb.String())
+		}
+	}
+	r.Stdout, r.Stderr = out.String(), errb.String()
+	if code == 124 {
+		r.TimedOut = true
+	} else {
+		r.ExitCode = &code
+	}
+	return r, nil
+}
+
+func (c *Client) Logs(ctx context.Context, container string, tail int) ([]string, error) {
+	return nil, notAvailable("reading logs")
+}
+
+func sortedKeys(m map[string]string) []string {
+	k := make([]string, 0, len(m))
+	for n := range m {
+		k = append(k, n)
+	}
+	sort.Strings(k)
+	return k
 }

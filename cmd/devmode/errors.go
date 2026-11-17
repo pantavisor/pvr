@@ -36,6 +36,7 @@ const (
 	KindRebootNeeded Kind = "reboot_needed"
 	KindApplyFailed  Kind = "apply_failed"
 	KindWaitTimeout  Kind = "wait_timeout"
+	KindNotAvailable Kind = "not_available"
 )
 
 // ExitCode is the process exit code for a failure kind.
@@ -55,6 +56,8 @@ func (k Kind) ExitCode() int {
 		return 14
 	case KindWaitTimeout:
 		return 15
+	case KindNotAvailable:
+		return 16
 	}
 	return 1
 }

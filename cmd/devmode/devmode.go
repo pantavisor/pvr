@@ -43,8 +43,13 @@ func (m *multi) Set(v string) error { *m = append(*m, v); return nil }
 type options struct {
 	json, yes, watch, keepOwner, resume, noScan, noApply, recursive, noWait bool
 	exec, dir, base, rev                                                    string
-	sshOpts                                                                 multi
+	sshOpts, envVars                                                        multi
 	scanTimeout, timeout                                                    time.Duration
+	stdin                                                                   bool
+	maxOutput, tail                                                         int
+	cwd                                                                     string
+	// rest is what follows -- on the command line (the exec command)
+	rest []string
 }
 
 type spec struct {
@@ -56,6 +61,8 @@ type spec struct {
 	flags    func(fs *flag.FlagSet, o *options)
 	run      func(ctx context.Context, env *Env, o *options, c *cli.Context, pos []string) (interface{}, func(io.Writer), error)
 	noDevice bool // does not need a transport
+	// rest is true when a literal -- ends the options and the rest is a command.
+	rest bool
 }
 
 func commonFlags(fs *flag.FlagSet, o *options) {
@@ -167,7 +174,19 @@ func (s spec) command() cli.Command {
 			if s.flags != nil {
 				s.flags(fs, o)
 			}
-			pos, err := parseArgs(fs, c.Args())
+			args := []string(c.Args())
+			if s.rest {
+				for i, a := range args {
+					if a == "--" {
+						args, o.rest = args[:i], args[i+1:]
+						break
+					}
+				}
+				if len(o.rest) == 0 {
+					return s.fail(o, errf(KindUsage, "missing command after --\nusage: "+usage))
+				}
+			}
+			pos, err := parseArgs(fs, args)
 			if err == flag.ErrHelp {
 				return cli.ShowCommandHelp(c, s.name)
 			}
@@ -202,6 +221,9 @@ func (s spec) command() cli.Command {
 			}
 			if res != nil {
 				env.emit(s.name, res, human)
+			}
+			if env.ExitCode != 0 {
+				return cli.NewExitError("", env.ExitCode)
 			}
 			return nil
 		},
@@ -469,6 +491,82 @@ func CommandDevmode() cli.Command {
 				}, nil
 			},
 		}),
+		dev(spec{
+			name: "exec", args: "<device> <container> [--timeout D] [--cwd DIR] [--env K=V] [--stdin] [--max-output N] -- <command> [args...]", minPos: 1, maxPos: 1, rest: true,
+			usage: "Run a command in a running container",
+			desc: "Runs the command without a shell; to use one write 'sh -c \"...\"'. The command needs a devmode revision.\n" +
+				"Its standard output and error go to this terminal and pvr exits with its exit code: 124 after a timeout,\n" +
+				"128 plus the signal number when a signal ended it. --stdin sends this standard input to the command.\n" +
+				"--timeout is 30s by default. With --json the output is part of the result.\n" +
+				"pvcontrol transport: 'pvcontrol containers exec'. http transport: POST /containers/<container>/exec. Hub transport: the exec tool.",
+			flags: func(fs *flag.FlagSet, o *options) {
+				transportFlags(fs, o)
+				fs.DurationVar(&o.timeout, "timeout", DefaultExecTimeout, "stop the command after this time")
+				fs.StringVar(&o.cwd, "cwd", "", "working directory in the container")
+				fs.Var(&o.envVars, "env", "extra environment variable K=V, repeatable")
+				fs.BoolVar(&o.stdin, "stdin", false, "send this standard input to the command")
+				fs.IntVar(&o.maxOutput, "max-output", 0, "bytes kept of each of stdout and stderr (the device default when 0)")
+			},
+			run: func(ctx context.Context, env *Env, o *options, c *cli.Context, pos []string) (interface{}, func(io.Writer), error) {
+				if _, err := RequireActive(ctx, env.C); err != nil {
+					return nil, nil, err
+				}
+				eo := ExecOpts{Timeout: o.timeout, MaxOutput: o.maxOutput, Cwd: o.cwd}
+				if len(o.envVars) > 0 {
+					eo.Env = map[string]string{}
+					for _, kv := range o.envVars {
+						k, v, ok := strings.Cut(kv, "=")
+						if !ok || k == "" {
+							return nil, nil, errf(KindUsage, "--env wants K=V, got "+kv)
+						}
+						eo.Env[k] = v
+					}
+				}
+				if o.stdin {
+					in, err := io.ReadAll(env.In)
+					if err != nil {
+						return nil, nil, errf(KindGeneric, "cannot read standard input: "+err.Error())
+					}
+					eo.Stdin = in
+				}
+				r, err := env.C.Exec(ctx, pos[0], o.rest, eo)
+				if err != nil {
+					return nil, nil, err
+				}
+				env.ExitCode = r.Code()
+				return r, func(w io.Writer) {
+					io.WriteString(w, r.Stdout)
+					io.WriteString(env.Err, r.Stderr)
+					if r.TimedOut {
+						fmt.Fprintf(env.Err, "pvr devmode exec: stopped after %s\n", o.timeout)
+					}
+					if r.TruncStdout || r.TruncStderr {
+						fmt.Fprintln(env.Err, "pvr devmode exec: the output was cut; raise --max-output")
+					}
+				}, nil
+			},
+		}),
+		dev(spec{
+			name: "logs", args: "<device> <container> [--tail N]", minPos: 1, maxPos: 1,
+			usage: "Show the last console log lines of a container",
+			desc: "Prints the last --tail lines (200 by default) of the console log of the container.\n" +
+				"Only the Hub transport (hub:<device>, the logs tool) can read logs; the other transports answer with exit code 16.",
+			flags: func(fs *flag.FlagSet, o *options) {
+				transportFlags(fs, o)
+				fs.IntVar(&o.tail, "tail", 200, "number of lines")
+			},
+			run: func(ctx context.Context, env *Env, o *options, c *cli.Context, pos []string) (interface{}, func(io.Writer), error) {
+				lines, err := env.C.Logs(ctx, pos[0], o.tail)
+				if err != nil {
+					return nil, nil, err
+				}
+				return map[string]interface{}{"container": pos[0], "lines": lines}, func(w io.Writer) {
+					for _, l := range lines {
+						fmt.Fprintln(w, l)
+					}
+				}, nil
+			},
+		}),
 		{
 			name: "devices", args: "[--no-scan]", maxPos: 0, noDevice: true,
 			usage: "List saved devices and devices found on the local network",
@@ -592,8 +690,8 @@ func CommandDevmode() cli.Command {
 	return cli.Command{
 		Name:        "devmode",
 		Usage:       "Sync files to a device running a devmode revision",
-		ArgsUsage:   "<enter|status|push|sync|pull|apply|reset|rm|leave|devices|add-device>",
-		Description: "See docs/devmode.md. Every command takes --json. Exit codes: 1 error, 2 usage, 10 device unreachable, 11 devmode not allowed, 12 devmode not active, 13 reboot needed, 14 apply failed, 15 container did not come back after a restart.",
+		ArgsUsage:   "<enter|status|push|sync|pull|apply|reset|rm|exec|logs|leave|devices|add-device>",
+		Description: "See docs/devmode.md. Every command takes --json. Exit codes: 1 error, 2 usage, 10 device unreachable, 11 devmode not allowed, 12 devmode not active, 13 reboot needed, 14 apply failed, 15 container did not come back after a restart, 16 not available over this transport.",
 		Subcommands: subs,
 	}
 }

@@ -530,3 +530,77 @@ func sortContainers(c []ContainerInfo) {
 		}
 	}
 }
+
+// Exec uses the exec tool.
+func (h *HubBackend) Exec(ctx context.Context, container string, argv []string, o ExecOpts) (ExecResult, error) {
+	var res ExecResult
+	kv := []interface{}{"container", container, "argv", argv, "timeout_s", o.seconds()}
+	if len(o.Stdin) > 0 {
+		kv = append(kv, "stdin_base64", base64.StdEncoding.EncodeToString(o.Stdin))
+	}
+	if o.MaxOutput > 0 {
+		kv = append(kv, "max_output", o.MaxOutput)
+	}
+	if o.Cwd != "" {
+		kv = append(kv, "cwd", o.Cwd)
+	}
+	if len(o.Env) > 0 {
+		kv = append(kv, "env", o.Env)
+	}
+	r, err := h.mutate(ctx, "exec", kv...)
+	if err != nil {
+		return res, err
+	}
+	res.TimedOut = boolean(r, "timed_out")
+	if v, ok := r["exit_code"].(float64); ok {
+		n := int(v)
+		res.ExitCode = &n
+	}
+	if v, ok := r["signal"].(float64); ok {
+		n := int(v)
+		res.Signal = &n
+	}
+	if res.Stdout, err = streamText(r, "stdout"); err != nil {
+		return res, err
+	}
+	if res.Stderr, err = streamText(r, "stderr"); err != nil {
+		return res, err
+	}
+	if t, ok := r["truncated"].(map[string]interface{}); ok {
+		res.TruncStdout, res.TruncStderr = boolean(t, "stdout"), boolean(t, "stderr")
+	}
+	if v, ok := r["duration_ms"].(float64); ok {
+		res.DurationMS = int64(v)
+	}
+	return res, nil
+}
+
+// streamText reads stdout or stderr, which come as text or as base64.
+func streamText(r map[string]interface{}, name string) (string, error) {
+	s := str(r, name)
+	if str(r, name+"_encoding") != "base64" {
+		return s, nil
+	}
+	b, err := base64.StdEncoding.DecodeString(s)
+	if err != nil {
+		return "", errf(KindGeneric, "the Hub sent command output that is not base64")
+	}
+	return string(b), nil
+}
+
+// Logs uses the logs tool, which reads the console log of the container.
+func (h *HubBackend) Logs(ctx context.Context, container string, tail int) ([]string, error) {
+	kv := []interface{}{"container", container}
+	if tail > 0 {
+		kv = append(kv, "tail", tail)
+	}
+	r, err := h.call(ctx, "logs", kv...)
+	if err != nil {
+		return nil, err
+	}
+	lines := []string{}
+	for _, l := range list(r, "lines") {
+		lines = append(lines, str(l, "text"))
+	}
+	return lines, nil
+}
