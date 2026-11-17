@@ -173,14 +173,9 @@ func isNotFound(err error) bool {
 }
 
 // putLocal uploads one local file, symlink or directory.
-func (e *Env) putLocal(ctx context.Context, name string, l LocalFile) error {
+func (e *Env) putLocal(ctx context.Context, name string, l LocalFile, uid, gid int) error {
 	local := filepath.Join(e.Dir, name, filepath.FromSlash(l.Path))
-	o := PutOpts{Mode: l.Mode, Type: l.Type, Target: l.Target}
-	if e.KeepOwner {
-		if u, g, ok := localOwner(local); ok {
-			o.UID, o.GID = u, g
-		}
-	}
+	o := PutOpts{Mode: l.Mode, Type: l.Type, Target: l.Target, UID: uid, GID: gid}
 	if l.Type != "file" {
 		e.progress("push %s/%s (%s)", name, l.Path, l.Type)
 		return e.C.Put(ctx, name, l.Path, nil, o)
@@ -208,6 +203,13 @@ func (e *Env) deleteListed(ctx context.Context, name, p string) (bool, error) {
 // PushContainer adds and updates files, and removes the paths of the
 // deleted list that are not deleted yet. It removes nothing else.
 func (e *Env) PushContainer(ctx context.Context, name string) (PushResult, error) {
+	ix, err := loadIndex(e.Dir, name)
+	if err != nil {
+		return PushResult{}, errf(KindGeneric, err.Error())
+	}
+	if ix != nil {
+		return e.pushIndexed(ctx, name, ix)
+	}
 	r := PushResult{Container: name, Pushed: []string{}, Deleted: []string{}, Skipped: []Skip{}}
 	m, err := e.C.Manifest(ctx, name)
 	if err != nil {
@@ -231,7 +233,9 @@ func (e *Env) PushContainer(ctx context.Context, name string) (PushResult, error
 		byPath[l.Path] = l
 	}
 	for _, ch := range append(append([]Change{}, d.Added...), d.Changed...) {
-		if err := e.putLocal(ctx, name, byPath[ch.Path]); err != nil {
+		l := byPath[ch.Path]
+		uid, gid := e.ownerFor(name, l, nil)
+		if err := e.putLocal(ctx, name, l, uid, gid); err != nil {
 			return r, err
 		}
 		r.Pushed = append(r.Pushed, ch.Path)
@@ -592,8 +596,10 @@ func (e *Env) Apply(ctx context.Context, names []string, allowReboot bool) (Appl
 type ContainerStatus struct {
 	Name         string `json:"name"`
 	LocalPresent bool   `json:"local_present"`
-	Diff         *Diff  `json:"diff,omitempty"`
-	Apply        string `json:"apply"`
+	// Checkout is true when the folder has an index; the diff is then against it.
+	Checkout bool   `json:"checkout"`
+	Diff     *Diff  `json:"diff,omitempty"`
+	Apply    string `json:"apply"`
 }
 
 type StatusResult struct {
@@ -626,9 +632,9 @@ func (e *Env) Status(ctx context.Context, names []string) (StatusResult, error) 
 		}
 		if fi, err := os.Stat(filepath.Join(e.Dir, n)); err == nil && fi.IsDir() {
 			cs.LocalPresent = true
-			m, err := e.C.Manifest(ctx, n)
+			ix, err := loadIndex(e.Dir, n)
 			if err != nil {
-				return res, err
+				return res, errf(KindGeneric, err.Error())
 			}
 			local, err := ScanLocal(e.Dir, n)
 			if err != nil {
@@ -638,7 +644,19 @@ func (e *Env) Status(ctx context.Context, names []string) (StatusResult, error) 
 			if err != nil {
 				return res, err
 			}
-			d := ComputeDiff(local, m, list)
+			var d Diff
+			if ix != nil {
+				cs.Checkout = true
+				if d, err = computeIndexDiff(e.Dir, n, ix, local, list); err != nil {
+					return res, err
+				}
+			} else {
+				m, err := e.C.Manifest(ctx, n)
+				if err != nil {
+					return res, err
+				}
+				d = ComputeDiff(local, m, list)
+			}
 			cs.Diff = &d
 		}
 		res.Containers = append(res.Containers, cs)
@@ -672,6 +690,9 @@ func (e *Env) printStatus(w io.Writer, r StatusResult) {
 		for _, x := range c.Diff.Changed {
 			fmt.Fprintf(w, "  changed  %s (%s)\n", x.Path, x.Reason)
 		}
+		for _, x := range c.Diff.Deleted {
+			fmt.Fprintf(w, "  deleted  %s (push deletes it on the device)\n", x.Path)
+		}
 		for _, x := range c.Diff.OnlyOnDevice {
 			fmt.Fprintf(w, "  only on device  %s (sync removes it)\n", x.Path)
 		}
@@ -691,6 +712,8 @@ type SyncPlan struct {
 	Delete    []string `json:"delete"`
 	Summary   string   `json:"summary"`
 	local     []LocalFile
+	index     *Index // the checkout index, nil for a folder from the old pull
+	listed    []string
 }
 
 func plural(n int, one, many string) string {
@@ -748,9 +771,22 @@ func (e *Env) PlanSync(names []string) ([]SyncPlan, error) {
 		if err := ValidateTree(local, list); err != nil {
 			return nil, errf(KindGeneric, fmt.Sprintf("%s: %v", n, err))
 		}
-		p := SyncPlan{Container: n, Delete: list, local: local}
+		p := SyncPlan{Container: n, Delete: list, local: local, listed: list}
 		if p.Delete == nil {
 			p.Delete = []string{}
+		}
+		ix, err := loadIndex(e.Dir, n)
+		if err != nil {
+			return nil, errf(KindGeneric, fmt.Sprintf("%s: %v", n, err))
+		}
+		if ix != nil {
+			// checked-out paths that are gone here are deleted too
+			gone, err := goneFromIndex(e.Dir, n, ix)
+			if err != nil {
+				return nil, errf(KindGeneric, fmt.Sprintf("%s: %v", n, err))
+			}
+			p.index = ix
+			p.Delete = append(p.Delete, gone...)
 		}
 		for _, l := range local {
 			switch l.Type {
@@ -794,13 +830,23 @@ func (e *Env) Sync(ctx context.Context, names []string, noApply bool) (SyncResul
 		if err := e.C.Reset(ctx, p.Container); err != nil {
 			return res, err
 		}
+		nix := newIndex()
 		for _, l := range p.local {
-			if err := e.putLocal(ctx, p.Container, l); err != nil {
+			uid, gid := e.ownerFor(p.Container, l, p.index)
+			if err := e.putLocal(ctx, p.Container, l, uid, gid); err != nil {
 				return res, err
 			}
+			nix.set(entryOf(l, uid, gid))
 		}
 		for _, d := range p.Delete {
 			if _, err := e.deleteListed(ctx, p.Container, d); err != nil {
+				return res, err
+			}
+		}
+		if p.index != nil {
+			// the device now has exactly the local tree
+			nix.Deleted = append(nix.Deleted, p.listed...)
+			if err := nix.save(e.Dir, p.Container); err != nil {
 				return res, err
 			}
 		}
