@@ -102,25 +102,42 @@ func parseArgs(fs *flag.FlagSet, args []string) ([]string, error) {
 	}
 }
 
-// resolve turns the device argument into a transport.
-func resolve(c *cli.Context, o *options, device string) (Transport, error) {
+// resolve turns the device argument into a backend. The returned function
+// closes it.
+func resolve(c *cli.Context, o *options, device string) (Backend, func() error, error) {
 	if o.exec != "" {
-		return NewExecTransport(o.exec)
+		return pvcontrolBackend(NewExecTransport(o.exec))
 	}
 	target := device
 	if a, ok, err := NewAliasStore(configDir(c)).Get(device); err != nil {
-		return nil, err
+		return nil, nil, err
 	} else if ok {
 		if a.Exec != "" {
-			return NewExecTransport(a.Exec)
+			return pvcontrolBackend(NewExecTransport(a.Exec))
 		}
 		target = a.Target
 	}
+	switch {
+	case strings.HasPrefix(target, "http://"), strings.HasPrefix(target, "https://"):
+		h, err := NewHTTPBackend(target)
+		if err != nil {
+			return nil, nil, errf(KindUsage, err.Error())
+		}
+		return h, h.Close, nil
+	}
 	t, err := ParseTarget(target)
 	if err != nil {
-		return nil, errf(KindUsage, err.Error())
+		return nil, nil, errf(KindUsage, err.Error())
 	}
-	return NewSSHTransport(t, o.sshOpts), nil
+	return pvcontrolBackend(NewSSHTransport(t, o.sshOpts), nil)
+}
+
+// pvcontrolBackend wraps a shell transport.
+func pvcontrolBackend(t Transport, err error) (Backend, func() error, error) {
+	if err != nil {
+		return nil, nil, err
+	}
+	return &Client{T: t}, t.Close, nil
 }
 
 func (s spec) command() cli.Command {
@@ -161,12 +178,12 @@ func (s spec) command() cli.Command {
 			env := &Env{Dir: o.dir, JSON: o.json, Yes: o.yes, KeepOwner: o.keepOwner, NoWait: o.noWait, WaitTimeout: o.timeout,
 				Out: os.Stdout, Err: os.Stderr, In: os.Stdin}
 			if s.device {
-				t, err := resolve(c, o, device)
+				b, closeBackend, err := resolve(c, o, device)
 				if err != nil {
 					return s.fail(o, err)
 				}
-				defer t.Close()
-				env.C = &Client{T: t}
+				defer closeBackend()
+				env.C = b
 			}
 			res, human, err := s.run(ctx, env, o, c, pos)
 			if err != nil {
@@ -509,7 +526,8 @@ func CommandDevmode() cli.Command {
 			name: "add-device", args: "<alias> <target> | <alias> --exec CMD", minPos: 1, maxPos: 2, noDevice: true,
 			usage: "Save a device under a short name",
 			desc: "Saves to <config dir>/devmode-devices.json (--config-dir or PVR_CONFIG_DIR).\n" +
-				"target is user@host[:port] or host[:port]; the default is _pv_@host:8222.",
+				"target is user@host[:port] or host[:port] for ssh (the default is _pv_@host:8222),\n" +
+				"or http://host[:port] for the web server of the pvr-sdk container (the default port is 12368).",
 			flags: func(fs *flag.FlagSet, o *options) {
 				fs.StringVar(&o.exec, "exec", "", "save an exec prefix instead of an ssh target")
 			},
@@ -527,11 +545,19 @@ func CommandDevmode() cli.Command {
 					if len(pos) != 2 {
 						return nil, nil, errf(KindUsage, "usage: pvr devmode add-device <alias> <target>")
 					}
-					t, err := ParseTarget(pos[1])
-					if err != nil {
-						return nil, nil, errf(KindUsage, err.Error())
+					if strings.HasPrefix(pos[1], "http://") || strings.HasPrefix(pos[1], "https://") {
+						base, err := ParseHTTPTarget(pos[1])
+						if err != nil {
+							return nil, nil, errf(KindUsage, err.Error())
+						}
+						a.Target = base
+					} else {
+						t, err := ParseTarget(pos[1])
+						if err != nil {
+							return nil, nil, errf(KindUsage, err.Error())
+						}
+						a.Target = t.String()
 					}
-					a.Target = t.String()
 				}
 				store := NewAliasStore(configDir(c))
 				if err := store.Set(pos[0], a); err != nil {
