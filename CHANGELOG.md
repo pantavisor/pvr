@@ -1,4 +1,40 @@
 
+<a name="060"></a>
+## [060](https://github.com/pantavisor/pvr/compare/059...060) (2026-11-17)
+
+### Ci
+
+* remove the GitLab sync workflow
+* point release tooling, utils image and selftest at GitHub
+* add GitHub Actions for test, image build, release and GitLab sync
+* **gitlab:** treat main like master so old clients keep getting builds
+
+### Docs
+
+* use plain words for the test data file
+* drop go install, which go.mod replace directives prevent
+* update repository links and add the GitHub migration guide
+
+### Feat
+
+* **install:** install from GitHub releases by default, keep GitLab as an option
+* **self-upgrade:** upgrade from GitHub releases first, then GitLab packages and docker images
+
+### Fix
+
+* **ci:** pin file modes in reproducible tarballs
+* **ci:** give main-snapshot builds a real version
+* **release:** leave release candidates out of the changelog
+
+### Refactor
+
+* move the Go module path to github.com/pantavisor/pvr
+
+### Test
+
+* download initial_state_01.tar.gz from the test-data release
+
+
 <a name="059"></a>
 ## [059](https://gitlab.com/pantacor/pvr/compare/058...059) (2026-11-14)
 
