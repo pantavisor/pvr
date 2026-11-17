@@ -332,6 +332,13 @@ func (e *Env) Pull(ctx context.Context, names []string) ([]PullResult, error) {
 		if err != nil {
 			return out, err
 		}
+		// the folder is where edits start, even before devmode changed anything
+		if strings.ContainsAny(n, "/\\") || n == "" || n == "." || n == ".." {
+			return out, errf(KindUsage, fmt.Sprintf("bad container name %q", n))
+		}
+		if err := os.MkdirAll(filepath.Join(e.Dir, n), 0o755); err != nil {
+			return out, err
+		}
 		for _, f := range m.Files {
 			dst, err := RemoteToLocal(e.Dir, n, f.Path)
 			if err != nil {

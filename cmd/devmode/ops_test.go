@@ -278,6 +278,21 @@ func TestPullWritesDeletedList(t *testing.T) {
 	}
 }
 
+// A container with no devmode changes yet still gets its folder, to start editing in.
+func TestPullCreatesTheContainerFolder(t *testing.T) {
+	f := &fakeDev{manifests: map[string]string{"a": `{"container":"a","files":[]}`}}
+	e, _ := newEnv(t, f)
+	if _, err := e.Pull(context.Background(), []string{"a"}); err != nil {
+		t.Fatal(err)
+	}
+	if fi, err := os.Stat(filepath.Join(e.Dir, "a")); err != nil || !fi.IsDir() {
+		t.Fatalf("no folder: %v", err)
+	}
+	if _, err := e.Pull(context.Background(), []string{"../x"}); err == nil {
+		t.Error("a bad container name was accepted")
+	}
+}
+
 func TestDeletedListNeverUploaded(t *testing.T) {
 	e, _ := newEnv(t, &fakeDev{})
 	put(t, e, "a", DeletedListName, "x\n")
