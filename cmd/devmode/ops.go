@@ -33,7 +33,7 @@ import (
 
 // Env is what the commands run with.
 type Env struct {
-	C         *Client
+	C         Backend
 	Dir       string
 	JSON      bool
 	Yes       bool
@@ -247,7 +247,7 @@ func (e *Env) PushContainer(ctx context.Context, name string) (PushResult, error
 }
 
 func (e *Env) Push(ctx context.Context, names []string) ([]PushResult, error) {
-	if _, err := e.C.RequireActive(ctx); err != nil {
+	if _, err := RequireActive(ctx, e.C); err != nil {
 		return nil, err
 	}
 	names, err := e.containersOrLocal(names)
@@ -314,7 +314,7 @@ type PullResult struct {
 }
 
 func (e *Env) Pull(ctx context.Context, names []string) ([]PullResult, error) {
-	st, err := e.C.RequireActive(ctx)
+	st, err := RequireActive(ctx, e.C)
 	if err != nil {
 		return nil, err
 	}
@@ -447,7 +447,7 @@ func (e *Env) confirm(prompt string) bool {
 // asks first. allowReboot overrides the question (watch mode).
 func (e *Env) Apply(ctx context.Context, names []string, allowReboot bool) (ApplyResult, error) {
 	res := ApplyResult{Restarted: []string{}, Containers: []ApplyState{}}
-	if _, err := e.C.RequireActive(ctx); err != nil {
+	if _, err := RequireActive(ctx, e.C); err != nil {
 		return res, err
 	}
 	names, err := e.containersOrLocal(names)
@@ -713,7 +713,7 @@ func (e *Env) Sync(ctx context.Context, names []string, noApply bool) (SyncResul
 		return res, err
 	}
 	res.Containers = plans
-	if _, err := e.C.RequireActive(ctx); err != nil {
+	if _, err := RequireActive(ctx, e.C); err != nil {
 		return res, err
 	}
 	for _, p := range plans {
@@ -761,7 +761,7 @@ type RmResult struct {
 // deleted list, so sync keeps them deleted.
 func (e *Env) Remove(ctx context.Context, container string, paths []string, recursive bool) (RmResult, error) {
 	r := RmResult{Container: container, Removed: []string{}}
-	if _, err := e.C.RequireActive(ctx); err != nil {
+	if _, err := RequireActive(ctx, e.C); err != nil {
 		return r, err
 	}
 	clean := make([]string, 0, len(paths))

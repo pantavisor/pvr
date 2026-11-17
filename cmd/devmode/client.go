@@ -26,7 +26,8 @@ import (
 	"strings"
 )
 
-// Client runs pvcontrol on the device through a Transport.
+// Client is the pvcontrol backend: it runs pvcontrol on the device through a
+// Transport.
 type Client struct{ T Transport }
 
 type ContainerInfo struct {
@@ -79,22 +80,6 @@ func (c *Client) Status(ctx context.Context) (Status, error) {
 	}
 	if err := json.Unmarshal(b, &s); err != nil {
 		return s, errf(KindGeneric, "cannot read devmode status: "+err.Error())
-	}
-	return s, nil
-}
-
-// RequireActive fails with not_allowed or not_active unless a devmode
-// revision runs.
-func (c *Client) RequireActive(ctx context.Context) (Status, error) {
-	s, err := c.Status(ctx)
-	if err != nil {
-		return s, err
-	}
-	if !s.Enabled {
-		return s, errf(KindNotAllowed, "Devmode is disabled, enable PV_DEVMODE_ALLOWED in pantavisor.config or the OEM config")
-	}
-	if !s.Active {
-		return s, errf(KindNotActive, "Not running a devmode revision; run pvr devmode enter first")
 	}
 	return s, nil
 }

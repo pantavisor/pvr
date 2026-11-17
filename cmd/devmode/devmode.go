@@ -376,7 +376,7 @@ func CommandDevmode() cli.Command {
 				"Run 'pvr devmode apply' afterwards to restart the containers.",
 			flags: func(fs *flag.FlagSet, o *options) { transportFlags(fs, o) },
 			run: func(ctx context.Context, env *Env, o *options, c *cli.Context, pos []string) (interface{}, func(io.Writer), error) {
-				if _, err := env.C.RequireActive(ctx); err != nil {
+				if _, err := RequireActive(ctx, env.C); err != nil {
 					return nil, nil, err
 				}
 				done := []string{}
@@ -422,7 +422,7 @@ func CommandDevmode() cli.Command {
 				fs.StringVar(&o.rev, "rev", "", "revision to run (default: the base of the devmode revision)")
 			},
 			run: func(ctx context.Context, env *Env, o *options, c *cli.Context, pos []string) (interface{}, func(io.Writer), error) {
-				st, err := env.C.RequireActive(ctx)
+				st, err := RequireActive(ctx, env.C)
 				if err != nil {
 					return nil, nil, err
 				}

@@ -50,7 +50,7 @@ func addTree(w *fsnotify.Watcher, root string) {
 // Watch pushes and applies every time the local tree changes, until ctx
 // ends. System containers only get a reboot when e.Yes is set.
 func (e *Env) Watch(ctx context.Context, names []string) error {
-	if _, err := e.C.RequireActive(ctx); err != nil {
+	if _, err := RequireActive(ctx, e.C); err != nil {
 		return err
 	}
 	root, err := filepath.Abs(e.Dir)
