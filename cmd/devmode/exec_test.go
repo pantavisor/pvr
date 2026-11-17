@@ -178,7 +178,11 @@ func TestHubExecAndLogs(t *testing.T) {
 		t.Errorf("calls %v", n)
 	}
 
-	f.reply("logs", map[string]interface{}{"lines": []interface{}{map[string]interface{}{"src": "console", "text": "one"}, map[string]interface{}{"src": "console", "text": "two"}}})
+	// as the Hub answers: pantavisor.log lines naming the container come along and are left out
+	f.reply("logs", map[string]interface{}{"lines": []interface{}{
+		map[string]interface{}{"src": "pantavisor/pantavisor.log", "text": "platform 'web' status is now STARTED"},
+		map[string]interface{}{"src": "web/lxc/console.log", "text": "one"},
+		map[string]interface{}{"src": "web/lxc/console.log", "text": "two"}}})
 	lines, err := h.Logs(ctx, "web", 2)
 	if err != nil || strings.Join(lines, ",") != "one,two" {
 		t.Fatalf("%v %v", lines, err)

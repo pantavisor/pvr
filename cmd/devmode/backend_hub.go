@@ -668,9 +668,13 @@ func (h *HubBackend) Logs(ctx context.Context, container string, tail int) ([]st
 	if err != nil {
 		return nil, err
 	}
+	// the tool adds pantavisor.log lines naming the container; logs shows the console log only, as over ssh and http
+	console := consoleLogSource(container)
 	lines := []string{}
 	for _, l := range list(r, "lines") {
-		lines = append(lines, str(l, "text"))
+		if src := str(l, "src"); src == "" || src == console {
+			lines = append(lines, str(l, "text"))
+		}
 	}
 	return lines, nil
 }
