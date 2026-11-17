@@ -58,6 +58,9 @@ func (e IndexEntry) mode() uint32 {
 type Index struct {
 	Version int          `json:"version"`
 	Files   []IndexEntry `json:"files"`
+	// Roots are the paths pulls checked out: "." for the whole container.
+	// An index without roots is a whole-container checkout.
+	Roots []string `json:"roots,omitempty"`
 	// Deleted lists the deleted-list paths already deleted on the device.
 	Deleted []string `json:"deleted,omitempty"`
 
@@ -135,6 +138,42 @@ func (ix *Index) wasDeleted(p string) bool {
 		}
 	}
 	return false
+}
+
+// addRoot records a pulled path; the whole container ("." or "") absorbs the rest.
+func (ix *Index) addRoot(scope string) {
+	if scope == "" {
+		scope = "."
+	}
+	if len(ix.Roots) == 1 && ix.Roots[0] == "." {
+		return
+	}
+	if scope == "." {
+		ix.Roots = []string{"."}
+		return
+	}
+	for _, r := range ix.Roots {
+		if r == scope {
+			return
+		}
+	}
+	ix.Roots = append(ix.Roots, scope)
+}
+
+// scopes lists what a plain pull refreshes: the pulled roots, in the form the
+// device call takes ("" for the whole container).
+func (ix *Index) scopes() []string {
+	var out []string
+	for _, r := range ix.Roots {
+		if r == "." {
+			return []string{""}
+		}
+		out = append(out, r)
+	}
+	if len(out) == 0 {
+		return []string{""}
+	}
+	return out
 }
 
 // save writes the index next to the files, through a temporary file.

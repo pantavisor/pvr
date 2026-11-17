@@ -41,13 +41,13 @@ func (m *multi) Set(v string) error { *m = append(*m, v); return nil }
 
 // options holds every flag any devmode command takes.
 type options struct {
-	json, yes, watch, keepOwner, force, resume, noScan, noApply, recursive, noWait bool
-	exec, dir, base, rev                                                           string
-	sshOpts, envVars                                                               multi
-	scanTimeout, timeout                                                           time.Duration
-	stdin                                                                          bool
-	maxOutput, tail                                                                int
-	cwd                                                                            string
+	json, yes, watch, keepOwner, force, all, resume, noScan, noApply, recursive, noWait bool
+	exec, dir, base, rev                                                                string
+	sshOpts, envVars                                                                    multi
+	scanTimeout, timeout                                                                time.Duration
+	stdin                                                                               bool
+	maxOutput, tail                                                                     int
+	cwd                                                                                 string
 	// rest is what follows -- on the command line (the exec command)
 	rest []string
 }
@@ -374,12 +374,14 @@ func CommandDevmode() cli.Command {
 			},
 		}),
 		dev(spec{
-			name: "pull", args: "<device> [container...] [--force] [-- path...]", maxPos: -1, rest: true, restOptional: true,
+			name: "pull", args: "<device> [container...] [--force] [--all] [-- path...]", maxPos: -1, rest: true, restOptional: true,
 			usage: "Check out the files of a container into ./devmode/<container>/",
 			desc: "Downloads the container's files (the image plus what devmode changed) as one tar and unpacks them into\n" +
 				"./devmode/<container>/: 'pvcontrol devmode files get <container> [path] --tar'. Edit any file there, then 'pvr devmode push'.\n" +
-				"Without paths the whole container is checked out; paths after -- check out only those files or folders,\n" +
+				"The first pull without paths checks out the whole container; paths after -- check out only those files or folders,\n" +
 				"for example 'pvr devmode pull <device> nginx -- etc/nginx/nginx.conf'. A second pull of other paths adds to the checkout.\n" +
+				"A pull without paths of a folder that already has a checkout refreshes only what was pulled before (the paths, or the\n" +
+				"whole container); --all checks out the whole container.\n" +
 				"./devmode/<container>/.devmode-index records what was checked out (never pushed); status and push compare with it.\n" +
 				"Pulling again updates files you did not change, removes files that are gone from the device, and leaves files you\n" +
 				"changed alone: a file changed here and on the device is reported as a conflict. --force overwrites those.\n" +
@@ -390,9 +392,10 @@ func CommandDevmode() cli.Command {
 				transportFlags(fs, o)
 				dirFlag(fs, o)
 				fs.BoolVar(&o.force, "force", false, "overwrite and remove files changed locally")
+				fs.BoolVar(&o.all, "all", false, "check out the whole container, not only what was pulled before")
 			},
 			run: func(ctx context.Context, env *Env, o *options, c *cli.Context, pos []string) (interface{}, func(io.Writer), error) {
-				r, err := env.Pull(ctx, pos, o.rest, o.force)
+				r, err := env.PullWith(ctx, pos, o.rest, o.force, o.all)
 				if err != nil {
 					return nil, nil, err
 				}

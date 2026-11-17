@@ -198,3 +198,71 @@ func TestPullFallsBackOnOldDevice(t *testing.T) {
 		t.Error("a stale index is left after a pull without tar")
 	}
 }
+
+func hasCmd(f *fakeDev, c string) bool {
+	for _, x := range f.cmds {
+		if x == c {
+			return true
+		}
+	}
+	return false
+}
+
+func TestPullAgainRefreshesOnlyWhatWasPulled(t *testing.T) {
+	conf := buildTar(t, tent{name: "etc/nginx/nginx.conf", mode: 0o644, uid: 33, gid: 33, body: "worker 1;\n"})
+	f := &fakeDev{tars: map[string][]byte{"a": sampleTar(t), "a etc/nginx/nginx.conf": conf}}
+	e, _ := newEnv(t, f)
+	whole := "pvcontrol devmode files get a --tar"
+	one := "pvcontrol devmode files get a etc/nginx/nginx.conf --tar"
+
+	// a single file, then a plain pull again: only that file is asked for
+	pull(t, e, false, "etc/nginx/nginx.conf")
+	if got := mustIndex(t, e, "a").Roots; len(got) != 1 || got[0] != "etc/nginx/nginx.conf" {
+		t.Fatalf("roots %v", got)
+	}
+	f.cmds = nil
+	pull(t, e, false)
+	if hasCmd(f, whole) || !hasCmd(f, one) {
+		t.Fatalf("plain pull asked for %v", f.cmds)
+	}
+	if _, err := os.Stat(filepath.Join(e.Dir, "a", "usr/bin/run.sh")); err == nil {
+		t.Error("a plain pull checked out the whole container")
+	}
+
+	// --all takes the whole container and makes it the root
+	if _, err := e.PullWith(context.Background(), []string{"a"}, nil, false, true); err != nil {
+		t.Fatal(err)
+	}
+	if got := mustIndex(t, e, "a").Roots; len(got) != 1 || got[0] != "." {
+		t.Fatalf("roots after --all %v", got)
+	}
+	if readF(t, e, "a", "usr/bin/run.sh") != "#!/bin/sh\n" {
+		t.Error("--all did not check out the container")
+	}
+	f.cmds = nil
+	pull(t, e, false)
+	if !hasCmd(f, whole) || hasCmd(f, one) {
+		t.Errorf("plain pull of a whole checkout asked for %v", f.cmds)
+	}
+}
+
+func TestPullAgainOldIndexWithoutRoots(t *testing.T) {
+	f := &fakeDev{tars: map[string][]byte{"a": sampleTar(t), "a etc/nginx/nginx.conf": sampleTar(t)}}
+	e, _ := newEnv(t, f)
+	pull(t, e, false)
+	ix := mustIndex(t, e, "a")
+	ix.Roots = nil // an index from before roots were recorded
+	if err := ix.save(e.Dir, "a"); err != nil {
+		t.Fatal(err)
+	}
+	f.cmds = nil
+	if r := pull(t, e, false); r.Unchanged != 9 {
+		t.Errorf("result %+v", r)
+	}
+	if !hasCmd(f, "pvcontrol devmode files get a --tar") {
+		t.Errorf("an index without roots was not pulled whole: %v", f.cmds)
+	}
+	if got := mustIndex(t, e, "a").Roots; len(got) != 1 || got[0] != "." {
+		t.Errorf("roots %v", got)
+	}
+}

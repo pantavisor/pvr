@@ -342,13 +342,22 @@ func (st *pullState) removeGone(scope string) {
 }
 
 // pullTree checks out the container, or the given paths of it, from a tar.
-func (e *Env) pullTree(ctx context.Context, name string, scopes []string, force bool, r *PullResult) (err error) {
+// Without paths, a checkout that has an index is refreshed only where it was
+// pulled before; all asks for the whole container.
+func (e *Env) pullTree(ctx context.Context, name string, scopes []string, force, all bool, r *PullResult) (err error) {
 	ix, err := loadIndex(e.Dir, name)
 	if err != nil {
 		return errf(KindGeneric, err.Error())
 	}
 	if ix == nil {
 		ix = newIndex()
+	} else if len(ix.Roots) == 0 {
+		ix.Roots = []string{"."} // written before roots were recorded
+	}
+	if all {
+		scopes = nil
+	} else if len(scopes) == 0 {
+		scopes = ix.scopes()
 	}
 	base := filepath.Join(e.Dir, name)
 	if err := os.MkdirAll(base, 0o755); err != nil {
@@ -378,6 +387,7 @@ func (e *Env) pullTree(ctx context.Context, name string, scopes []string, force 
 			return err
 		}
 		st.removeGone(sc)
+		ix.addRoot(sc)
 	}
 	return nil
 }

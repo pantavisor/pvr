@@ -330,6 +330,15 @@ type PullResult struct {
 // Pull checks out the files of containers into ./devmode/<container>/: all
 // of them, or only the given paths.
 func (e *Env) Pull(ctx context.Context, names, paths []string, force bool) ([]PullResult, error) {
+	return e.PullWith(ctx, names, paths, force, false)
+}
+
+// PullWith is Pull with all: check out the whole container even when an
+// earlier pull took only some paths.
+func (e *Env) PullWith(ctx context.Context, names, paths []string, force, all bool) ([]PullResult, error) {
+	if all && len(paths) > 0 {
+		return nil, errf(KindUsage, "--all and paths after -- cannot be used together")
+	}
 	st, err := RequireActive(ctx, e.C)
 	if err != nil {
 		return nil, err
@@ -354,7 +363,7 @@ func (e *Env) Pull(ctx context.Context, names, paths []string, force bool) ([]Pu
 		}
 		r := PullResult{Container: n, Written: []string{}, Removed: []string{}, Skipped: []Skip{}, Conflicts: []Skip{}, Kept: []string{},
 			DeletedList: []string{}, Method: "tar"}
-		err := e.pullTree(ctx, n, scopes, force, &r)
+		err := e.pullTree(ctx, n, scopes, force, all, &r)
 		if isNoTar(err) {
 			e.progress("%s: the device cannot send a folder as a tar; pulling file by file", n)
 			r = PullResult{Container: n, Written: []string{}, Removed: []string{}, Skipped: []Skip{}, Conflicts: []Skip{}, Kept: []string{},

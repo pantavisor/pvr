@@ -149,9 +149,21 @@ the files outside it as deleted. Each pull adds to the checkout, so the second
 `pull` above keeps the first file. `push` sends an edited file with the owner
 and mode the device had for it.
 
+A `pull` without paths later refreshes only these files, not the whole
+container. To check out the whole container from there, use `--all`:
+
+```
+pvr devmode pull bench nginx          # refreshes the two files above
+pvr devmode pull bench nginx --all    # the whole container
+```
+
 ### Pull again
 
-`pull` again refreshes the checkout without losing your edits:
+`pull` again refreshes the checkout without losing your edits. Without paths it
+refreshes what the earlier pulls checked out: the whole container after a
+whole-container pull (or `--all`), otherwise only the paths given before. The
+first pull of a container, with no `.devmode-index` yet, is always the whole
+container.
 
 - a file you did not change is updated to the device version, and a file gone
   from the device is removed here;
@@ -177,6 +189,7 @@ call to the device.
 ```
 {
  "version": 1,
+ "roots": ["."],
  "files": [
   {"path": "etc/nginx/nginx.conf", "type": "file", "mode": "0644", "uid": 33, "gid": 33,
    "size": 10, "sha256": "...", "target": ""},
@@ -187,7 +200,8 @@ call to the device.
 ```
 
 `type` is `file`, `dir` or `symlink`; `mode` is octal with setuid, setgid and
-sticky bits; `deleted` lists deleted-list paths already deleted on the device.
+sticky bits; `roots` are the paths that were pulled (`"."` is the whole
+container; an index without `roots` counts as whole); `deleted` lists deleted-list paths already deleted on the device.
 `push` sends files whose content, mode or symlink target differ from the index,
 new files, and deletes for indexed paths missing here. It updates the index
 afterwards. Do not edit the index by hand; delete it to make the folder an
