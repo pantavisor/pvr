@@ -333,16 +333,57 @@ func (c *Client) Logs(ctx context.Context, container string, tail int) ([]string
 	if tail <= 0 {
 		tail = 200
 	}
-	file := "/pantavisor/logs/" + rev + "/" + consoleLogSource(container)
-	var out, errb bytes.Buffer
-	code, err := c.T.Run(ctx, Join("tail", "-n", strconv.Itoa(tail), file), nil, &out, &errb)
+	rel := rev + "/" + consoleLogSource(container)
+	file := "/pantavisor/logs/" + rel
+	out, msg, err := c.tail(ctx, file, tail)
+	if err == nil && msg != "" {
+		// a shell on the host, not in a management container, sees the logs at PV_LOG_DIR
+		if dir := c.logDir(ctx); dir != "" {
+			file = strings.TrimRight(dir, "/") + "/" + rel
+			out, msg, err = c.tail(ctx, file, tail)
+		}
+	}
 	if err != nil {
-		return nil, errf(KindUnreachable, err.Error())
+		return nil, err
+	}
+	if msg != "" {
+		return nil, errf(KindGeneric, fmt.Sprintf("cannot read the console log %s: %s", file, msg))
+	}
+	return logLines(out), nil
+}
+
+// tail answers the last n lines of file, or the error tail printed.
+func (c *Client) tail(ctx context.Context, file string, n int) (string, string, error) {
+	var out, errb bytes.Buffer
+	code, err := c.T.Run(ctx, Join("tail", "-n", strconv.Itoa(n), file), nil, &out, &errb)
+	if err != nil {
+		return "", "", errf(KindUnreachable, err.Error())
 	}
 	if code != 0 {
-		return nil, errf(KindGeneric, fmt.Sprintf("cannot read the console log %s: %s", file, firstTextLine(errb.String(), "tail failed")))
+		return "", firstTextLine(errb.String(), "tail failed"), nil
 	}
-	return logLines(out.String()), nil
+	return out.String(), "", nil
+}
+
+// logDir is pantavisor's PV_LOG_DIR, or "" when it cannot be read.
+func (c *Client) logDir(ctx context.Context) string {
+	b, err := c.pvcontrol(ctx, nil, nil, "conf", "ls")
+	if err != nil {
+		return ""
+	}
+	var entries []struct {
+		Key   string `json:"key"`
+		Value string `json:"value"`
+	}
+	if json.Unmarshal(b, &entries) != nil {
+		return ""
+	}
+	for _, e := range entries {
+		if e.Key == "PV_LOG_DIR" && strings.HasPrefix(e.Value, "/") && !strings.Contains(e.Value, "..") {
+			return e.Value
+		}
+	}
+	return ""
 }
 
 func firstTextLine(s, def string) string {

@@ -223,3 +223,22 @@ func TestExecCommandLine(t *testing.T) {
 		t.Errorf("usage exit code %d", code)
 	}
 }
+
+// A shell on the host finds the console log under PV_LOG_DIR.
+func TestPvcontrolLogsOnTheHost(t *testing.T) {
+	tr := &scriptTransport{run: func(c string) (int, string, string) {
+		switch {
+		case strings.HasPrefix(c, "pvcontrol devmode status"):
+			return 0, `{"enabled":true,"active":true,"revision":"devmode/r/0"}`, ""
+		case strings.HasPrefix(c, "pvcontrol conf ls"):
+			return 0, `[{"key":"PV_LOG_DIR","value":"/storage/logs/","modified":"default"}]`, ""
+		case c == "tail -n 3 /storage/logs/devmode/r/0/web/lxc/console.log":
+			return 0, "host line\n", ""
+		}
+		return 1, "", "tail: can't open: No such file or directory\n"
+	}}
+	lines, err := (&Client{T: tr}).Logs(context.Background(), "web", 3)
+	if err != nil || strings.Join(lines, ",") != "host line" {
+		t.Fatalf("%v %v (%q)", lines, err, tr.cmds)
+	}
+}
