@@ -61,38 +61,28 @@ variables.
 ## How old clients get the new release
 
 pvr 059 and older only know GitLab. They read GitLab packages and the GitLab
-registry, so at least one release with the GitHub-aware self-upgrade (060) must
-be published on GitLab too. Old clients upgrade into it, and from then on read
-GitHub.
+registry, so 060 is also published on GitLab, once, by hand. Old clients
+upgrade into it, and from then on read GitHub.
 
-Two things keep GitLab fed:
-
-- The `sync-gitlab` workflow pushes `main` and every tag to
-  `gitlab.com/pantacor/pvr` (branch `main`, never `master`, because the
-  histories differ). It runs only when the repository secret
-  `GITLAB_PUSH_TOKEN` is set; without it the job does nothing. Add it under
-  Settings, Secrets and variables, Actions, with a GitLab token that has
-  `write_repository`.
-- `.gitlab-ci.yml` builds `main` like it used to build `master` and publishes
-  the packages and images under `master` too, so the `latest` channel of old
-  clients keeps working. Tag jobs are unchanged.
+060 is the last release on GitLab. After it, nothing is published or synced to
+GitLab, and the GitLab project gets archived.
 
 ## Cutting 060
 
 060 is the first release that upgrades from GitHub. It is cut after this
-change is merged and the default branch is `main` (or `main-draft`).
+change is merged and the default branch is `main`.
 
 ```bash
 git checkout main && git pull
 ci/release.sh 060 --dry-run     # preview the CHANGELOG section and tag message
-ci/release.sh 060 --push
+PVR_GITLAB_PUSH=1 ci/release.sh 060 --push
 ```
 
-`--push` pushes the branch and tag to GitHub. It also pushes them to
-`gitlab.com/pantacor/pvr` when a remote named `gitlab` exists
-(`git remote add gitlab https://gitlab.com/pantacor/pvr.git`) or when
-`PVR_GITLAB_PUSH=1` is set. Do this even if `GITLAB_PUSH_TOKEN` is not set up,
-so 060 reaches GitLab.
+`--push` pushes the branch and tag to GitHub. With `PVR_GITLAB_PUSH=1` (or a
+remote named `gitlab`, added with
+`git remote add gitlab https://gitlab.com/pantacor/pvr.git`) it also pushes
+them to `gitlab.com/pantacor/pvr`, where the GitLab tag pipeline publishes the
+packages. Use this only for 060.
 
 To preview the section from another branch, run
 `PVR_RELEASE_ANY_BRANCH=1 ci/release.sh 060 --dry-run`.
@@ -136,10 +126,8 @@ and update the sha256 sums.
 
 After a few releases have gone out and old clients have moved:
 
-1. Stop the sync: delete the `GITLAB_PUSH_TOKEN` secret and the
-   `sync-gitlab` workflow.
-2. Remove the GitLab fallbacks from `libpvr/packageupdater.go` and
+1. Remove the GitLab fallbacks from `libpvr/packageupdater.go` and
    `libpvr/selfupdater.go`, and the `PVR_SOURCE=gitlab` option from
    `install.sh` and `install.ps1`.
-3. Archive the GitLab project and `github.com/pantacor/pvr`, with a README
+2. Archive the GitLab project and `github.com/pantacor/pvr`, with a README
    that points to <https://github.com/pantavisor/pvr>.

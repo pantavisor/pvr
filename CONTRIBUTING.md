@@ -22,21 +22,18 @@ The steps below use `056` as the new version.
    The script adds the new section to `CHANGELOG.md` (using a pinned
    git-chglog), commits it as `chore: update CHANGELOG.md for release 056`,
    creates the annotated tag `056` with the section as its message, and
-   pushes main and the tag to GitHub, and to GitLab when a `gitlab` remote exists
-   or `PVR_GITLAB_PUSH=1` is set (see [docs/github-migration.md](docs/github-migration.md)). Without `--push` it stops after the tag and
+   pushes main and the tag to GitHub. Only 060 also goes to GitLab, by hand
+   (see [docs/github-migration.md](docs/github-migration.md)). Without `--push` it stops after the tag and
    prints the push commands.
 
 2. Wait for the `release` workflow (`.github/workflows/release.yml`). It
    builds the binaries and creates the GitHub release `056` with the assets
    `pvr.056.<ARCH>.<EXT>`, including `pvr.056.src.tar.gz` and
-   `pvr.056.vendor.tar.gz`; the CHANGELOG section is the release text. The
-   GitLab tag pipeline (`.gitlab-ci.yml`) still uploads the same names to the
-   GitLab package registry for pvr 059 and older. Check both:
+   `pvr.056.vendor.tar.gz`; the CHANGELOG section is the release text. Check it:
 
    ```bash
    gh release view 056 -R pantavisor/pvr --json assets --jq '.assets[].name'
    curl -fsSLI https://github.com/pantavisor/pvr/releases/download/056/pvr.056.src.tar.gz
-   curl -fsSLI https://gitlab.com/api/v4/projects/pantacor%2Fpvr/packages/generic/pvr/056/pvr.056.src.tar.gz
    ```
 
 3. Optional: edit the GitHub release text for longer notes:
