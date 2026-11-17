@@ -31,6 +31,9 @@ jobs:
         variant: [default, go1.21]
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          # The build runs git describe, which needs the tags and history.
+          fetch-depth: 0
 
       - name: Work out image tags
         id: tags

@@ -53,6 +53,8 @@ jobs:
         with:
           ref: ${{ steps.what.outputs.ref }}
           path: src
+          # The build runs git describe, which needs the tags and history.
+          fetch-depth: 0
 
       - name: Build images
         env:
