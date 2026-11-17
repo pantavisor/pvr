@@ -22,6 +22,10 @@ type fakeDev struct {
 	// ls, when set, answers `containers ls`; n counts the calls so far
 	ls      func(n int) string
 	lsCalls int
+	// tars answers `devmode files get <container> [path] --tar`; a container
+	// named in noTar answers like a pvcontrol that does not know --tar
+	tars  map[string][]byte
+	noTar bool
 }
 
 func (f *fakeDev) Run(_ context.Context, c string, _ io.Reader, out, errw io.Writer) (int, error) {
@@ -43,6 +47,17 @@ func (f *fakeDev) Run(_ context.Context, c string, _ io.Reader, out, errw io.Wri
 			m = `{"container":"` + n + `","files":[]}`
 		}
 		io.WriteString(out, m)
+	case strings.HasPrefix(c, "pvcontrol devmode files get ") && strings.HasSuffix(c, " --tar"):
+		if f.noTar {
+			io.WriteString(errw, "unknown option --tar")
+			return 1, nil
+		}
+		t, ok := f.tars[strings.TrimSuffix(strings.TrimPrefix(c, "pvcontrol devmode files get "), " --tar")]
+		if !ok {
+			io.WriteString(errw, `{"Error":"Not found"}`)
+			return 255, nil
+		}
+		out.Write(t)
 	case strings.HasPrefix(c, "pvcontrol devmode files rm "):
 		for p := range f.notFound {
 			if strings.Contains(c, " "+p) {

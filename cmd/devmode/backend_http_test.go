@@ -32,6 +32,8 @@ type fakeCGI struct {
 	body  map[string]string
 	// reply gives the status and body for a "METHOD /path?query" line.
 	reply func(call string) (int, string)
+	// ctype is the Content-Type of the answers
+	ctype string
 }
 
 func (f *fakeCGI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -50,6 +52,9 @@ func (f *fakeCGI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	status, out := http.StatusOK, "{}"
 	if f.reply != nil {
 		status, out = f.reply(call)
+	}
+	if f.ctype != "" {
+		w.Header().Set("Content-Type", f.ctype)
 	}
 	w.WriteHeader(status)
 	io.WriteString(w, out)

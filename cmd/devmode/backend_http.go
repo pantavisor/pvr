@@ -148,6 +148,9 @@ func (h *HTTPBackend) do(ctx context.Context, method, path, query string, body i
 // httpError turns a pv-ctrl error answer into an error.
 func httpError(status int, body []byte) *Error {
 	e := classify(string(body))
+	if status == http.StatusBadRequest {
+		e.Code = "HTTP_400"
+	}
 	if e.Kind == KindGeneric && strings.TrimSpace(string(body)) == "" {
 		e.Msg = fmt.Sprintf("the device answered HTTP %d", status)
 	}
@@ -219,6 +222,31 @@ func (h *HTTPBackend) Get(ctx context.Context, container, path string, w io.Writ
 		return errf(KindUnreachable, err.Error())
 	}
 	return nil
+}
+
+// Tree asks pv-ctrl for the folder as a tar.
+func (h *HTTPBackend) Tree(ctx context.Context, container, p string) (io.ReadCloser, error) {
+	p, err := treePath(p)
+	if err != nil {
+		return nil, errf(KindUsage, err.Error())
+	}
+	path := "/devmode/files/" + url.PathEscape(container)
+	if p != "" {
+		path += "/" + escapePath(p)
+	}
+	resp, err := h.do(ctx, "GET", path, "format=tar", nil, nil)
+	if err != nil {
+		// a pantavisor from before the tar format answers 400
+		if e, ok := err.(*Error); ok && e.Code == "HTTP_400" {
+			return nil, errNoTar(e.Msg)
+		}
+		return nil, err
+	}
+	if ct := resp.Header.Get("Content-Type"); !strings.HasPrefix(ct, "application/x-tar") {
+		resp.Body.Close()
+		return nil, errNoTar("the answer is " + ct)
+	}
+	return resp.Body, nil
 }
 
 func (h *HTTPBackend) Put(ctx context.Context, container, path string, body io.Reader, o PutOpts) error {

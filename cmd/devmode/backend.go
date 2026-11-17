@@ -28,6 +28,8 @@ type Backend interface {
 	Leave(ctx context.Context, rev string) error
 	Manifest(ctx context.Context, container string) (Manifest, error)
 	Get(ctx context.Context, container, path string, w io.Writer) error
+	// Tree streams a folder or file of the container as a tar; path "" is the whole container.
+	Tree(ctx context.Context, container, path string) (io.ReadCloser, error)
 	Put(ctx context.Context, container, path string, body io.Reader, o PutOpts) error
 	Remove(ctx context.Context, container, path string, recursive bool) error
 	Reset(ctx context.Context, container string) error
