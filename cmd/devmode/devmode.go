@@ -118,6 +118,17 @@ func resolve(c *cli.Context, o *options, device string) (Backend, func() error, 
 		target = a.Target
 	}
 	switch {
+	case strings.HasPrefix(target, "hub:"):
+		id, err := ParseHubTarget(target)
+		if err != nil {
+			return nil, nil, errf(KindUsage, err.Error())
+		}
+		base, _ := c.App.Metadata["PVR_BASEURL"].(string)
+		if base == "" {
+			base = "https://api.pantahub.com"
+		}
+		h := NewHubBackend(id, base, newHubTokenStore(configDir(c)), pvrLoginToken(c, base))
+		return h, h.Close, nil
 	case strings.HasPrefix(target, "http://"), strings.HasPrefix(target, "https://"):
 		h, err := NewHTTPBackend(target)
 		if err != nil {
@@ -527,7 +538,8 @@ func CommandDevmode() cli.Command {
 			usage: "Save a device under a short name",
 			desc: "Saves to <config dir>/devmode-devices.json (--config-dir or PVR_CONFIG_DIR).\n" +
 				"target is user@host[:port] or host[:port] for ssh (the default is _pv_@host:8222),\n" +
-				"or http://host[:port] for the web server of the pvr-sdk container (the default port is 12368).",
+				"http://host[:port] for the web server of the pvr-sdk container (the default port is 12368),\n" +
+				"or hub:<device id or nick> for the Hub of 'pvr login' (see --baseurl).",
 			flags: func(fs *flag.FlagSet, o *options) {
 				fs.StringVar(&o.exec, "exec", "", "save an exec prefix instead of an ssh target")
 			},
@@ -545,7 +557,12 @@ func CommandDevmode() cli.Command {
 					if len(pos) != 2 {
 						return nil, nil, errf(KindUsage, "usage: pvr devmode add-device <alias> <target>")
 					}
-					if strings.HasPrefix(pos[1], "http://") || strings.HasPrefix(pos[1], "https://") {
+					if strings.HasPrefix(pos[1], "hub:") {
+						if _, err := ParseHubTarget(pos[1]); err != nil {
+							return nil, nil, errf(KindUsage, err.Error())
+						}
+						a.Target = pos[1]
+					} else if strings.HasPrefix(pos[1], "http://") || strings.HasPrefix(pos[1], "https://") {
 						base, err := ParseHTTPTarget(pos[1])
 						if err != nil {
 							return nil, nil, errf(KindUsage, err.Error())
