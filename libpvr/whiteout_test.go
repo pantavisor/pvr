@@ -34,13 +34,18 @@ import (
 // rejected (SR-01).
 func TestValidateSquashfsOptionsRejectsCommandOptions(t *testing.T) {
 	// -pf executes commands listed in a definition file, -af reads action
-	// files, -e/-ef contain exclude paths, -pf acknowledges -p options.
+	// files, -ef reads an exclude list from a host file. -e only takes
+	// relative paths inside the rootfs.
 	dangerous := []string{
 		"-pf /etc/shadow.dsq", // fails containment pairing anyway
 		"-pf sentinel.dsq",
 		"-ef excludes.txt",
 		"-af actions.txt",
-		"-e file",
+		"-e /etc",
+		"-e ../outside",
+		"-e lib/../../outside",
+		"-e -comp",
+		"-e",
 		"-comp",
 		"not-a-flag value",
 		"-new-h option",
@@ -68,6 +73,9 @@ func TestValidateSquashfsOptionsRejectsCommandOptions(t *testing.T) {
 		"-Xdict-size 100%",
 		"-Xcompression-level 6",
 		"-comp xz -b 262144 -no-fragments -no-duplicates",
+		"-comp lz4 -Xhc",
+		"-comp xz -e lib/modules -e lib/firmware",
+		"-all-root -e lib/modules -e lib/firmware",
 	} {
 		if err := ValidateSquashfsOptions(options); err != nil {
 			t.Errorf("ValidateSquashfsOptions(%q) rejected a supported option: %v", options, err)
@@ -438,5 +446,20 @@ func TestRootFsBudgetRefusesAnImageThatUnpacksTooBig(t *testing.T) {
 	_ = budget.Add(layer)
 	if err := budget.Add(layer); err == nil {
 		t.Fatal("4 entries fit under a ceiling of 3")
+	}
+}
+
+// TestSquashfsArgsPutsExcludesLast checks that -e paths go after the flags
+// pvr always sets, so mksquashfs does not read those flags as paths.
+func TestSquashfsArgsPutsExcludesLast(t *testing.T) {
+	got := strings.Join(squashfsArgs("-comp lz4 -Xhc -e lib/modules -e lib/firmware"), " ")
+	want := "-comp lz4 -Xhc -reproducible -root-mode 0755 -mkfs-time 1 -all-time 1 -e lib/modules lib/firmware"
+	if got != want {
+		t.Errorf("squashfsArgs = %q, want %q", got, want)
+	}
+	got = strings.Join(squashfsArgs(""), " ")
+	want = "-comp xz -reproducible -root-mode 0755 -mkfs-time 1 -all-time 1"
+	if got != want {
+		t.Errorf("squashfsArgs(\"\") = %q, want %q", got, want)
 	}
 }
