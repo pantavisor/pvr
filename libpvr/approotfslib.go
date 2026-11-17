@@ -24,7 +24,7 @@ import (
 	"path/filepath"
 
 	"github.com/opencontainers/go-digest"
-	"gitlab.com/pantacor/pvr/utils/pvjson"
+	"github.com/pantavisor/pvr/utils/pvjson"
 )
 
 func UpdateRootFSApp(p *Pvr, app *AppData, appManifest *Source) error {

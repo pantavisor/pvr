@@ -33,8 +33,6 @@ import (
 )
 
 const (
-	pvrRegistry         = "registry.gitlab.com"
-	pvrProject          = "pantacor/pvr"
 	lastUpdateFile      = "installed_version"
 	pvrCmd              = "pvr"
 	cacheFolder         = "cache/"
@@ -43,6 +41,12 @@ const (
 	cacheFilePrefix     = "pvr_layer_"
 	cacheFileExt        = ".tar.gz"
 )
+
+// dockerSources are tried in order when the package downloads fail.
+var dockerSources = []struct{ registry, project string }{
+	{"ghcr.io", "pantavisor/pvr"},
+	{"registry.gitlab.com", "pantacor/pvr"},
+}
 
 type downloadData struct {
 	filename string
@@ -102,22 +106,35 @@ func UpdateIfNecessary(c *cli.Context) error {
 	return nil
 }
 
-// UpdatePvr updates the pvr binary. It downloads from the GitLab generic
-// package registry first (no docker, no auth) and falls back to pulling the
-// docker image if that fails (unsupported platform, network, etc).
+// UpdatePvr updates the pvr binary. Sources, in order: GitHub releases,
+// GitLab generic packages (the only source for versions up to 059), then the
+// docker images on ghcr.io and registry.gitlab.com.
 func (pvr *Pvr) UpdatePvr(username, password string, silent, force bool) error {
-	err := pvr.updateFromPackage(silent, force)
+	err := pvr.updateFromGitHub(silent, force)
 	if err == nil {
 		return nil
 	}
+	fmt.Fprintf(os.Stderr, "GitHub releases unavailable (%v); trying GitLab packages...\r\n", err)
 
-	fmt.Fprintf(os.Stderr, "Package update unavailable (%v); falling back to docker registry...\r\n", err)
-	return pvr.updatePvrFromDocker(username, password, silent, force)
+	err = pvr.updateFromPackage(silent, force)
+	if err == nil {
+		return nil
+	}
+	fmt.Fprintf(os.Stderr, "GitLab packages unavailable (%v); trying docker registries...\r\n", err)
+
+	for _, src := range dockerSources {
+		err = pvr.updatePvrFromDocker(username, password, src.registry, src.project, silent, force)
+		if err == nil {
+			return nil
+		}
+		fmt.Fprintf(os.Stderr, "%s/%s unavailable (%v)\r\n", src.registry, src.project, err)
+	}
+	return err
 }
 
 // updatePvrFromDocker takes the username, password and configuration File (aka: ~/.pvr) and update the pvr binary
-func (pvr *Pvr) updatePvrFromDocker(username, password string, silent, force bool) error {
-	currentDigest, previousDigest, img, err := pvr.getDigetsDifference(username, password)
+func (pvr *Pvr) updatePvrFromDocker(username, password, registry, project string, silent, force bool) error {
+	currentDigest, previousDigest, img, err := pvr.getDigetsDifference(username, password, registry, project)
 	if err != nil {
 		return err
 	}
@@ -129,7 +146,7 @@ func (pvr *Pvr) updatePvrFromDocker(username, password string, silent, force boo
 		return nil
 	}
 
-	fmt.Fprintf(os.Stderr, "Starting update PVR using Docker latest tag (%v) \r\n ", currentDigest)
+	fmt.Fprintf(os.Stderr, "Starting update PVR using Docker image %s/%s (%v) \r\n ", registry, project, currentDigest)
 
 	cacheFolder, err := pvr.downloadAdUpdateBinary(username, password, currentDigest, img)
 	if err != nil {
@@ -138,20 +155,20 @@ func (pvr *Pvr) updatePvrFromDocker(username, password string, silent, force boo
 
 	fmt.Fprintf(os.Stderr, "\r\nDocker layers are going to be cache on: %v \r\n\r\n", cacheFolder)
 
-	fmt.Fprintf(os.Stderr, "PVR has been updated! \r\n\r\n ")
+	fmt.Fprintf(os.Stderr, "PVR has been updated from %s! \r\n\r\n ", registry)
 	return nil
 }
 
 // getDockerURL
-func (pvr *Pvr) getDockerURL() string {
-	return fmt.Sprintf("%s:%s", pvrRegistry+"/"+pvrProject, pvr.Session.Configuration.DistributionTag)
+func (pvr *Pvr) getDockerURL(registry, project string) string {
+	return fmt.Sprintf("%s:%s", registry+"/"+project, pvr.Session.Configuration.DistributionTag)
 }
 
-func (pvr *Pvr) getDigetsDifference(username, password string) (string, string, v1.Image, error) {
+func (pvr *Pvr) getDigetsDifference(username, password, registry, project string) (string, string, v1.Image, error) {
 	configDir := pvr.Session.configDir
-	dockerURL := pvr.getDockerURL()
+	dockerURL := pvr.getDockerURL(registry, project)
 
-	auth := pvr.AuthConfig(username, password, pvrRegistry)
+	auth := pvr.AuthConfig(username, password, registry)
 
 	ref, err := name.ParseReference(dockerURL)
 	if err != nil {

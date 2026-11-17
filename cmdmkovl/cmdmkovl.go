@@ -21,7 +21,7 @@ import (
 	"os"
 	"os/exec"
 
-	"gitlab.com/pantacor/pvr/libpvr"
+	"github.com/pantavisor/pvr/libpvr"
 )
 
 func main() {

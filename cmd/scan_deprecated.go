@@ -19,8 +19,8 @@ package cmd
 import (
 	"fmt"
 
+	"github.com/pantavisor/pvr/cmd/device"
 	"github.com/urfave/cli"
-	"gitlab.com/pantacor/pvr/cmd/device"
 )
 
 func CommandScanDeprecated() cli.Command {

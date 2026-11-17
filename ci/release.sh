@@ -1,7 +1,16 @@
 #!/bin/bash
 # Cut a pvr release: changelog commit, annotated tag, optional push.
 # Usage: ci/release.sh NNN [--push] [--dry-run]
+#
+# Releases are cut from main (main-draft until the rename). The branch and tag
+# go to origin (GitHub). With --push they also go to gitlab.com/pantacor/pvr
+# when a remote named `gitlab` exists or PVR_GITLAB_PUSH=1, so the GitLab
+# package registry that pvr 059 and older read gets the release too.
+# For a dry run on another branch (to preview the changelog), set
+# PVR_RELEASE_ANY_BRANCH=1; the branch and origin checks are skipped.
 set -euo pipefail
+
+GITLAB_URL=https://gitlab.com/pantacor/pvr.git
 
 CHGLOG=${CHGLOG:-"go run github.com/git-chglog/git-chglog/cmd/git-chglog@v0.15.4"}
 
@@ -31,10 +40,18 @@ done
 
 cd "$(git rev-parse --show-toplevel)"
 
-[ "$(git rev-parse --abbrev-ref HEAD)" = master ] || die "not on master"
-[ -z "$(git status --porcelain)" ] || die "work tree is not clean"
-git fetch -q origin master
-[ "$(git rev-parse HEAD)" = "$(git rev-parse origin/master)" ] || die "master differs from origin/master"
+branch=$(git rev-parse --abbrev-ref HEAD)
+if [ "$dry" = 1 ] && [ "${PVR_RELEASE_ANY_BRANCH:-0}" = 1 ]; then
+	echo "note: PVR_RELEASE_ANY_BRANCH=1, skipping the branch and origin checks (on $branch)"
+else
+	case "$branch" in
+	main | main-draft) ;;
+	*) die "not on main (or main-draft)" ;;
+	esac
+	[ -z "$(git status --porcelain)" ] || die "work tree is not clean"
+	git fetch -q origin "$branch"
+	[ "$(git rev-parse HEAD)" = "$(git rev-parse "origin/$branch")" ] || die "$branch differs from origin/$branch"
+fi
 ! git rev-parse -q --verify "refs/tags/$version" >/dev/null || die "tag $version exists locally"
 [ -z "$(git ls-remote --tags origin "refs/tags/$version")" ] || die "tag $version exists on origin"
 
@@ -79,17 +96,35 @@ git tag -a --cleanup=verbatim "$version" -F "$tmp/tag.msg"
 
 if [ "$push" = 0 ]; then
 	echo "Created commit and tag $version. To publish:"
-	echo "  git push origin master"
+	echo "  git push origin $branch"
 	echo "  git push origin $version"
+	echo "  git push $GITLAB_URL $branch:main $version   # GitLab bridge"
 	exit 0
 fi
 
-git push origin master
+git push origin "$branch"
 git push origin "$version"
 
-cat <<EOF
-Pushed $version. Wait for the tag pipeline, then check the packages:
+# GitLab bridge: the old packages and registry stay in sync for pvr <= 059.
+if git remote get-url gitlab >/dev/null 2>&1; then
+	gitlab=gitlab
+elif [ "${PVR_GITLAB_PUSH:-0}" = 1 ]; then
+	gitlab=$GITLAB_URL
+else
+	gitlab=
+	echo "note: no gitlab remote and PVR_GITLAB_PUSH is not 1, so nothing was pushed to GitLab"
+fi
+if [ -n "$gitlab" ]; then
+	git push "$gitlab" "HEAD:refs/heads/main"
+	git push "$gitlab" "$version"
+fi
+
+cat <<EOT
+Pushed $version. Wait for the release workflow (GitHub) and the tag pipeline (GitLab), then check:
+  gh release view $version -R pantavisor/pvr --json assets --jq '.assets[].name'
+  curl -fsSLI https://github.com/pantavisor/pvr/releases/download/$version/pvr.$version.src.tar.gz
+  curl -fsSLI https://github.com/pantavisor/pvr/releases/download/$version/pvr.$version.vendor.tar.gz
   curl -fsSLI https://gitlab.com/api/v4/projects/pantacor%2Fpvr/packages/generic/pvr/$version/pvr.$version.src.tar.gz
   curl -fsSLI https://gitlab.com/api/v4/projects/pantacor%2Fpvr/packages/generic/pvr/$version/pvr.$version.vendor.tar.gz
-Then bump pvr in meta-pantavisor (rename recipes-pv/pvr/pvr_$prev.bb to pvr_$version.bb, update the sha256 sums).
-EOF
+Then bump pvr in meta-pantavisor: rename recipes-pv/pvr/pvr_$prev.bb to pvr_$version.bb, update the sha256 sums.
+EOT

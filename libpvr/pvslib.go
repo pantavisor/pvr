@@ -37,7 +37,7 @@ import (
 	"github.com/bmatcuk/doublestar"
 	gojose "github.com/go-jose/go-jose/v3"
 	"github.com/go-resty/resty"
-	"gitlab.com/pantacor/pvr/utils/pvjson"
+	"github.com/pantavisor/pvr/utils/pvjson"
 )
 
 type PvsMatch struct {

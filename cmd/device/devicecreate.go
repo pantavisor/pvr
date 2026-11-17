@@ -23,8 +23,8 @@ import (
 	"os"
 	"strings"
 
-	"gitlab.com/pantacor/pvr/libpvr"
-	"gitlab.com/pantacor/pvr/utils/pvjson"
+	"github.com/pantavisor/pvr/libpvr"
+	"github.com/pantavisor/pvr/utils/pvjson"
 
 	"github.com/urfave/cli"
 )

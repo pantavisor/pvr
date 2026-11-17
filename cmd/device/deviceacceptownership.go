@@ -23,8 +23,8 @@ import (
 	"os"
 	"strings"
 
+	"github.com/pantavisor/pvr/libpvr"
 	"github.com/urfave/cli"
-	"gitlab.com/pantacor/pvr/libpvr"
 )
 
 // CommandDeviceAcceptOwnership : pvr device accept-ownership

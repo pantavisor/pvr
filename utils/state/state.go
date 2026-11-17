@@ -22,7 +22,7 @@ import (
 	jsonpatch "github.com/asac/json-patch"
 	gojose "github.com/go-jose/go-jose/v3"
 	"github.com/highercomve/jsondiff"
-	"gitlab.com/pantacor/pvr/utils/pvjson"
+	"github.com/pantavisor/pvr/utils/pvjson"
 
 	"github.com/bmatcuk/doublestar"
 )

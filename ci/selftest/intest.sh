@@ -3,6 +3,8 @@
 # paths for real:
 #   - release client (051) -> docker-registry manifest path  (the tags we fixed)
 #   - master build         -> generic-package path
+# These old clients only know GitLab, so they are installed with PVR_SOURCE=gitlab
+# (the GitLab bridge). The last test installs from GitHub releases.
 set -uo pipefail
 export PATH="$HOME/.local/bin:$PATH"
 
@@ -19,7 +21,7 @@ install_ver() {
 	want="$1"
 	for attempt in 1 2 3; do
 		reset_state
-		PVR_VERSION="$want" sh /work/install.sh >/tmp/inst.log 2>&1 && command -v pvr >/dev/null 2>&1 && return 0
+		PVR_SOURCE="${SRC:-gitlab}" PVR_VERSION="$want" sh /work/install.sh >/tmp/inst.log 2>&1 && command -v pvr >/dev/null 2>&1 && return 0
 		echo "  (install $want attempt $attempt failed, retrying)"; sleep 3
 	done
 	echo "  install $want FAILED:"; sed 's/^/    /' /tmp/inst.log; return 1
@@ -96,6 +98,13 @@ echo "  installed master build: $(ver)"
 pvr global-config DistributionTag=stable >/dev/null
 run_upgrade; rc=$?
 judge "master self-upgrade (package path)" package "$out" "$rc"
+
+echo "################ TEST 5: install.sh from GitHub releases ################"
+for want in 059 main-snapshot; do
+	SRC=github install_ver "$want"
+	hash -r
+	if pvr version >/dev/null 2>&1; then ok "GitHub install of $want: $(ver)"; else ko "GitHub install of $want"; fi
+done
 
 echo "===================================================================="
 echo "RESULT: PASS=$PASS  FAIL=$FAIL"

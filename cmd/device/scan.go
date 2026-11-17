@@ -17,8 +17,8 @@
 package device
 
 import (
+	"github.com/pantavisor/pvr/libpvr"
 	"github.com/urfave/cli"
-	"gitlab.com/pantacor/pvr/libpvr"
 )
 
 func CommandScan() cli.Command {

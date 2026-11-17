@@ -29,8 +29,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pantavisor/pvr/libpvr"
 	"github.com/urfave/cli"
-	"gitlab.com/pantacor/pvr/libpvr"
 )
 
 func TestValidateTail(t *testing.T) {

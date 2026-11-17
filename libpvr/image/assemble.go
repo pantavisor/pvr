@@ -23,8 +23,8 @@ import (
 	"strconv"
 	"strings"
 
-	"gitlab.com/pantacor/pvr/libpvr"
-	"gitlab.com/pantacor/pvr/utils/pvjson"
+	"github.com/pantavisor/pvr/libpvr"
+	"github.com/pantavisor/pvr/utils/pvjson"
 )
 
 // Options of Assemble and Factory.

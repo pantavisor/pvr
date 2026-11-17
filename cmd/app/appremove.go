@@ -20,8 +20,8 @@ import (
 	"os"
 	"strings"
 
+	"github.com/pantavisor/pvr/libpvr"
 	"github.com/urfave/cli"
-	"gitlab.com/pantacor/pvr/libpvr"
 )
 
 // CommandAppRemove : pvr app rm command to remove an app

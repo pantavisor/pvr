@@ -20,8 +20,8 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/pantavisor/pvr/utils/pvjson"
 	"gitlab.com/pantacor/pantahub-base/logs"
-	"gitlab.com/pantacor/pvr/utils/pvjson"
 )
 
 type LogFormatter interface {

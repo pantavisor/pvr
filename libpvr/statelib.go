@@ -21,7 +21,7 @@ import (
 
 	jsonpatch "github.com/asac/json-patch"
 	"github.com/highercomve/jsondiff"
-	"gitlab.com/pantacor/pvr/utils/pvjson"
+	"github.com/pantavisor/pvr/utils/pvjson"
 )
 
 func copyState(state map[string]interface{}) map[string]interface{} {

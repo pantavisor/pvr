@@ -20,8 +20,8 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/pantavisor/pvr/libpvr"
 	"github.com/urfave/cli"
-	"gitlab.com/pantacor/pvr/libpvr"
 )
 
 func CommandSigDownload() cli.Command {

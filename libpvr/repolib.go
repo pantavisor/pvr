@@ -40,10 +40,10 @@ import (
 	"github.com/cavaliercoder/grab"
 	"github.com/go-resty/resty"
 	"github.com/highercomve/jsondiff"
+	pvrapi "github.com/pantavisor/pvr/api"
+	"github.com/pantavisor/pvr/models"
+	"github.com/pantavisor/pvr/utils/pvjson"
 	"gitlab.com/pantacor/pantahub-base/objects"
-	pvrapi "gitlab.com/pantacor/pvr/api"
-	"gitlab.com/pantacor/pvr/models"
-	"gitlab.com/pantacor/pvr/utils/pvjson"
 	"golang.org/x/term"
 	"gopkg.in/cheggaaa/pb.v1"
 )

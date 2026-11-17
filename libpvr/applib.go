@@ -29,9 +29,9 @@ import (
 	"strings"
 	"syscall"
 
-	"gitlab.com/pantacor/pvr/models"
-	"gitlab.com/pantacor/pvr/templates"
-	"gitlab.com/pantacor/pvr/utils/pvjson"
+	"github.com/pantavisor/pvr/models"
+	"github.com/pantavisor/pvr/templates"
+	"github.com/pantavisor/pvr/utils/pvjson"
 )
 
 const (

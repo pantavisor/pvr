@@ -22,8 +22,8 @@ import (
 	"strings"
 
 	"github.com/bmatcuk/doublestar"
+	"github.com/pantavisor/pvr/libpvr"
 	"github.com/urfave/cli"
-	"gitlab.com/pantacor/pvr/libpvr"
 )
 
 func CommandSigUpdate() cli.Command {

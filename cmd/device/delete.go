@@ -19,8 +19,8 @@ package device
 import (
 	"os"
 
+	"github.com/pantavisor/pvr/libpvr"
 	"github.com/urfave/cli"
-	"gitlab.com/pantacor/pvr/libpvr"
 )
 
 func CommandDeviceDelete() cli.Command {

@@ -21,9 +21,9 @@ import (
 	"log"
 	"strings"
 
+	"github.com/pantavisor/pvr/cmd/device"
+	"github.com/pantavisor/pvr/libpvr"
 	"github.com/urfave/cli"
-	"gitlab.com/pantacor/pvr/cmd/device"
-	"gitlab.com/pantacor/pvr/libpvr"
 )
 
 func CommandLogsDeprecated() cli.Command {

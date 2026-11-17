@@ -2,17 +2,21 @@
 # shellcheck shell=sh
 set -eu
 
-# Install pvr from GitLab Packages
+# Install pvr from GitHub Releases (or, during the transition, GitLab Packages)
 # Usage:
-#   curl -fsSL https://gitlab.com/pantacor/pvr/-/raw/master/install.sh | bash
-#   curl -fsSL https://gitlab.com/pantacor/pvr/-/raw/master/install.sh | PVR_CHANNEL=develop bash
-#   curl -fsSL https://gitlab.com/pantacor/pvr/-/raw/master/install.sh | PVR_VERSION=046 bash
+#   curl -fsSL https://raw.githubusercontent.com/pantavisor/pvr/main/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/pantavisor/pvr/main/install.sh | PVR_CHANNEL=develop bash
+#   curl -fsSL https://raw.githubusercontent.com/pantavisor/pvr/main/install.sh | PVR_VERSION=046 bash
 #
 # Environment variables:
 #   PVR_VERSION     - Specific version to install (default: latest)
-#   PVR_CHANNEL     - Channel to fetch version from: stable or develop (default: stable)
+#   PVR_CHANNEL     - stable = newest release; any other value (develop, latest,
+#                     master, main) = the rolling main-snapshot build (default: stable)
 #   PVR_INSTALL_DIR - Installation directory (default: $HOME/.local/bin)
-#   GITLAB_HOST     - GitLab instance (default: gitlab.com)
+#   PVR_SOURCE      - github or gitlab (default: github)
+#   PVR_GITHUB_REPO - GitHub repository (default: pantavisor/pvr)
+#   GITHUB_TOKEN    - optional, raises the GitHub API rate limit
+#   GITLAB_HOST     - GitLab instance, with PVR_SOURCE=gitlab (default: gitlab.com)
 
 # Color codes
 RED='\033[0;31m'
@@ -23,6 +27,8 @@ NC='\033[0m'
 # Default values
 VERSION="${PVR_VERSION:-latest}"
 CHANNEL="${PVR_CHANNEL:-stable}"
+SOURCE="${PVR_SOURCE:-github}"
+GITHUB_REPO="${PVR_GITHUB_REPO:-pantavisor/pvr}"
 GITLAB_HOST="${GITLAB_HOST:-gitlab.com}"
 PROJECT_ID="${PVR_PROJECT_ID:-pantacor%2Fpvr}"
 INSTALL_DIR="${PVR_INSTALL_DIR:-${HOME}/.local/bin}"
@@ -84,7 +90,29 @@ detect_arch() {
 	esac
 }
 
+github_api() {
+	if [ -n "${GITHUB_TOKEN:-}" ]; then
+		curl -fsS -H "Authorization: Bearer ${GITHUB_TOKEN}" "https://api.github.com/repos/${GITHUB_REPO}/$1"
+	else
+		curl -fsS "https://api.github.com/repos/${GITHUB_REPO}/$1"
+	fi
+}
+
 get_latest_version() {
+	if [ "$SOURCE" = "github" ]; then
+		if [ "$CHANNEL" = "stable" ]; then
+			# /releases/latest skips prereleases, so it is the newest release.
+			version="$(github_api releases/latest | grep -oE '"tag_name": *"[^"]*"' | head -1 | cut -d'"' -f4)" || version=""
+		else
+			version="main-snapshot"
+		fi
+		if [ -z "$version" ]; then
+			error "Failed to fetch version from GitHub"
+		fi
+		printf '%s' "$version"
+		return
+	fi
+
 	if [ "$CHANNEL" = "stable" ]; then
 		# stable = newest release version only (NNN or NNN-revNNN). Not develop,
 		# and NOT master-* builds, which are published to the same registry and
@@ -123,7 +151,11 @@ download_pvr() {
 		extract_cmd="tar -xzf"
 	fi
 
-	url="https://${GITLAB_HOST}/api/v4/projects/${PROJECT_ID}/packages/generic/pvr/${version}/${filename}"
+	if [ "$SOURCE" = "github" ]; then
+		url="https://github.com/${GITHUB_REPO}/releases/download/${version}/${filename}"
+	else
+		url="https://${GITLAB_HOST}/api/v4/projects/${PROJECT_ID}/packages/generic/pvr/${version}/${filename}"
+	fi
 
 	info "Downloading pvr ${version} for ${os}/${arch}..."
 	info "URL: $url"
@@ -164,12 +196,17 @@ download_pvr() {
 main() {
 	check_dependencies
 
+	case "$SOURCE" in
+	github | gitlab) ;;
+	*) error "PVR_SOURCE must be github or gitlab, got '$SOURCE'" ;;
+	esac
+
 	os_name="$(detect_os)"
 	arch_name="$(detect_arch)"
 
 	info "Detected OS: $os_name"
 	info "Detected Arch: $arch_name"
-	info "Channel: $CHANNEL"
+	info "Channel: $CHANNEL (source: $SOURCE)"
 
 	if [ "$VERSION" = "latest" ]; then
 		VERSION="$(get_latest_version)"

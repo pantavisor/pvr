@@ -22,8 +22,8 @@ import (
 
 	"github.com/justincampbell/timeago"
 	"github.com/olekukonko/tablewriter"
+	"github.com/pantavisor/pvr/libpvr"
 	"github.com/urfave/cli"
-	"gitlab.com/pantacor/pvr/libpvr"
 )
 
 func min(x, y int) int {

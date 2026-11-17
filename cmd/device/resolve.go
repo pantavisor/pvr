@@ -23,8 +23,8 @@ import (
 	"strings"
 
 	"github.com/go-resty/resty"
-	"gitlab.com/pantacor/pvr/libpvr"
-	"gitlab.com/pantacor/pvr/utils/pvjson"
+	"github.com/pantavisor/pvr/libpvr"
+	"github.com/pantavisor/pvr/utils/pvjson"
 )
 
 func isHexID(s string) bool {

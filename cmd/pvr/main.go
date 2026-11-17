@@ -18,7 +18,7 @@
 // main.go stay identical and the two build targets can never drift.
 package main
 
-import "gitlab.com/pantacor/pvr/cmd/pvrcli"
+import "github.com/pantavisor/pvr/cmd/pvrcli"
 
 func main() {
 	pvrcli.Run()

@@ -22,8 +22,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/pantavisor/pvr/utils/pvjson"
 	"github.com/urfave/cli"
-	"gitlab.com/pantacor/pvr/utils/pvjson"
 )
 
 func AddDockerApp(p *Pvr, app *AppData) error {

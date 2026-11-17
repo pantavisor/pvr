@@ -22,8 +22,8 @@ import (
 	"net/url"
 	"os"
 
-	pvrapi "gitlab.com/pantacor/pvr/api"
-	"gitlab.com/pantacor/pvr/utils/pvjson"
+	pvrapi "github.com/pantavisor/pvr/api"
+	"github.com/pantavisor/pvr/utils/pvjson"
 )
 
 // RemoteCopy will perform a remote only copy

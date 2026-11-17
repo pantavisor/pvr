@@ -30,12 +30,14 @@ import (
 	"time"
 )
 
-// pvr is published to the GitLab generic package registry by the
+// Transition source: pvr is published to the GitLab generic package registry by the
 // package-deploy CI job, keyed by version (master, develop, 051, ...). These
 // are plain binary tarballs, publicly downloadable with no auth - a far
 // simpler and more robust upgrade source than parsing docker manifests.
-const (
-	packageName       = "pvr"
+const packageName = "pvr"
+
+// vars so tests can point them at a local server.
+var (
 	gitlabProjectAPI  = "https://gitlab.com/api/v4/projects/pantacor%2Fpvr"
 	gitlabGenericBase = gitlabProjectAPI + "/packages/generic/" + packageName
 	gitlabPackageList = gitlabProjectAPI + "/packages?package_name=" + packageName +
@@ -64,7 +66,7 @@ type glPackageFile struct {
 // latest -> master, stable -> newest release, anything else -> verbatim.
 func (pvr *Pvr) resolveDistributionVersion(tag string) (string, error) {
 	switch tag {
-	case "latest":
+	case "latest", "main":
 		return "master", nil
 	case "stable":
 		return latestReleaseVersion()
@@ -217,7 +219,7 @@ func (pvr *Pvr) updateFromPackage(silent, force bool) error {
 		WriteTxtFile(installedPath, newSha)
 	}
 	if !silent {
-		fmt.Fprintf(os.Stderr, "PVR has been updated to %s! \r\n\r\n", version)
+		fmt.Fprintf(os.Stderr, "PVR has been updated to %s from GitLab packages! \r\n\r\n", version)
 	}
 	return nil
 }

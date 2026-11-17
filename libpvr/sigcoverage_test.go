@@ -18,7 +18,7 @@ import (
 	"reflect"
 	"testing"
 
-	"gitlab.com/pantacor/pvr/utils/pvjson"
+	"github.com/pantavisor/pvr/utils/pvjson"
 )
 
 func TestSignatureCoverage(t *testing.T) {
