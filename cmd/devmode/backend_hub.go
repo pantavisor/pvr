@@ -360,7 +360,8 @@ func spool(body io.Reader) (io.ReadSeeker, string, int64, error) {
 // upload puts a large file into the account's object store, unless the
 // account has it already.
 func (h *HubBackend) upload(ctx context.Context, sum string, size int64, data io.ReadSeeker) error {
-	r, err := h.call(ctx, "get_object_upload_link", "sha256", sum, "size", size)
+	// objects belong to the account, so this tool takes no device
+	r, err := h.mcp.Call(ctx, "get_object_upload_link", map[string]interface{}{"sha256": sum, "size": size})
 	if err != nil {
 		return err
 	}

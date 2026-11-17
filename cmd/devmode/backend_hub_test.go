@@ -428,7 +428,8 @@ func TestHubPut(t *testing.T) {
 	sum := sha256.Sum256(big)
 	hexsum := hex.EncodeToString(sum[:])
 	f.on("get_object_upload_link", func(args map[string]interface{}) (map[string]interface{}, *toolFailure) {
-		if args["sha256"] != hexsum || args["size"] != float64(len(big)) {
+		// the Hub refuses arguments it does not know, and objects belong to the account
+		if _, ok := args["device"]; ok || args["sha256"] != hexsum || args["size"] != float64(len(big)) {
 			return nil, &toolFailure{Code: "INVALID", Message: "bad args"}
 		}
 		return map[string]interface{}{"sha256": hexsum, "put_url": f.srv.URL + "/put/" + hexsum}, nil
