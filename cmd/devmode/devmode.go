@@ -277,8 +277,9 @@ func CommandDevmode() cli.Command {
 		dev(spec{
 			name: "status", args: "<device> [container...]", maxPos: -1,
 			usage: "Show devmode state and the local-versus-device difference per container",
-			desc: "Runs 'pvcontrol devmode status', 'pvcontrol devmode files ls <container>' and 'pvcontrol containers ls'.\n" +
-				"added: only local. changed: content or mode differs.\n" +
+			desc: "Runs 'pvcontrol devmode status' and 'pvcontrol containers ls'. A folder made by pull is compared with its\n" +
+				".devmode-index without asking the device; any other folder with 'pvcontrol devmode files ls <container>'.\n" +
+				"added: only local. changed: content, mode or symlink target differs. deleted: checked out by pull, gone here (push deletes it).\n" +
 				"only on device: a file the local tree lacks (sync removes it, push leaves it).\n" +
 				"to delete: a path on ./devmode/<container>/.devmode-deleted that the device has not deleted yet (push and sync delete it).\n" +
 				"apply: restart for a container, reboot for a system container.",
@@ -294,7 +295,9 @@ func CommandDevmode() cli.Command {
 		dev(spec{
 			name: "push", args: "<device> [container...] [--watch] [--yes] [--keep-owner] [--no-wait] [--timeout D]", maxPos: -1,
 			usage: "Add and update files from ./devmode/<container>/ on the device",
-			desc: "Uploads every file, symlink and empty directory of ./devmode/<container>/ that is new or different:\n" +
+			desc: "For a folder made by 'pvr devmode pull' (it has a .devmode-index) push sends the files whose content, mode or symlink target differ\n" +
+				"from the index and the new ones, keeps the uid/gid the index recorded for edited files, and deletes the checked-out paths that are gone.\n" +
+				"Any other folder: uploads every file, symlink and empty directory of ./devmode/<container>/ that is new or different:\n" +
 				"'pvcontrol devmode files put <container> <path> - --mode M --uid U --gid G' (file on stdin),\n" +
 				"'... put <container> <path> --type symlink --target T' and '... put <container> <path> --type dir --mode M'.\n" +
 				"Then it deletes the image paths on ./devmode/<container>/.devmode-deleted that are not deleted yet:\n" +

@@ -95,21 +95,116 @@ Differences from the other transports:
 
 ## Workflow
 
+`pull` is a checkout. It copies the files of a container (the image plus what
+devmode changed) into `./devmode/<container>/`. Edit, add or delete anything
+there; `push` sends exactly what you changed.
+
 ```
 pvr devmode enter bench              # device reboots into a devmode revision
-pvr devmode pull bench nginx         # ./devmode/nginx/... from the device
+pvr devmode pull bench nginx         # check out the whole container into ./devmode/nginx/
 $EDITOR devmode/nginx/etc/nginx/nginx.conf
-pvr devmode status bench             # what differs
-pvr devmode push bench nginx         # add and update files
+rm devmode/nginx/etc/nginx/conf.d/default.conf
+pvr devmode status bench nginx       # what differs from the checkout
+pvr devmode push bench nginx         # send the edited, new and deleted files
 pvr devmode apply bench nginx        # restart the container
 pvr devmode push bench --watch       # push and apply on every save
-pvr devmode rm bench nginx etc/nginx/conf.d/default.conf   # delete an image file
 pvr devmode sync bench nginx         # make the container match ./devmode exactly
 pvr devmode leave bench              # run the committed revision again
 ```
 
+Example session:
+
+```
+$ pvr devmode pull bench nginx
+nginx: 1834 written, 0 unchanged, 0 removed, 0 kept (changed here), 0 conflicts, 0 skipped
+$ echo "# tuned" >> devmode/nginx/etc/nginx/nginx.conf
+$ rm devmode/nginx/etc/nginx/conf.d/default.conf
+$ pvr devmode status bench nginx
+devmode: active, revision devmode/r/1, base 1
+nginx (apply: restart)
+  changed  etc/nginx/nginx.conf (content)
+  deleted  etc/nginx/conf.d/default.conf (push deletes it on the device)
+$ pvr devmode push bench nginx
+nginx: 1 pushed, 1 image path deleted, 1832 unchanged
+  pvr devmode apply nginx will restart
+```
+
 The local tree is `./devmode/<container>/<path>`; change it with `--dir`.
 Backup and editor files (`*~`, `*.swp`, `.git`, ...) are ignored.
+
+### Work on one file
+
+Name the files you want after `--`. Only those are checked out:
+
+```
+pvr devmode pull bench nginx -- etc/nginx/nginx.conf
+$EDITOR devmode/nginx/etc/nginx/nginx.conf
+pvr devmode push bench nginx          # sends only that file
+pvr devmode pull bench nginx -- usr/share/nginx/html/index.html   # adds a second file
+```
+
+A path can be a file or a folder. The folders above a single file are created
+locally but are not part of the checkout, and a partial checkout never treats
+the files outside it as deleted. Each pull adds to the checkout, so the second
+`pull` above keeps the first file. `push` sends an edited file with the owner
+and mode the device had for it.
+
+### Pull again
+
+`pull` again refreshes the checkout without losing your edits:
+
+- a file you did not change is updated to the device version, and a file gone
+  from the device is removed here;
+- a file you changed and the device did not is left as it is;
+- a file changed here and on the device is a conflict: it is listed, left alone,
+  and `pull --force` takes the device version (it also removes files you changed
+  that are gone from the device).
+
+```
+$ pvr devmode pull bench nginx
+nginx: 0 written, 1830 unchanged, 0 removed, 1 kept (changed here), 1 conflicts, 0 skipped
+  conflict etc/nginx/nginx.conf: changed here and on the device
+  left alone; pull again with --force to take the device version
+$ pvr devmode pull bench nginx --force
+```
+
+### The checkout index
+
+`./devmode/<container>/.devmode-index` records what `pull` checked out, as JSON
+(never pushed). `status` and `push` compare the folder with it, so they need no
+call to the device.
+
+```
+{
+ "version": 1,
+ "files": [
+  {"path": "etc/nginx/nginx.conf", "type": "file", "mode": "0644", "uid": 33, "gid": 33,
+   "size": 10, "sha256": "...", "target": ""},
+  {"path": "usr/bin/sh", "type": "symlink", "mode": "0777", "uid": 0, "gid": 0, "target": "run.sh"}
+ ],
+ "deleted": ["usr/share/doc"]
+}
+```
+
+`type` is `file`, `dir` or `symlink`; `mode` is octal with setuid, setgid and
+sticky bits; `deleted` lists deleted-list paths already deleted on the device.
+`push` sends files whose content, mode or symlink target differ from the index,
+new files, and deletes for indexed paths missing here. It updates the index
+afterwards. Do not edit the index by hand; delete it to make the folder an
+unindexed one that is compared with the device instead.
+
+pvr unpacks the tar safely: it refuses absolute names, `..` and names that pass
+through a symlink, never writes through a symlink, and lists every entry it did
+not write. Modes are kept; owners are set only when pvr runs as root, otherwise
+they are only recorded in the index.
+
+### A device without tar support
+
+A Pantavisor from before the tar format (or a Hub agent that answers
+`PANTAVISOR_TOO_OLD`) cannot send a folder in one step. `pull` then prints a
+one-line notice and pulls file by file: the files devmode changed, with the
+deleted list, and no index. `status` and `push` compare such a folder with the
+device as before.
 
 ### The deleted list
 
@@ -123,18 +218,20 @@ etc/nginx/conf.d/default.conf
 usr/share/doc
 ```
 
-`pvr devmode rm` adds paths to it, `pvr devmode pull` writes it from the files
-devmode deleted on the device, and `push` and `sync` delete the listed paths.
+`pvr devmode rm` adds paths to it, and `push` and `sync` delete the listed paths.
+A pull from a device without tar support also writes it from the files devmode
+deleted on the device. Deleting a file in a checkout needs no list: `push`
+deletes it because it is gone from the folder.
 
 ## Commands
 
 | Command | Runs on the device |
 |---|---|
 | `enter <device> [--base N] [--resume]` | `pvcontrol devmode create [N] [--resume]` |
-| `status <device> [container...]` | `pvcontrol devmode status`, `pvcontrol devmode files ls <c>`, `pvcontrol containers ls` |
+| `status <device> [container...]` | `pvcontrol devmode status`, `pvcontrol containers ls`; for a folder without an index also `pvcontrol devmode files ls <c>` |
 | `push <device> [container...] [--watch] [--yes] [--keep-owner] [--no-wait] [--timeout D]` | `pvcontrol devmode files put <c> <path> - --mode M --uid U --gid G` (file on stdin), `... put <c> <path> --type symlink --target T`, `... put <c> <path> --type dir --mode M`; then `pvcontrol devmode files rm <c> <path> --recursive` for deleted-list paths |
 | `sync <device> [container...] [--no-apply] [--yes] [--keep-owner] [--no-wait] [--timeout D]` | per container `pvcontrol devmode reset <c>`, the uploads of `push`, `pvcontrol devmode files rm <c> <path> --recursive` for the deleted list; then the steps of `apply` |
-| `pull <device> [container...]` | `pvcontrol devmode files ls <c>`, `pvcontrol devmode files get <c> <path>` |
+| `pull <device> [container...] [--force] [-- path...]` | `pvcontrol devmode files get <c> [path] --tar`; on a device without tar `pvcontrol devmode files ls <c>` and `... get <c> <path>` |
 | `apply <device> [container...] [--yes] [--no-wait] [--timeout D]` | `pvcontrol devmode apply <c>`, or `... --reboot` for a system container; `pvcontrol containers ls` every second to wait |
 | `reset <device> <container...>` | `pvcontrol devmode reset <c>` |
 | `rm <device> <container> <path...> [--recursive]` | `pvcontrol devmode files rm <c> <path> [--recursive]` |
@@ -146,27 +243,34 @@ devmode deleted on the device, and `push` and `sync` delete the listed paths.
 
 Rules:
 
-- `status` compares sha256 and mode of local files with the device manifest.
-  `added`: only local. `changed`: content or mode differs. `only on device`: a
-  file the local tree lacks; `sync` removes it, `push` leaves it. `to delete`: a
-  deleted-list path the device has not deleted yet. It also shows what `apply`
-  will do: `restart` for a container, `reboot` for a system container.
-- `push` only adds and updates. Besides the deleted list it removes nothing, so
-  image directories that devmode copied up as parents are never touched.
+- `status` of a checkout compares the folder with `.devmode-index`. `added`: a
+  new file. `changed`: content, mode, type or symlink target differs. `deleted`:
+  a checked-out path gone from the folder; `push` deletes it. `to delete`: a
+  deleted-list path the device has not deleted yet. For a folder without an index
+  it compares sha256 and mode with the device manifest, and `only on device`
+  lists a file the folder lacks (`sync` removes it, `push` leaves it). It also
+  shows what `apply` will do: `restart` for a container, `reboot` for a system
+  container.
+- `push` of a checkout sends the changes described above. For a folder without an
+  index it adds and updates only, besides the deleted list, so image directories
+  that devmode copied up as parents are never touched.
 - `sync` makes the container exactly the image plus `./devmode/<container>/`
   minus the deleted list. It first checks the whole local tree of every selected
   container (paths, types, deleted list) and stops before touching the device if
   anything is wrong. It prints one line per container, for example
   `pv-example-app: emptying devmode files, uploading 12 files, deleting 1 image file`,
   then resets, uploads and deletes per container, and applies all containers
-  once. `--no-apply` skips the apply. Without container names every container
+  once. For a checkout it also deletes the checked-out paths gone from the folder
+  and rewrites the index. `--no-apply` skips the apply. Without container names every container
   with a directory in `./devmode` is synced.
-- `push` and `sync` keep the permission bits of the local file. The owner is root
+- `push` and `sync` keep the permission bits of the local file. An edited file
+  of a checkout keeps the uid/gid the index recorded. A new file is owned by root
   (0/0) because local owners rarely mean anything on the device; `--keep-owner`
   sends the local numeric uid/gid instead. Symlinks are pushed as symlinks and
   empty local directories as directories. File names can hold any character.
-- `pull` creates symlinks and directories, writes the deleted list, and skips
-  special files (device nodes, sockets, pipes) with a reason.
+- `pull` creates symlinks and directories and skips special files (device nodes,
+  sockets, pipes) and unsafe names with a reason. Conflicts are listed and leave
+  the exit code at 0.
 - `reset` empties the devmode files of the named containers on the device. The
   local tree and the deleted list stay as they are.
 - `apply` returns when the container runs again. Before the request it waits
@@ -222,8 +326,9 @@ http, all under `/cgi-bin/pvctrl`, answering with pv-ctrl's status and body:
 | `status` and every check for a devmode revision | `GET /devmode` |
 | `enter` | `POST /devmode` with `{"base":"N","resume":false}` |
 | `leave` | `POST /commands` with `{"op":"LOCAL_RUN","payload":"<revision>"}` |
-| `status`, `push`, `sync`, `pull` (device file list) | `GET /devmode/files/<container>` |
-| `pull` | `GET /devmode/files/<container>/<path>` |
+| `status`, `push`, `sync` (folder without an index), `pull` (device without tar) | `GET /devmode/files/<container>` |
+| `pull` | `GET /devmode/files/<container>[/<path>]?format=tar` (a 400 or an answer that is not `application/x-tar` means no tar support) |
+| `pull` (device without tar) | `GET /devmode/files/<container>/<path>` |
 | `push`, `sync` | `PUT /devmode/files/<container>/<path>?mode=M&uid=U&gid=G` (file body), with `type=dir`, or `type=symlink&target=T` and no body |
 | `rm`, `push`, `sync` (deleted list) | `DELETE /devmode/files/<container>/<path>[?recursive=1]` |
 | `reset`, `sync` | `DELETE /devmode/containers/<container>` |
@@ -239,8 +344,9 @@ Hub, the tools of `<hub>/mcp`:
 | `status` | `get_devmode_context` (`devmode_allowed`), `container_status` |
 | `enter` | `lease`, `dev_begin` |
 | `leave` | `get_devmode_context`, `lease`, `dev_end` |
-| `status`, `push`, `sync`, `pull` (device file list) | `ls` (recursive, with `include_deleted`; entries from the devmode changes and deleted image paths), `hash` |
-| `pull` | `get_file` (in parts, or a download link for large files) |
+| `status`, `push`, `sync` (folder without an index), `pull` (device without tar) | `ls` (recursive, with `include_deleted`; entries from the devmode changes and deleted image paths), `hash` |
+| `pull` | `get_tree` (a download link, after `pending` answers); `PANTAVISOR_TOO_OLD` or an unknown tool means no tar support |
+| `pull` (device without tar) | `get_file` (in parts, or a download link for large files) |
 | `push`, `sync` | `lease`, `apply_changes` with `put`, `mkdir`, `symlink` ops (with `uid` and `gid`); files over 256 KiB go through `get_object_upload_link` and a `source` |
 | `rm`, deleted list | `lease`, `apply_changes` with `rm` |
 | `reset` | `lease`, `reset_changes` |
