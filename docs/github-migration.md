@@ -14,7 +14,7 @@ GitLab, and how a release is cut during the move.
 | What | Before | Now |
 |------|--------|-----|
 | Source, issues, pull requests | gitlab.com/pantacor/pvr | github.com/pantavisor/pvr |
-| Default branch | `master` | `main` (`main-draft` until CI is proven) |
+| Default branch | `master` | `main` |
 | Go module | `gitlab.com/pantacor/pvr` | `github.com/pantavisor/pvr` |
 | Release binaries | GitLab generic packages | GitHub releases, `pvr.<VERSION>.<ARCH>.<EXT>` |
 | Rolling build of the default branch | package `master` | prerelease `main-snapshot` |
@@ -22,11 +22,41 @@ GitLab, and how a release is cut during the move.
 | CI | `.gitlab-ci.yml` | `.github/workflows/` |
 | Test data (100 MB) | in git | release asset `test-data/initial_state_01.tar.gz` |
 
-The history on `main-draft` is the GitLab `master` history without the 100 MB
+The history on `main` is the GitLab `master` history without the 100 MB
 test data file, so commit hashes from 2023-05 on differ from GitLab's. The tags
 were rewritten the same way. The file is downloaded and checked against its
 sha256 by `_test/helpers` when the tests run; do not delete the `test-data`
 release.
+
+## What stayed on GitLab
+
+Only the default branch and the release tags were carried over. Everything
+else is still on <https://gitlab.com/pantacor/pvr> and nowhere else:
+
+- `master`, the old default branch, frozen at release 059 (`e410bc3a`). Its
+  history continues as `main` on GitHub, with new commit hashes from 2023-05 on.
+  The `main` branch on GitLab is a copy of GitHub `main` at release 060, made
+  for the move; it is not updated anymore.
+- `develop` and the other branches (75 in all), and the open merge requests.
+  Each open merge request has a note asking to move it to GitHub.
+- The GitLab issues (5 open).
+
+To move a GitLab branch, cherry-pick its commits onto `main` and change the
+imports to `github.com/pantavisor/pvr`:
+
+```bash
+git fetch https://gitlab.com/pantacor/pvr.git master:gitlab-master my-branch:gitlab-my-branch
+git fetch https://github.com/pantavisor/pvr.git main
+git checkout -b my-branch FETCH_HEAD
+git cherry-pick gitlab-master..gitlab-my-branch
+```
+
+To find a GitLab commit from 2023-05 or later on GitHub, look it up by its
+subject, since the hash changed:
+
+```bash
+git log main --format='%h %ad %s' --date=short | grep -F "<commit subject>"
+```
 
 ## Installing and upgrading
 
@@ -124,10 +154,11 @@ and update the sha256 sums.
 
 ## The end of the transition
 
-After a few releases have gone out and old clients have moved:
+The GitLab project is archived (read-only) once its open work has moved to
+GitHub. After a few releases, when old clients have moved:
 
 1. Remove the GitLab fallbacks from `libpvr/packageupdater.go` and
    `libpvr/selfupdater.go`, and the `PVR_SOURCE=gitlab` option from
    `install.sh` and `install.ps1`.
-2. Archive the GitLab project and `github.com/pantacor/pvr`, with a README
-   that points to <https://github.com/pantavisor/pvr>.
+2. Archive `github.com/pantacor/pvr`, with a README that points to
+   <https://github.com/pantavisor/pvr>.
