@@ -91,7 +91,7 @@ func run(t *testing.T, f *fakeHub, args ...string) (string, string, error) {
 	app.Metadata = map[string]interface{}{"PVR_BASEURL": f.server.URL, "PVR_AUTH": "test-token", "PVR_CONFIG_DIR": t.TempDir()}
 	out, errOut := new(bytes.Buffer), new(bytes.Buffer)
 	app.Writer, app.ErrWriter = out, errOut
-	app.Commands = []cli.Command{CommandArtifact()}
+	app.Commands = []cli.Command{CommandArtifact(), CommandSDK()}
 	err := app.Run(append([]string{"pvr"}, args...))
 	return out.String(), errOut.String(), err
 }
@@ -199,5 +199,42 @@ func TestMissingFlags(t *testing.T) {
 	}
 	if _, _, err := run(t, f, "artifact", "publish", file, "--kind", "doc", "--name", "a", "--version", "1", "--meta", "novalue"); err == nil {
 		t.Fatal("bad meta")
+	}
+}
+
+func TestSDKForm(t *testing.T) {
+	f := newFakeHub(t, true, false)
+	file, _ := writeFile(t, "sdk bytes")
+	if _, _, err := run(t, f, "sdk", "publish", file, "--name", "acme", "--version", "1.0", "--machine", "m",
+		"--target", "aarch64", "--platform", "linux", "--image", "img", "--build-id", "b1"); err != nil {
+		t.Fatal(err)
+	}
+	e := f.posted[0]
+	if e.Kind != "sdk" || e.Meta["machine"] != "m" || e.Meta["target"] != "aarch64" || e.Meta["platform"] != "linux" ||
+		e.Meta["image"] != "img" || e.Meta["build_id"] != "b1" {
+		t.Fatalf("posted %+v", e)
+	}
+	out, _, err := run(t, f, "sdk", "ls")
+	if err != nil || !strings.Contains(out, "MACHINE") || !strings.Contains(out, "aarch64") {
+		t.Fatalf("%q %v", out, err)
+	}
+	if !strings.Contains(f.requests[len(f.requests)-1], "kind=sdk") {
+		t.Fatal(f.requests)
+	}
+	if _, _, err := run(t, f, "sdk", "rm", "acme@1.0"); err != nil {
+		t.Fatal(err)
+	}
+	if f.requests[len(f.requests)-1] != "DELETE /artifacts/0123456789abcdef01234567" {
+		t.Fatal(f.requests)
+	}
+	if _, _, err := run(t, f, "sdk", "rm", "acme"); err == nil {
+		t.Fatal("rm needs a version")
+	}
+	if _, _, err := run(t, f, "sdk", "publish", file, "--name", "acme"); err == nil {
+		t.Fatal("version required")
+	}
+	g := newFakeHub(t, false, false)
+	if _, _, err := run(t, g, "sdk", "ls"); err == nil || err.Error() != "this Hub does not support published artifacts yet" {
+		t.Fatal(err)
 	}
 }
