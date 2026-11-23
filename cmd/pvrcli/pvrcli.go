@@ -30,6 +30,7 @@ import (
 	"github.com/go-resty/resty"
 	"github.com/pantavisor/pvr/cmd"
 	"github.com/pantavisor/pvr/cmd/app"
+	"github.com/pantavisor/pvr/cmd/artifact"
 	"github.com/pantavisor/pvr/cmd/builds"
 	"github.com/pantavisor/pvr/cmd/device"
 	"github.com/pantavisor/pvr/cmd/devmode"
@@ -260,6 +261,7 @@ func Run() {
 		device.CommandDevice(),
 		devmode.CommandDevmode(),
 		app.CommandApp(),
+		artifact.CommandArtifact(),
 		sig.CommandSig(),
 		imagecmd.CommandImage(),
 		fakeroot.CommandFakeroot(),
