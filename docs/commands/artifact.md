@@ -51,6 +51,7 @@ pvr artifact rm sdk/acme-image@1.0
 ## pvr sdk
 
 ```bash
+pvr sdk publish tmp/deploy/images/qemux86-64/acme-image-qemux86-64.sdk.json   # the image: SDK and what goes with it
 pvr sdk publish tmp/deploy/sdk/acme-image-qemux86-64.sdk.json
 pvr sdk publish pv-sdk-installer.sh --name acme-image --version 1.0 \
   --machine qemux86-64 --target x86_64 --platform linux --image acme-image --build-id 5f3a
@@ -66,6 +67,18 @@ descriptor's `file`, looked up in the descriptor's folder. A flag on the command
 line wins over the descriptor; other fields are ignored. It fails with a clear
 message when the descriptor cannot be read or parsed, has no `file`, or the
 installer is not there (the message names the path).
+
+The descriptor next to the image can instead list what belongs to the image, as
+`"publish": ["../sdk/<name>.sdk.json", "../sdk/<name>.kernel-source.json"]`
+(paths relative to it). `pvr sdk publish` then publishes all of them, each with
+its own `kind` (default `sdk`) and the `meta` of its descriptor, and takes the
+name and version from the image, so the files cannot be from different builds.
+Before anything is uploaded it checks that every file exists, matches the
+`sha256` and `size` in its descriptor, has the image's name and version, and is
+not published yet; it stops with a message naming the file otherwise. Flags
+other than `--meta` are refused for such a descriptor. A single descriptor with
+a `sha256` is checked the same way. Remove one with
+`pvr artifact rm kernel-source/acme-image-qemux86-64@<version>`.
 
 `publish` takes the `artifact publish` flags except `--kind`, plus `--machine`,
 `--target`, `--platform`, `--image` and `--build-id`, which are stored in the

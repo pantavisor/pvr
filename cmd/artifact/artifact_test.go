@@ -306,3 +306,82 @@ func TestSDKPublishDescriptorErrors(t *testing.T) {
 		t.Fatal("nothing should be published")
 	}
 }
+
+// writeBundle writes an image descriptor that lists an SDK and a kernel source
+// in a folder next to it, as the build does. The SDK has version sdkVersion.
+func writeBundle(t *testing.T, sdkVersion, kernelSHA string) string {
+	t.Helper()
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "images"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(dir, "sdk"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	write := func(name, content string) {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	sum := func(s string) string { h := sha256.Sum256([]byte(s)); return hex.EncodeToString(h[:]) }
+	write("sdk/acme.sh", "sdk bytes")
+	write("sdk/linux.tar.xz", "kernel bytes")
+	if kernelSHA == "" {
+		kernelSHA = sum("kernel bytes")
+	}
+	write("sdk/acme-image-m.sdk.json", fmt.Sprintf(`{"name":"acme-image-m","version":%q,"kind":"sdk","machine":"m","file":"acme.sh","sha256":%q}`, sdkVersion, sum("sdk bytes")))
+	write("sdk/acme-image-m.kernel-source.json", fmt.Sprintf(`{"name":"acme-image-m","version":"1.0-1","kind":"kernel-source","file":"linux.tar.xz","sha256":%q,"meta":{"kernel_release":"6.6.1-x"}}`, kernelSHA))
+	write("images/acme.sdk.json", `{"name":"acme-image-m","version":"1.0-1","publish":["../sdk/acme-image-m.sdk.json","../sdk/acme-image-m.kernel-source.json"]}`)
+	return filepath.Join(dir, "images/acme.sdk.json")
+}
+
+func TestSDKPublishImageDescriptorPublishesBoth(t *testing.T) {
+	f := newFakeHub(t, true, false)
+	if _, _, err := run(t, f, "sdk", "publish", writeBundle(t, "1.0-1", "")); err != nil {
+		t.Fatal(err)
+	}
+	if len(f.posted) != 2 || f.posted[0].Kind != "sdk" || f.posted[1].Kind != "kernel-source" {
+		t.Fatalf("posted %+v", f.posted)
+	}
+	k := f.posted[1]
+	if k.Name != "acme-image-m" || k.Version != "1.0-1" || k.Meta["kernel_release"] != "6.6.1-x" || k.Size != 12 {
+		t.Fatalf("kernel source %+v", k)
+	}
+}
+
+func TestSDKPublishImageDescriptorStopsBeforeUploading(t *testing.T) {
+	f := newFakeHub(t, true, false)
+	// an SDK of another run
+	if _, _, err := run(t, f, "sdk", "publish", writeBundle(t, "1.0-0", "")); err == nil || !strings.Contains(err.Error(), "different builds") {
+		t.Fatalf("version mismatch: %v", err)
+	}
+	// a kernel source that is not the file that was built
+	if _, _, err := run(t, f, "sdk", "publish", writeBundle(t, "1.0-1", strings.Repeat("0", 64))); err == nil || !strings.Contains(err.Error(), "does not match") {
+		t.Fatalf("sha256 mismatch: %v", err)
+	}
+	// a file that is gone
+	p := writeBundle(t, "1.0-1", "")
+	if err := os.Remove(filepath.Join(filepath.Dir(p), "../sdk/linux.tar.xz")); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := run(t, f, "sdk", "publish", p); err == nil || !strings.Contains(err.Error(), "was not found") {
+		t.Fatalf("missing file: %v", err)
+	}
+	if _, _, err := run(t, f, "sdk", "publish", writeBundle(t, "1.0-1", ""), "--version", "2"); err == nil || !strings.Contains(err.Error(), "--version cannot be used") {
+		t.Fatalf("flag: %v", err)
+	}
+	if len(f.posted) != 0 || f.uploaded != nil {
+		t.Fatalf("nothing should be uploaded: %v", f.posted)
+	}
+}
+
+func TestSDKPublishImageDescriptorAlreadyPublished(t *testing.T) {
+	f := newFakeHub(t, true, false)
+	f.stored = []Entry{{Kind: "kernel-source", Name: "acme-image-m", Version: "1.0-1"}}
+	if _, _, err := run(t, f, "sdk", "publish", writeBundle(t, "1.0-1", "")); err == nil || !strings.Contains(err.Error(), "already published") {
+		t.Fatalf("%v", err)
+	}
+	if len(f.posted) != 0 || f.uploaded != nil {
+		t.Fatalf("the SDK must not be uploaded alone: %v", f.posted)
+	}
+}
