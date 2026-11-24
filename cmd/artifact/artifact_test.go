@@ -238,3 +238,71 @@ func TestSDKForm(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+const testDescriptor = `{"name":"acme-image-m","version":"1.0-20260101","machine":"m","target":"x86_64-poky-linux",
+"image":"acme-image","build_id":"20260101","file":"acme.sh","tune":"core2","libc":"glibc","packages":"x"}`
+
+func writeDescriptor(t *testing.T, descriptor string, installer bool) string {
+	t.Helper()
+	dir := t.TempDir()
+	if installer {
+		if err := os.WriteFile(filepath.Join(dir, "acme.sh"), []byte("sdk bytes"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	p := filepath.Join(dir, "acme-image-m.sdk.json")
+	if err := os.WriteFile(p, []byte(descriptor), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return p
+}
+
+func TestSDKPublishDescriptor(t *testing.T) {
+	f := newFakeHub(t, true, false)
+	p := writeDescriptor(t, testDescriptor, true)
+	if _, _, err := run(t, f, "sdk", "publish", p); err != nil {
+		t.Fatal(err)
+	}
+	e := f.posted[0]
+	if e.Kind != "sdk" || e.Name != "acme-image-m" || e.Version != "1.0-20260101" || e.Meta["machine"] != "m" ||
+		e.Meta["target"] != "x86_64-poky-linux" || e.Meta["image"] != "acme-image" || e.Meta["build_id"] != "20260101" {
+		t.Fatalf("posted %+v", e)
+	}
+	if e.Size != 9 {
+		t.Fatalf("the installer next to the descriptor was not uploaded: %+v", e)
+	}
+}
+
+func TestSDKPublishDescriptorFlagWins(t *testing.T) {
+	f := newFakeHub(t, true, false)
+	p := writeDescriptor(t, testDescriptor, true)
+	if _, _, err := run(t, f, "sdk", "publish", p, "--version", "2.0", "--machine", "other"); err != nil {
+		t.Fatal(err)
+	}
+	e := f.posted[0]
+	if e.Version != "2.0" || e.Meta["machine"] != "other" || e.Name != "acme-image-m" || e.Meta["image"] != "acme-image" {
+		t.Fatalf("posted %+v", e)
+	}
+}
+
+func TestSDKPublishDescriptorErrors(t *testing.T) {
+	f := newFakeHub(t, true, false)
+	missing := filepath.Join(t.TempDir(), "none.sdk.json")
+	if _, _, err := run(t, f, "sdk", "publish", missing); err == nil || !strings.Contains(err.Error(), missing) {
+		t.Fatalf("unreadable descriptor: %v", err)
+	}
+	if _, _, err := run(t, f, "sdk", "publish", writeDescriptor(t, "{not json", true)); err == nil || !strings.Contains(err.Error(), "not valid JSON") {
+		t.Fatalf("bad JSON: %v", err)
+	}
+	if _, _, err := run(t, f, "sdk", "publish", writeDescriptor(t, `{"name":"a","version":"1"}`, true)); err == nil || !strings.Contains(err.Error(), `no "file"`) {
+		t.Fatalf("no file: %v", err)
+	}
+	p := writeDescriptor(t, testDescriptor, false)
+	_, _, err := run(t, f, "sdk", "publish", p)
+	if err == nil || !strings.Contains(err.Error(), filepath.Join(filepath.Dir(p), "acme.sh")) {
+		t.Fatalf("installer not found should name the path: %v", err)
+	}
+	if len(f.posted) != 0 {
+		t.Fatal("nothing should be published")
+	}
+}

@@ -51,11 +51,21 @@ pvr artifact rm sdk/acme-image@1.0
 ## pvr sdk
 
 ```bash
+pvr sdk publish tmp/deploy/sdk/acme-image-qemux86-64.sdk.json
 pvr sdk publish pv-sdk-installer.sh --name acme-image --version 1.0 \
   --machine qemux86-64 --target x86_64 --platform linux --image acme-image --build-id 5f3a
 pvr sdk ls [--name acme-image] [--json]
 pvr sdk rm acme-image@1.0        # or the id
 ```
+
+The first form is the one-liner: the Yocto build writes an SDK descriptor
+(`<name>.sdk.json`) next to the installer, and `publish` reads it. When the
+argument ends in `.json`, `name`, `version`, `machine`, `target`, `platform`,
+`image`, `build_id` and `description` fill the flags, and the installer is the
+descriptor's `file`, looked up in the descriptor's folder. A flag on the command
+line wins over the descriptor; other fields are ignored. It fails with a clear
+message when the descriptor cannot be read or parsed, has no `file`, or the
+installer is not there (the message names the path).
 
 `publish` takes the `artifact publish` flags except `--kind`, plus `--machine`,
 `--target`, `--platform`, `--image` and `--build-id`, which are stored in the
