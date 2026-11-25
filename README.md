@@ -47,6 +47,8 @@ Requires Go 1.21+.
 
 ## Basics
 
+For syncing files into a running device see [pvr devmode](docs/devmode.md).
+
 ```bash
 # Start a new repository
 pvr init
