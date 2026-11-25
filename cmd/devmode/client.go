@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -268,4 +269,140 @@ func ApplyAction(policy string) string {
 		return "reboot"
 	}
 	return "unknown"
+}
+
+// Exec runs `pvcontrol containers exec`. pvcontrol answers with the exit code
+// of the command, so a command that exits with 255 and prints a pv-ctrl error
+// is told apart from one that fails by itself only by that error text.
+func (c *Client) Exec(ctx context.Context, container string, argv []string, o ExecOpts) (ExecResult, error) {
+	var r ExecResult
+	secs := o.seconds()
+	args := []string{"containers", "exec", "--timeout", strconv.Itoa(secs)}
+	var stdin io.Reader
+	if len(o.Stdin) > 0 {
+		args = append(args, "--stdin")
+		stdin = bytes.NewReader(o.Stdin)
+	}
+	if o.MaxOutput > 0 {
+		args = append(args, "--max-output", strconv.Itoa(o.MaxOutput))
+	}
+	if o.Cwd != "" {
+		args = append(args, "--cwd", o.Cwd)
+	}
+	for _, k := range sortedKeys(o.Env) {
+		args = append(args, "--env", k+"="+o.Env[k])
+	}
+	args = append(args, container, "--")
+	args = append(args, argv...)
+	var out, errb bytes.Buffer
+	code, err := c.T.Run(ctx, Join(append([]string{"pvcontrol"}, args...)...), stdin, &out, &errb)
+	if err != nil {
+		return r, errf(KindUnreachable, err.Error())
+	}
+	if code == 127 && strings.Contains(errb.String(), "pvcontrol") && strings.Contains(errb.String(), "not found") {
+		return r, errf(KindGeneric, "pvcontrol not found on the device")
+	}
+	if code == 75 {
+		return r, errf(KindGeneric, "the device is running too many commands, try again")
+	}
+	if code == 255 {
+		var j struct{ Error string }
+		if json.Unmarshal(bytes.TrimSpace(errb.Bytes()), &j) == nil && j.Error != "" {
+			return r, classify(errb.String())
+		}
+	}
+	r.Stdout, r.Stderr = out.String(), errb.String()
+	if code == 124 {
+		r.TimedOut = true
+	} else {
+		r.ExitCode = &code
+	}
+	return r, nil
+}
+
+// Logs reads the console log of the devmode revision where the management
+// container mounts it. The running revision comes from the devmode status;
+// the pantavisor.revision device meta is the committed one.
+func (c *Client) Logs(ctx context.Context, container string, tail int) ([]string, error) {
+	if err := logName("container", container); err != nil {
+		return nil, err
+	}
+	rev, err := runningRevision(ctx, c)
+	if err != nil {
+		return nil, err
+	}
+	if err := logName("revision", rev); err != nil {
+		return nil, err
+	}
+	if tail <= 0 {
+		tail = 200
+	}
+	rel := rev + "/" + consoleLogSource(container)
+	file := "/pantavisor/logs/" + rel
+	out, msg, err := c.tail(ctx, file, tail)
+	if err == nil && msg != "" {
+		// a shell on the host, not in a management container, sees the logs at PV_LOG_DIR
+		if dir := c.logDir(ctx); dir != "" {
+			file = strings.TrimRight(dir, "/") + "/" + rel
+			out, msg, err = c.tail(ctx, file, tail)
+		}
+	}
+	if err != nil {
+		return nil, err
+	}
+	if msg != "" {
+		return nil, errf(KindGeneric, fmt.Sprintf("cannot read the console log %s: %s", file, msg))
+	}
+	return logLines(out), nil
+}
+
+// tail answers the last n lines of file, or the error tail printed.
+func (c *Client) tail(ctx context.Context, file string, n int) (string, string, error) {
+	var out, errb bytes.Buffer
+	code, err := c.T.Run(ctx, Join("tail", "-n", strconv.Itoa(n), file), nil, &out, &errb)
+	if err != nil {
+		return "", "", errf(KindUnreachable, err.Error())
+	}
+	if code != 0 {
+		return "", firstTextLine(errb.String(), "tail failed"), nil
+	}
+	return out.String(), "", nil
+}
+
+// logDir is pantavisor's PV_LOG_DIR, or "" when it cannot be read.
+func (c *Client) logDir(ctx context.Context) string {
+	b, err := c.pvcontrol(ctx, nil, nil, "conf", "ls")
+	if err != nil {
+		return ""
+	}
+	var entries []struct {
+		Key   string `json:"key"`
+		Value string `json:"value"`
+	}
+	if json.Unmarshal(b, &entries) != nil {
+		return ""
+	}
+	for _, e := range entries {
+		if e.Key == "PV_LOG_DIR" && strings.HasPrefix(e.Value, "/") && !strings.Contains(e.Value, "..") {
+			return e.Value
+		}
+	}
+	return ""
+}
+
+func firstTextLine(s, def string) string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return def
+	}
+	return strings.SplitN(s, "\n", 2)[0]
+}
+
+func sortedKeys(m map[string]string) []string {
+	k := make([]string, 0, len(m))
+	for n := range m {
+		k = append(k, n)
+	}
+	sort.Strings(k)
+	return k
 }

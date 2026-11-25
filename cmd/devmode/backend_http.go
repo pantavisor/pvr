@@ -16,6 +16,7 @@ package devmode
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -306,4 +307,85 @@ func policiesOf(m map[string]ContainerState, err error) (map[string]string, erro
 		p[n] = s.RestartPolicy
 	}
 	return p, nil
+}
+
+// Exec uses POST /containers/<name>/exec of pv-ctrl.
+func (h *HTTPBackend) Exec(ctx context.Context, container string, argv []string, o ExecOpts) (ExecResult, error) {
+	var r ExecResult
+	secs := o.seconds()
+	in := map[string]interface{}{"argv": argv, "timeout_s": secs}
+	if o.MaxOutput > 0 {
+		in["max_output"] = o.MaxOutput
+	}
+	if o.Cwd != "" {
+		in["cwd"] = o.Cwd
+	}
+	if len(o.Env) > 0 {
+		in["env"] = o.Env
+	}
+	if len(o.Stdin) > 0 {
+		in["stdin_b64"] = base64.StdEncoding.EncodeToString(o.Stdin)
+	}
+	// the command is stopped after timeout_s, plus the time pv-ctrl needs to end it
+	ctx, cancel := context.WithTimeout(ctx, time.Duration(secs+15)*time.Second)
+	defer cancel()
+	var out struct {
+		ExitCode  *int   `json:"exit_code"`
+		Signal    *int   `json:"signal"`
+		TimedOut  bool   `json:"timed_out"`
+		StdoutB64 string `json:"stdout_b64"`
+		StderrB64 string `json:"stderr_b64"`
+		Truncated struct {
+			Stdout bool `json:"stdout"`
+			Stderr bool `json:"stderr"`
+		} `json:"truncated"`
+		DurationMS int64 `json:"duration_ms"`
+	}
+	if err := h.json(ctx, "POST", "/containers/"+url.PathEscape(container)+"/exec", "", in, &out); err != nil {
+		return r, err
+	}
+	so, err1 := base64.StdEncoding.DecodeString(out.StdoutB64)
+	se, err2 := base64.StdEncoding.DecodeString(out.StderrB64)
+	if err1 != nil || err2 != nil {
+		return r, errf(KindGeneric, "the device sent command output that is not base64")
+	}
+	return ExecResult{ExitCode: out.ExitCode, Signal: out.Signal, TimedOut: out.TimedOut, Stdout: string(so), Stderr: string(se),
+		TruncStdout: out.Truncated.Stdout, TruncStderr: out.Truncated.Stderr, DurationMS: out.DurationMS}, nil
+}
+
+// Logs uses the logs CGI of the pvr-sdk container. The revision is given
+// explicitly, because the CGI would read the committed one.
+func (h *HTTPBackend) Logs(ctx context.Context, container string, tail int) ([]string, error) {
+	if err := logName("container", container); err != nil {
+		return nil, err
+	}
+	rev, err := runningRevision(ctx, h)
+	if err != nil {
+		return nil, err
+	}
+	if err := logName("revision", rev); err != nil {
+		return nil, err
+	}
+	// the CGI does not decode the query, so the slashes stay as they are
+	q := "rev=" + rev + "&source=" + consoleLogSource(container) + "&tail=1"
+	if tail > 0 {
+		q += "&n=" + strconv.Itoa(tail)
+	}
+	req, err := http.NewRequestWithContext(ctx, "GET", h.Base+"/cgi-bin/logs?"+q, nil)
+	if err != nil {
+		return nil, errf(KindUsage, err.Error())
+	}
+	resp, err := h.Client.Do(req)
+	if err != nil {
+		return nil, errf(KindUnreachable, err.Error())
+	}
+	defer resp.Body.Close()
+	b, err := io.ReadAll(io.LimitReader(resp.Body, 32<<20))
+	if err != nil {
+		return nil, errf(KindUnreachable, err.Error())
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, errf(KindGeneric, fmt.Sprintf("cannot read the console log of %s in %s (HTTP %d): %s", container, rev, resp.StatusCode, firstTextLine(string(b), "no answer text")))
+	}
+	return logLines(string(b)), nil
 }
