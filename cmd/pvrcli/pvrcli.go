@@ -32,6 +32,7 @@ import (
 	"github.com/pantavisor/pvr/cmd/app"
 	"github.com/pantavisor/pvr/cmd/builds"
 	"github.com/pantavisor/pvr/cmd/device"
+	"github.com/pantavisor/pvr/cmd/devmode"
 	"github.com/pantavisor/pvr/cmd/dm"
 	"github.com/pantavisor/pvr/cmd/fakeroot"
 	imagecmd "github.com/pantavisor/pvr/cmd/image"
@@ -257,6 +258,7 @@ func Run() {
 		dm.CommandDmApply(),
 		dm.CommandDmConvert(),
 		device.CommandDevice(),
+		devmode.CommandDevmode(),
 		app.CommandApp(),
 		sig.CommandSig(),
 		imagecmd.CommandImage(),
