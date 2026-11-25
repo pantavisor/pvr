@@ -262,6 +262,7 @@ func Run() {
 		devmode.CommandDevmode(),
 		app.CommandApp(),
 		artifact.CommandArtifact(),
+		artifact.CommandSDK(),
 		sig.CommandSig(),
 		imagecmd.CommandImage(),
 		fakeroot.CommandFakeroot(),
