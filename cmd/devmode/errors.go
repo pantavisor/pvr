@@ -63,6 +63,8 @@ func (k Kind) ExitCode() int {
 type Error struct {
 	Kind Kind
 	Msg  string
+	// Code is the error code of a Hub tool, when the Hub gave one.
+	Code string
 }
 
 func (e *Error) Error() string { return e.Msg }
