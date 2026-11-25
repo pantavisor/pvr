@@ -62,12 +62,14 @@ type Diff struct {
 	// sync removes them, push leaves them alone.
 	OnlyOnDevice []Change `json:"only_on_device"`
 	// ToDelete lists deleted-list paths not yet deleted on the device.
-	ToDelete  []Change `json:"to_delete"`
+	ToDelete []Change `json:"to_delete"`
+	// Deleted lists checked-out paths that are gone locally; push deletes them.
+	Deleted   []Change `json:"deleted"`
 	Unchanged int      `json:"unchanged"`
 }
 
 func (d Diff) Empty() bool {
-	return len(d.Added)+len(d.Changed)+len(d.OnlyOnDevice)+len(d.ToDelete) == 0
+	return len(d.Added)+len(d.Changed)+len(d.OnlyOnDevice)+len(d.ToDelete)+len(d.Deleted) == 0
 }
 
 func parseMode(s string) (uint32, bool) {
@@ -81,7 +83,7 @@ func ComputeDiff(local []LocalFile, m Manifest, deleted []string) Diff {
 	for _, e := range m.Files {
 		dev[e.Path] = e
 	}
-	d := Diff{Added: []Change{}, Changed: []Change{}, OnlyOnDevice: []Change{}, ToDelete: []Change{}}
+	d := Diff{Added: []Change{}, Changed: []Change{}, OnlyOnDevice: []Change{}, ToDelete: []Change{}, Deleted: []Change{}}
 	seen := map[string]bool{}
 	for _, l := range local {
 		seen[l.Path] = true

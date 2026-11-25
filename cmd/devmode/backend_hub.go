@@ -453,6 +453,59 @@ func (h *HubBackend) Get(ctx context.Context, container, p string, w io.Writer) 
 	return errf(KindGeneric, p+": the file is too large to read in parts")
 }
 
+// Tree asks the Hub for the folder as a tar and downloads the link it gives.
+func (h *HubBackend) Tree(ctx context.Context, container, p string) (io.ReadCloser, error) {
+	p, err := treePath(p)
+	if err != nil {
+		return nil, errf(KindUsage, err.Error())
+	}
+	transfer := ""
+	for i := 0; i < hubMaxPages; i++ {
+		kv := []interface{}{"container", container}
+		if p != "" {
+			kv = append(kv, "path", p)
+		}
+		if transfer != "" {
+			kv = append(kv, "transfer_id", transfer)
+		}
+		r, err := h.call(ctx, "get_tree", kv...)
+		if err != nil {
+			if isNoTar(err) {
+				e := err.(*Error)
+				return nil, &Error{Kind: e.Kind, Msg: e.Msg, Code: codeNoTar}
+			}
+			return nil, err
+		}
+		if boolean(r, "pending") {
+			transfer = str(r, "transfer_id")
+			continue
+		}
+		link := str(r, "get_url")
+		if link == "" {
+			return nil, errf(KindGeneric, "the Hub gave no download link for the tar")
+		}
+		l, err := h.resolveLink(link)
+		if err != nil {
+			return nil, err
+		}
+		req, err := http.NewRequestWithContext(ctx, "GET", l, nil)
+		if err != nil {
+			return nil, errf(KindGeneric, "bad download link from the Hub")
+		}
+		resp, err := h.http.Do(req)
+		if err != nil {
+			return nil, errf(KindUnreachable, "cannot download the tar: "+urlErrorText(err))
+		}
+		if resp.StatusCode != http.StatusOK {
+			resp.Body.Close()
+			return nil, errf(KindGeneric, fmt.Sprintf("the object store refused the download (HTTP %d)", resp.StatusCode))
+		}
+		size, _ := r["size"].(float64)
+		return newSumBody(resp.Body, str(r, "sha256"), int64(size)), nil
+	}
+	return nil, errf(KindWaitTimeout, "the Hub is still preparing the tar")
+}
+
 func (h *HubBackend) download(ctx context.Context, link string, w io.Writer) error {
 	l, err := h.resolveLink(link)
 	if err != nil {
