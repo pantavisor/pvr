@@ -48,6 +48,7 @@ Requires Go 1.21+.
 ## Basics
 
 For syncing files into a running device see [pvr devmode](docs/devmode.md).
+To publish an SDK installer or another file to your account see [pvr artifact](docs/commands/artifact.md).
 
 ```bash
 # Start a new repository
