@@ -32,6 +32,9 @@ import (
 	"testing"
 )
 
+// treeBody is what /get/tree serves.
+var treeBody []byte
+
 type toolCall struct {
 	Tool string
 	Args map[string]interface{}
@@ -135,6 +138,7 @@ func newFakeHub(t *testing.T) *fakeHub {
 		f.puts[r.URL.Path] = b
 		f.mu.Unlock()
 	})
+	mux.HandleFunc("/get/tree", func(w http.ResponseWriter, r *http.Request) { w.Write(treeBody) })
 	mux.HandleFunc("/get/big", func(w http.ResponseWriter, r *http.Request) { io.WriteString(w, "big content") })
 	f.srv = httptest.NewServer(mux)
 	t.Cleanup(f.srv.Close)
@@ -677,5 +681,55 @@ func TestHubGet(t *testing.T) {
 	out.Reset()
 	if err := h.Get(ctx, "a", "big", &out); err != nil || out.String() != "big content" {
 		t.Fatalf("link get %q %v", out.String(), err)
+	}
+}
+
+func TestHubTree(t *testing.T) {
+	f, h, _ := hubFixture(t)
+	data := sampleTar(t)
+	sum := sha256.Sum256(data)
+	srvGet := f.srv.URL + "/get/tree"
+	calls := 0
+	f.on("get_tree", func(args map[string]interface{}) (map[string]interface{}, *toolFailure) {
+		if calls++; calls == 1 {
+			return map[string]interface{}{"pending": true, "transfer_id": "t9", "progress": 0.5}, nil
+		}
+		if args["transfer_id"] != "t9" || args["container"] != "a" || args["path"] != "etc/nginx/nginx.conf" {
+			return nil, &toolFailure{Code: "INVALID", Message: "bad arguments"}
+		}
+		return map[string]interface{}{"get_url": srvGet, "size": len(data), "sha256": hex.EncodeToString(sum[:]), "skipped": 0}, nil
+	})
+	treeBody = data
+	names, err := readTree(t, h, "a", "etc/nginx/nginx.conf")
+	if err != nil || len(names) != 9 {
+		t.Fatalf("tree %v %v", names, err)
+	}
+	if calls != 2 {
+		t.Errorf("get_tree calls = %d", calls)
+	}
+	// the whole container leaves the path out
+	f.on("get_tree", func(args map[string]interface{}) (map[string]interface{}, *toolFailure) {
+		if _, ok := args["path"]; ok {
+			return nil, &toolFailure{Code: "INVALID", Message: "path given"}
+		}
+		return map[string]interface{}{"get_url": srvGet, "size": len(data), "sha256": strings.Repeat("0", 64)}, nil
+	})
+	// a wrong checksum is found at the end of the stream
+	if _, err := readTree(t, h, "a", ""); err == nil || !strings.Contains(err.Error(), "intact") {
+		t.Errorf("checksum: %v", err)
+	}
+	// an old agent
+	f.on("get_tree", func(args map[string]interface{}) (map[string]interface{}, *toolFailure) {
+		return nil, &toolFailure{Code: "PANTAVISOR_TOO_OLD", Message: "pantavisor cannot send tars"}
+	})
+	if _, err := readTree(t, h, "a", ""); !isNoTar(err) {
+		t.Errorf("too old: %v", err)
+	}
+	// a Hub without the tool
+	f.mu.Lock()
+	delete(f.tools, "get_tree")
+	f.mu.Unlock()
+	if _, err := readTree(t, h, "a", ""); !isNoTar(err) {
+		t.Errorf("unknown tool: %v", err)
 	}
 }
