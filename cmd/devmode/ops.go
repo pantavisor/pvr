@@ -46,6 +46,8 @@ type Env struct {
 	WaitTimeout time.Duration
 	// Poll is the pause between two container checks (default 1s).
 	Poll time.Duration
+	// ExitCode is the exit code the process ends with after the command ran.
+	ExitCode int
 }
 
 func (e *Env) timeout() time.Duration {
