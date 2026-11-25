@@ -13,6 +13,7 @@ require (
 	github.com/cavaliercoder/grab v2.0.0+incompatible
 	github.com/docker/distribution v2.8.3+incompatible
 	github.com/docker/docker v24.0.9+incompatible
+	github.com/fsnotify/fsnotify v1.7.0
 	github.com/genuinetools/reg v0.16.1
 	github.com/gibson042/canonicaljson-go v1.0.3
 	github.com/go-jose/go-jose/v3 v3.0.0-rc.1
