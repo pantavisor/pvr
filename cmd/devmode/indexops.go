@@ -144,27 +144,28 @@ func (e *Env) pushIndexed(ctx context.Context, name string, ix *Index) (r PushRe
 	}
 	r.Unchanged = d.Unchanged
 	base := filepath.Join(e.Dir, name)
+	b := e.newBatch(len(d.Added) + len(d.Changed) + len(d.Deleted) + len(d.ToDelete))
 	for _, ch := range append(append([]Change{}, d.Added...), d.Changed...) {
 		l, ok, err := statLocal(base, ch.Path)
 		if err != nil || !ok {
 			return r, errf(KindGeneric, ch.Path+" changed while pushing")
 		}
 		uid, gid := e.ownerFor(name, l, ix)
-		if err := e.putLocal(ctx, name, l, uid, gid); err != nil {
+		if err := e.putLocal(b.next(ctx), name, l, uid, gid); err != nil {
 			return r, err
 		}
 		ix.set(entryOf(l, uid, gid))
 		r.Pushed = append(r.Pushed, ch.Path)
 	}
 	for _, ch := range d.Deleted {
-		if _, err := e.deleteListed(ctx, name, ch.Path); err != nil {
+		if _, err := e.deleteListed(b.next(ctx), name, ch.Path); err != nil {
 			return r, err
 		}
 		ix.drop(ch.Path)
 		r.Deleted = append(r.Deleted, ch.Path)
 	}
 	for _, ch := range d.ToDelete {
-		ok, err := e.deleteListed(ctx, name, ch.Path)
+		ok, err := e.deleteListed(b.next(ctx), name, ch.Path)
 		if err != nil {
 			return r, err
 		}

@@ -105,8 +105,9 @@ pvr devmode pull bench nginx         # check out the whole container into ./devm
 $EDITOR devmode/nginx/etc/nginx/nginx.conf
 rm devmode/nginx/etc/nginx/conf.d/default.conf
 pvr devmode status bench nginx       # what differs from the checkout
-pvr devmode push bench nginx         # send the edited, new and deleted files
-pvr devmode apply bench nginx        # restart the container
+pvr devmode push bench nginx         # send the edited, new and deleted files; nginx restarts
+pvr devmode push bench nginx --no-restart   # send them, restart later
+pvr devmode apply bench nginx        # restart the container (also: reboot for a system container, with --yes)
 pvr devmode push bench --watch       # push and apply on every save
 pvr devmode sync bench nginx         # make the container match ./devmode exactly
 pvr devmode leave bench              # run the committed revision again
@@ -126,8 +127,24 @@ nginx (apply: restart)
   deleted  etc/nginx/conf.d/default.conf (push deletes it on the device)
 $ pvr devmode push bench nginx
 nginx: 1 pushed, 1 image path deleted, 1832 unchanged
-  pvr devmode apply nginx will restart
+nginx: restarted
+$ pvr devmode exec bench nginx -- nginx -t     # sees the change
 ```
+
+`push`, `rm`, `sync` and `reset` restart each changed app container by default,
+on every transport, so an `exec` right after sees the change. A system container
+is not restarted by default, because that reboots the device. pvr says so in one
+line and you restart it yourself:
+
+```
+$ pvr devmode push bench pv-sys
+pv-sys: 1 pushed, 0 unchanged
+pv-sys: not restarted. is a system container: the change shows after it restarts, which reboots the device; restart it with pvr devmode apply <device> pv-sys --yes
+$ pvr devmode apply bench pv-sys --yes
+```
+
+Add `--no-restart` to keep the files without a restart, for example to push to
+several containers and restart them together with `pvr devmode apply`.
 
 The local tree is `./devmode/<container>/<path>`; change it with `--dir`.
 Backup and editor files (`*~`, `*.swp`, `.git`, ...) are ignored.
@@ -243,12 +260,12 @@ deletes it because it is gone from the folder.
 |---|---|
 | `enter <device> [--base N] [--resume]` | `pvcontrol devmode create [N] [--resume]` |
 | `status <device> [container...]` | `pvcontrol devmode status`, `pvcontrol containers ls`; for a folder without an index also `pvcontrol devmode files ls <c>` |
-| `push <device> [container...] [--watch] [--yes] [--keep-owner] [--no-wait] [--timeout D]` | `pvcontrol devmode files put <c> <path> - --mode M --uid U --gid G` (file on stdin), `... put <c> <path> --type symlink --target T`, `... put <c> <path> --type dir --mode M`; then `pvcontrol devmode files rm <c> <path> --recursive` for deleted-list paths |
-| `sync <device> [container...] [--no-apply] [--yes] [--keep-owner] [--no-wait] [--timeout D]` | per container `pvcontrol devmode reset <c>`, the uploads of `push`, `pvcontrol devmode files rm <c> <path> --recursive` for the deleted list; then the steps of `apply` |
+| `push <device> [container...] [--watch] [--no-restart] [--yes] [--keep-owner] [--no-wait] [--timeout D]` | `pvcontrol devmode files put <c> <path> - --mode M --uid U --gid G` (file on stdin), `... put <c> <path> --type symlink --target T`, `... put <c> <path> --type dir --mode M`; then `pvcontrol devmode files rm <c> <path> --recursive` for deleted-list paths; then `pvcontrol devmode apply <c>` for each changed app container |
+| `sync <device> [container...] [--no-restart] [--yes] [--keep-owner] [--no-wait] [--timeout D]` | per container `pvcontrol devmode reset <c>`, the uploads of `push`, `pvcontrol devmode files rm <c> <path> --recursive` for the deleted list; then the restart of each app container (the steps of `apply`) |
 | `pull <device> [container...] [--force] [-- path...]` | `pvcontrol devmode files get <c> [path] --tar`; on a device without tar `pvcontrol devmode files ls <c>` and `... get <c> <path>` |
 | `apply <device> [container...] [--yes] [--no-wait] [--timeout D]` | `pvcontrol devmode apply <c>`, or `... --reboot` for a system container; `pvcontrol containers ls` every second to wait |
-| `reset <device> <container...>` | `pvcontrol devmode reset <c>` |
-| `rm <device> <container> <path...> [--recursive]` | `pvcontrol devmode files rm <c> <path> [--recursive]` |
+| `reset <device> <container...> [--no-restart] [--no-wait] [--timeout D]` | `pvcontrol devmode reset <c>`, then `pvcontrol devmode apply <c>` for an app container |
+| `rm <device> <container> <path...> [--recursive] [--no-restart] [--no-wait] [--timeout D]` | `pvcontrol devmode files rm <c> <path> [--recursive]`, then `pvcontrol devmode apply <c>` for an app container |
 | `leave <device> [--rev REV]` | `pvcontrol devmode status` (base), `pvcontrol cmd run <base>` |
 | `exec <device> <container> [--timeout D] [--cwd DIR] [--env K=V] [--stdin] [--max-output N] -- <command> [args...]` | `pvcontrol containers exec --timeout N <c> -- <command> [args...]` |
 | `logs <device> <container> [--tail N]` | `pvcontrol devmode status` for the revision, then `tail -n N /pantavisor/logs/<revision>/<container>/lxc/console.log` |
@@ -274,9 +291,11 @@ Rules:
   anything is wrong. It prints one line per container, for example
   `pv-example-app: emptying devmode files, uploading 12 files, deleting 1 image file`,
   then resets, uploads and deletes per container, and applies all containers
-  once. For a checkout it also deletes the checked-out paths gone from the folder
-  and rewrites the index. `--no-apply` skips the apply. Without container names every container
-  with a directory in `./devmode` is synced.
+  once its files are done restarts each app container. For a checkout it also
+  deletes the checked-out paths gone from the folder and rewrites the index.
+  `--no-restart` (or `--no-apply`) skips the restarts. A system container is not
+  restarted unless you pass `--yes`, which reboots the device for it. Without
+  container names every container with a directory in `./devmode` is synced.
 - `push` and `sync` keep the permission bits of the local file. An edited file
   of a checkout keeps the uid/gid the index recorded. A new file is owned by root
   (0/0) because local owners rarely mean anything on the device; `--keep-owner`
@@ -285,14 +304,26 @@ Rules:
 - `pull` creates symlinks and directories and skips special files (device nodes,
   sockets, pipes) and unsafe names with a reason. Conflicts are listed and leave
   the exit code at 0.
-- `reset` empties the devmode files of the named containers on the device. The
-  local tree and the deleted list stay as they are.
+- `reset` empties the devmode files of the named containers on the device and
+  restarts the app containers. The local tree and the deleted list stay as they
+  are.
+- `rm` deletes the path on the device, adds it to the deleted list and removes
+  the local copy under `./devmode/<container>/` (and its checkout index entry), so
+  the tree, the list and the device agree. A later `sync` still refuses a path
+  that is both in the folder and on the deleted list.
+- Restart after a change: `push`, `rm`, `sync` and `reset` restart the changed
+  app containers and wait for them as `apply` does (`--timeout`, `--no-wait`). A
+  container is an app container or a system container by its restart policy, the
+  same `apply: restart` / `apply: reboot` that `status` shows. A system container
+  is not restarted; the note says to run `pvr devmode apply <device> <container> --yes`.
+  `--no-restart` restarts nothing. `push --watch` restarts through its own apply
+  step, never twice.
 - `apply` returns when the container runs again. Before the request it waits
   until the container is `STARTED` (a restart takes about 11 s on an appengine,
   and a second apply during it would be refused). After the request it polls
   `pvcontrol containers ls` every second until the status is `STARTED` with a
   different pid, start time or restart count, and prints how long it took. The
-  same wait applies to the apply step of `sync` and to `push --watch`.
+  same wait applies to the restart after `push`, `rm`, `sync` and `reset` and to `push --watch`.
   `--timeout` (default 90s) limits it; when the container does not come back the
   exit code is 15. `--no-wait` returns right after the request. A reboot is never
   waited for, because the connection drops.
@@ -346,7 +377,7 @@ http, all under `/cgi-bin/pvctrl`, answering with pv-ctrl's status and body:
 | `push`, `sync` | `PUT /devmode/files/<container>/<path>?mode=M&uid=U&gid=G` (file body), with `type=dir`, or `type=symlink&target=T` and no body |
 | `rm`, `push`, `sync` (deleted list) | `DELETE /devmode/files/<container>/<path>[?recursive=1]` |
 | `reset`, `sync` | `DELETE /devmode/files/<container>` (no path) |
-| `apply`, `push --watch` | `PUT /containers/<container>[?reboot=1]` with `{"action":"restart"}` |
+| `apply`, `push --watch`, the restart after `push`, `rm`, `sync`, `reset` | `PUT /containers/<container>[?reboot=1]` with `{"action":"restart"}` |
 | `apply` (restart policies and waiting for the container) | `GET /containers` |
 | `exec` | `POST /containers/<container>/exec` |
 | `logs` | `GET /cgi-bin/logs?rev=<revision>&source=<container>/lxc/console.log&tail=1&n=N` (not under `/cgi-bin/pvctrl`) |
@@ -361,9 +392,9 @@ Hub, the tools of `<hub>/mcp`:
 | `status`, `push`, `sync` (folder without an index), `pull` (device without tar) | `ls` (recursive, with `include_deleted`; entries from the devmode changes and deleted image paths), `hash` |
 | `pull` | `get_tree` (a download link, after `pending` answers); `PANTAVISOR_TOO_OLD` or an unknown tool means no tar support |
 | `pull` (device without tar) | `get_file` (in parts, or a download link for large files) |
-| `push`, `sync` | `lease`, `apply_changes` with `put`, `mkdir`, `symlink` ops (with `uid` and `gid`); files over 256 KiB go through `get_object_upload_link` and a `source` |
+| `push`, `sync` | `lease`, `apply_changes` (the restart is left to the device on the last call of a command, `restart:false` on the others and with `--no-restart`) with `put`, `mkdir`, `symlink` ops (with `uid` and `gid`); files over 256 KiB go through `get_object_upload_link` and a `source` |
 | `rm`, deleted list | `lease`, `apply_changes` with `rm` |
-| `reset` | `lease`, `reset_changes` |
+| `reset` | `lease`, `reset_changes` (answers carry `restarted` and `restart_note`) |
 | `apply` | `lease`, `container_ctl` (restart), `container_status` to wait |
 | `exec` | `lease`, `exec` |
 | `logs` | `logs` |
@@ -380,6 +411,12 @@ Every command takes `--json` and prints one document:
 `push --watch --json` prints one document per cycle. The `apply` result lists
 per container `{"name", "state", "seconds"}`: `state` is `STARTED`,
 `restart_requested` (with `--no-wait`) or `rebooting`.
+
+The results of `push`, `rm` and `sync` carry `restarted` per container, and
+`restart_note` when a system container was not restarted. `reset` lists the same
+under `restarts`. Over the Hub the values come from the answers of the device
+agent; an agent that does not report them is followed by a restart through
+`container_ctl`.
 
 | Exit code | Kind | Meaning |
 |---|---|---|

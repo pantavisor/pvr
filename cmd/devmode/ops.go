@@ -42,6 +42,8 @@ type Env struct {
 	In        *os.File
 	// NoWait makes apply return right after the request.
 	NoWait bool
+	// NoRestart keeps push, rm, sync and reset from restarting the containers.
+	NoRestart bool
 	// WaitTimeout is how long apply waits for a container (default 90s).
 	WaitTimeout time.Duration
 	// Poll is the pause between two container checks (default 1s).
@@ -151,6 +153,10 @@ type PushResult struct {
 	// Apply is what pvr devmode apply will do for this container:
 	// restart, reboot or unknown. Empty when nothing changed.
 	Apply string `json:"apply,omitempty"`
+	// Restarted is true when the container was restarted after the push;
+	// RestartNote says why not (a system container).
+	Restarted   bool   `json:"restarted"`
+	RestartNote string `json:"restart_note,omitempty"`
 }
 
 func (e *Env) containersOrLocal(names []string) ([]string, error) {
@@ -232,16 +238,17 @@ func (e *Env) PushContainer(ctx context.Context, name string) (PushResult, error
 	for _, l := range local {
 		byPath[l.Path] = l
 	}
+	b := e.newBatch(len(d.Added) + len(d.Changed) + len(d.ToDelete))
 	for _, ch := range append(append([]Change{}, d.Added...), d.Changed...) {
 		l := byPath[ch.Path]
 		uid, gid := e.ownerFor(name, l, nil)
-		if err := e.putLocal(ctx, name, l, uid, gid); err != nil {
+		if err := e.putLocal(b.next(ctx), name, l, uid, gid); err != nil {
 			return r, err
 		}
 		r.Pushed = append(r.Pushed, ch.Path)
 	}
 	for _, ch := range d.ToDelete {
-		ok, err := e.deleteListed(ctx, name, ch.Path)
+		ok, err := e.deleteListed(b.next(ctx), name, ch.Path)
 		if err != nil {
 			return r, err
 		}
@@ -264,11 +271,17 @@ func (e *Env) Push(ctx context.Context, names []string) ([]PushResult, error) {
 	var out []PushResult
 	for _, n := range names {
 		r, err := e.PushContainer(ctx, n)
-		if len(r.Pushed)+len(r.Deleted) > 0 {
+		changed := len(r.Pushed)+len(r.Deleted) > 0
+		if changed {
 			r.Apply = "unknown"
 			if perr == nil {
 				r.Apply = ApplyAction(policies[n])
 			}
+		}
+		if err == nil {
+			var rr RestartResult
+			rr, err = e.afterChange(ctx, n, changed)
+			r.Restarted, r.RestartNote = rr.Restarted, rr.Note
 		}
 		out = append(out, r)
 		if err != nil {
@@ -293,7 +306,7 @@ func (e *Env) printPush(w io.Writer, res []PushResult) {
 			fmt.Fprintf(w, "  skipped %s: %s\n", s.Path, s.Reason)
 		}
 		if r.Apply != "" {
-			fmt.Fprintf(w, "  pvr devmode apply %s will %s\n", r.Container, r.Apply)
+			RestartResult{r.Container, r.Restarted, r.RestartNote}.print(w, e.NoRestart)
 		}
 	}
 }
@@ -552,39 +565,16 @@ func (e *Env) Apply(ctx context.Context, names []string, allowReboot bool) (Appl
 		}
 	}
 	for _, n := range restart {
-		var before ContainerState
-		if !e.NoWait {
-			// a container still restarting from an earlier apply cannot restart again
-			e.progress("waiting for %s to be STARTED", n)
-			var err error
-			before, err = e.waitContainer(ctx, n, "start", func(s ContainerState) bool { return s.Status == "STARTED" })
-			if err != nil {
-				return res, err
-			}
-		}
-		e.progress("restart %s", n)
-		t0 := time.Now()
-		err := e.C.Apply(ctx, n, false)
-		if ae, ok := err.(*Error); ok && ae.Kind == KindRebootNeeded {
-			system = append(system, n)
-			continue
-		}
+		st, reboot, err := e.restartApp(ctx, n)
 		if err != nil {
 			return res, err
 		}
-		state := "restart_requested"
-		if !e.NoWait {
-			if _, err := e.waitContainer(ctx, n, "restart", func(s ContainerState) bool {
-				return s.Status == "STARTED" && !s.Same(before)
-			}); err != nil {
-				return res, err
-			}
-			state = "STARTED"
+		if reboot {
+			system = append(system, n)
+			continue
 		}
-		secs := time.Since(t0).Seconds()
-		e.progress("%s is %s after %.1fs", n, state, secs)
 		res.Restarted = append(res.Restarted, n)
-		res.Containers = append(res.Containers, ApplyState{n, state, secs})
+		res.Containers = append(res.Containers, st)
 	}
 	if len(system) > 0 {
 		if !allowReboot && !e.Yes && !e.confirm(fmt.Sprintf("%s needs a device reboot. Reboot now?", strings.Join(system, ", "))) {
@@ -720,9 +710,13 @@ type SyncPlan struct {
 	Dirs      int      `json:"directories"`
 	Delete    []string `json:"delete"`
 	Summary   string   `json:"summary"`
-	local     []LocalFile
-	index     *Index // the checkout index, nil for a folder from the old pull
-	listed    []string
+	// Restarted is true when the container was restarted after the sync;
+	// RestartNote says why not (a system container).
+	Restarted   bool   `json:"restarted"`
+	RestartNote string `json:"restart_note,omitempty"`
+	local       []LocalFile
+	index       *Index // the checkout index, nil for a folder from the old pull
+	listed      []string
 }
 
 func plural(n int, one, many string) string {
@@ -820,9 +814,12 @@ type SyncResult struct {
 
 // Sync makes each container the image plus its local tree minus its
 // deleted list: reset, upload everything, delete the listed paths, then
-// apply once.
+// restart the app containers (not the system ones, unless --yes).
 func (e *Env) Sync(ctx context.Context, names []string, noApply bool) (SyncResult, error) {
 	var res SyncResult
+	if noApply {
+		e.NoRestart = true
+	}
 	plans, err := e.PlanSync(names)
 	if err != nil {
 		return res, err
@@ -834,21 +831,24 @@ func (e *Env) Sync(ctx context.Context, names []string, noApply bool) (SyncResul
 	for _, p := range plans {
 		e.progress("%s", p.Summary)
 	}
-	for _, p := range plans {
+	var rest []string
+	for i := range plans {
+		p := &plans[i]
 		e.progress("reset %s", p.Container)
-		if err := e.C.Reset(ctx, p.Container); err != nil {
+		b := e.newBatch(1 + len(p.local) + len(p.Delete))
+		if err := e.C.Reset(b.next(ctx), p.Container); err != nil {
 			return res, err
 		}
 		nix := newIndex()
 		for _, l := range p.local {
 			uid, gid := e.ownerFor(p.Container, l, p.index)
-			if err := e.putLocal(ctx, p.Container, l, uid, gid); err != nil {
+			if err := e.putLocal(b.next(ctx), p.Container, l, uid, gid); err != nil {
 				return res, err
 			}
 			nix.set(entryOf(l, uid, gid))
 		}
 		for _, d := range p.Delete {
-			if _, err := e.deleteListed(ctx, p.Container, d); err != nil {
+			if _, err := e.deleteListed(b.next(ctx), p.Container, d); err != nil {
 				return res, err
 			}
 		}
@@ -859,31 +859,38 @@ func (e *Env) Sync(ctx context.Context, names []string, noApply bool) (SyncResul
 				return res, err
 			}
 		}
+		rr, err := e.afterChange(ctx, p.Container, true)
+		if err != nil {
+			return res, err
+		}
+		p.Restarted, p.RestartNote = rr.Restarted, rr.Note
+		if rr.Note != "" {
+			rest = append(rest, p.Container)
+		}
 	}
-	if noApply {
-		return res, nil
+	// --yes allows the reboot a system container needs
+	if e.Yes && !noApply && !e.NoRestart && len(rest) > 0 {
+		ar, err := e.Apply(ctx, rest, false)
+		if err != nil {
+			return res, err
+		}
+		res.Apply = &ar
 	}
-	var applied []string
-	for _, p := range plans {
-		applied = append(applied, p.Container)
-	}
-	ar, err := e.Apply(ctx, applied, false)
-	if err != nil {
-		return res, err
-	}
-	res.Apply = &ar
 	return res, nil
 }
 
 // ---- rm ----
 
 type RmResult struct {
-	Container string   `json:"container"`
-	Removed   []string `json:"removed"`
+	Container   string   `json:"container"`
+	Removed     []string `json:"removed"`
+	Restarted   bool     `json:"restarted"`
+	RestartNote string   `json:"restart_note,omitempty"`
 }
 
 // Remove deletes paths from the container's view and records them in the
-// deleted list, so sync keeps them deleted.
+// deleted list, so sync keeps them deleted. The local copy and its checkout
+// index entry go too, so the tree, the list and the device agree.
 func (e *Env) Remove(ctx context.Context, container string, paths []string, recursive bool) (RmResult, error) {
 	r := RmResult{Container: container, Removed: []string{}}
 	if _, err := RequireActive(ctx, e.C); err != nil {
@@ -897,15 +904,21 @@ func (e *Env) Remove(ctx context.Context, container string, paths []string, recu
 		}
 		clean = append(clean, c)
 	}
+	b := e.newBatch(len(clean))
 	for _, p := range clean {
 		e.progress("rm %s/%s", container, p)
-		if err := e.C.Remove(ctx, container, p, recursive); err != nil {
+		if err := e.C.Remove(b.next(ctx), container, p, recursive); err != nil {
 			return r, err
 		}
 		if err := AddDeleted(e.Dir, container, p); err != nil {
 			return r, err
 		}
+		if err := e.dropLocal(container, []string{p}); err != nil {
+			return r, err
+		}
 		r.Removed = append(r.Removed, p)
 	}
-	return r, nil
+	rr, err := e.afterChange(ctx, container, len(r.Removed) > 0)
+	r.Restarted, r.RestartNote = rr.Restarted, rr.Note
+	return r, err
 }

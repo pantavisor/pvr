@@ -47,9 +47,13 @@ type HubBackend struct {
 
 	leased     bool
 	leaseUntil time.Time
+
+	// what the device said about the restart of the last change of a container
+	restarts map[string]RestartAnswer
 }
 
 var _ Backend = (*HubBackend)(nil)
+var _ selfRestarter = (*HubBackend)(nil)
 
 func NewHubBackend(device, base string, store *hubTokenStore, login LoginToken) *HubBackend {
 	auth := newHubAuth(base, store, login)
@@ -201,8 +205,43 @@ func (h *HubBackend) RestartPolicies(ctx context.Context) (map[string]string, er
 	return policiesOf(h.Containers(ctx))
 }
 
+// restartArg is the restart argument of a change call: left out when the
+// device may restart the container by itself (its default), false for every
+// call that must not, so a batch restarts at most once, at its last call.
+func restartArg(ctx context.Context) []interface{} {
+	if m, ok := modeOf(ctx); ok && (!m.restart || !m.final) {
+		return []interface{}{"restart", false}
+	}
+	return nil
+}
+
+// keepRestart remembers what the answer to a change says about the restart.
+func (h *HubBackend) keepRestart(ctx context.Context, container string, r map[string]interface{}) {
+	if m, ok := modeOf(ctx); ok && (!m.restart || !m.final) {
+		return
+	}
+	if _, ok := r["restarted"].(bool); !ok {
+		return
+	}
+	if h.restarts == nil {
+		h.restarts = map[string]RestartAnswer{}
+	}
+	h.restarts[container] = RestartAnswer{Restarted: boolean(r, "restarted"), Note: str(r, "restart_note")}
+}
+
+// TakeRestart gives the restart answer of the last change of the container.
+func (h *HubBackend) TakeRestart(container string) (RestartAnswer, bool) {
+	a, ok := h.restarts[container]
+	delete(h.restarts, container)
+	return a, ok
+}
+
 func (h *HubBackend) Reset(ctx context.Context, container string) error {
-	_, err := h.mutate(ctx, "reset_changes", "container", container)
+	delete(h.restarts, container)
+	r, err := h.mutate(ctx, "reset_changes", append([]interface{}{"container", container}, restartArg(ctx)...)...)
+	if err == nil {
+		h.keepRestart(ctx, container, r)
+	}
 	return err
 }
 
@@ -225,12 +264,17 @@ func (h *HubBackend) apply(ctx context.Context, container string, ops []map[stri
 		return err
 	}
 	id = strings.NewReplacer("-", "a", "_", "b").Replace(id)
-	r, err := h.mutate(ctx, "apply_changes", "container", container, "ops", ops, "apply_id", id)
+	delete(h.restarts, container)
+	rs := restartArg(ctx)
+	r, err := h.mutate(ctx, "apply_changes", append([]interface{}{"container", container, "ops", ops, "apply_id", id}, rs...)...)
 	for i := 0; err == nil && boolean(r, "pending") && i < 20; i++ {
-		r, err = h.mutate(ctx, "apply_changes", "container", container, "apply_id", id)
+		r, err = h.mutate(ctx, "apply_changes", append([]interface{}{"container", container, "apply_id", id}, rs...)...)
 	}
 	if err == nil && boolean(r, "pending") {
 		return errf(KindWaitTimeout, "the device is still applying the changes")
+	}
+	if err == nil {
+		h.keepRestart(ctx, container, r)
 	}
 	return err
 }
