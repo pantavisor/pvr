@@ -36,6 +36,9 @@ const (
 	hubHashBatch = 2000
 	hubMaxBytes  = 512 << 20
 	hubMaxPages  = 1000
+	// one apply_changes call takes up to this many ops and this much inline content
+	hubBatchOps    = 500
+	hubBatchInline = 512 << 10
 )
 
 // HubBackend runs the devmode tools of the Hub on a device. Everything the
@@ -50,10 +53,13 @@ type HubBackend struct {
 
 	// what the device said about the restart of the last change of a container
 	restarts map[string]RestartAnswer
+	// set once the Hub refused uid and gid on ops
+	noOwner bool
 }
 
 var _ Backend = (*HubBackend)(nil)
 var _ selfRestarter = (*HubBackend)(nil)
+var _ Batcher = (*HubBackend)(nil)
 
 func NewHubBackend(device, base string, store *hubTokenStore, login LoginToken) *HubBackend {
 	auth := newHubAuth(base, store, login)
@@ -333,13 +339,20 @@ func refusesArgument(err error, names ...string) bool {
 }
 
 func (h *HubBackend) putOps(ctx context.Context, p string, body io.Reader, o PutOpts, owner bool) ([]map[string]interface{}, error) {
+	return h.putOpsParents(ctx, p, body, o, owner, true)
+}
+
+func (h *HubBackend) putOpsParents(ctx context.Context, p string, body io.Reader, o PutOpts, owner, parents bool) ([]map[string]interface{}, error) {
 	setOwner := func(op map[string]interface{}) map[string]interface{} {
 		if owner {
 			op["uid"], op["gid"] = o.UID, o.GID
 		}
 		return op
 	}
-	ops := parentOps(p)
+	var ops []map[string]interface{}
+	if parents {
+		ops = parentOps(p)
+	}
 	switch o.Type {
 	case "dir":
 		op := map[string]interface{}{"op": "mkdir", "path": p, "parents": true}
@@ -774,4 +787,159 @@ func (h *HubBackend) Logs(ctx context.Context, container string, tail int) ([]st
 		}
 	}
 	return lines, nil
+}
+
+// batchChunk is the part of a batch that goes into one apply_changes call.
+type batchChunk struct {
+	ops    []BatchOp
+	nOps   int
+	inline int
+}
+
+// splitBatch cuts the ops into calls of at most hubBatchOps ops and
+// hubBatchInline bytes of inline content. A parent folder is made once.
+func splitBatch(ops []BatchOp) []batchChunk {
+	var out []batchChunk
+	var cur batchChunk
+	made := map[string]bool{}
+	for _, op := range ops {
+		inl := 0
+		if op.Put != nil && (op.Put.Opts.Type == "" || op.Put.Opts.Type == "file") && op.Put.Size <= hubInlineMax {
+			inl = int((op.Put.Size+2)/3) * 4
+		}
+		need := func() (string, int) {
+			if op.Put != nil {
+				if d := path.Dir(op.Put.Path); d != "." && d != "/" && !made[d] {
+					return d, 2
+				}
+			}
+			return "", 1
+		}
+		dir, n := need()
+		if cur.nOps > 0 && (cur.nOps+n > hubBatchOps || cur.inline+inl > hubBatchInline) {
+			out = append(out, cur)
+			cur = batchChunk{}
+			made = map[string]bool{}
+			dir, n = need()
+		}
+		if dir != "" {
+			made[dir] = true
+		}
+		cur.ops = append(cur.ops, op)
+		cur.nOps += n
+		cur.inline += inl
+	}
+	if cur.nOps > 0 {
+		out = append(out, cur)
+	}
+	return out
+}
+
+// chunkOps builds the tool ops of one chunk, uploading large files first.
+func (h *HubBackend) chunkOps(ctx context.Context, c batchChunk, owner bool) ([]map[string]interface{}, error) {
+	var out []map[string]interface{}
+	made := map[string]bool{}
+	for _, op := range c.ops {
+		if op.Put == nil {
+			out = append(out, map[string]interface{}{"op": "rm", "path": op.Remove, "recursive": true})
+			continue
+		}
+		if d := path.Dir(op.Put.Path); d != "." && d != "/" && !made[d] {
+			made[d] = true
+			out = append(out, parentOps(op.Put.Path)...)
+		}
+		var body io.Reader
+		if op.Put.Open != nil {
+			f, err := op.Put.Open()
+			if err != nil {
+				return nil, errf(KindGeneric, "cannot read the file: "+err.Error())
+			}
+			defer f.Close()
+			body = f
+		}
+		ops, err := h.putOpsParents(ctx, op.Put.Path, body, op.Put.Opts, owner, false)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, ops...)
+	}
+	return out, nil
+}
+
+// ApplyBatch sends the ops in as few apply_changes calls as the Hub takes.
+// Only the last call may restart the container. It returns how many ops
+// were applied.
+func (h *HubBackend) ApplyBatch(ctx context.Context, container string, ops []BatchOp, wrap func(func() error) error) (int, error) {
+	m, has := modeOf(ctx)
+	restart, final := !has || m.restart, !has || m.final
+	chunks := splitBatch(ops)
+	done := 0
+	for i, c := range chunks {
+		cctx := context.WithValue(ctx, restartCtxKey{}, restartMode{restart: restart, final: final && i == len(chunks)-1})
+		err := wrap(func() error {
+			wire, err := h.chunkOps(cctx, c, !h.noOwner)
+			if err != nil {
+				return err
+			}
+			err = h.apply(cctx, container, wire)
+			if err != nil && !h.noOwner && refusesArgument(err, "uid", "gid") {
+				for _, op := range c.ops {
+					if op.Put != nil && (op.Put.Opts.UID != 0 || op.Put.Opts.GID != 0) {
+						return errf(KindUsage, "this Hub cannot give files an owner other than root; leave out --keep-owner")
+					}
+				}
+				h.noOwner = true
+				if wire, err = h.chunkOps(cctx, c, false); err != nil {
+					return err
+				}
+				err = h.apply(cctx, container, wire)
+			}
+			return err
+		})
+		if err != nil && hasRemove(c) && isNotFoundText(err) {
+			// a path to delete is not there; send the changes one by one so only that one is skipped
+			n, err2 := h.applyEach(cctx, container, c, wrap, final && i == len(chunks)-1, restart)
+			done += n
+			if err2 != nil {
+				return done, err2
+			}
+			continue
+		}
+		if err != nil {
+			return done, err
+		}
+		done += len(c.ops)
+	}
+	return done, nil
+}
+
+func hasRemove(c batchChunk) bool {
+	for _, op := range c.ops {
+		if op.Put == nil {
+			return true
+		}
+	}
+	return false
+}
+
+func isNotFoundText(err error) bool {
+	e, ok := err.(*Error)
+	return ok && strings.Contains(strings.ToLower(e.Msg), "not found")
+}
+
+func (h *HubBackend) applyEach(ctx context.Context, container string, c batchChunk, wrap func(func() error) error, lastChunk, restart bool) (int, error) {
+	for i, op := range c.ops {
+		octx := context.WithValue(ctx, restartCtxKey{}, restartMode{restart: restart, final: lastChunk && i == len(c.ops)-1})
+		err := wrap(func() error {
+			wire, err := h.chunkOps(octx, batchChunk{ops: []BatchOp{op}}, !h.noOwner)
+			if err != nil {
+				return err
+			}
+			return h.apply(octx, container, wire)
+		})
+		if err != nil && !(op.Put == nil && isNotFoundText(err)) {
+			return i, err
+		}
+	}
+	return len(c.ops), nil
 }

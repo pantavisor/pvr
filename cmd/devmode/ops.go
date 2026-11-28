@@ -48,6 +48,9 @@ type Env struct {
 	WaitTimeout time.Duration
 	// Poll is the pause between two container checks (default 1s).
 	Poll time.Duration
+	// BusyBase is the first pause when the device is busy (default 1s, doubling
+	// to 8x); BusyTotal is how long to keep trying (default 60s).
+	BusyBase, BusyTotal time.Duration
 	// ExitCode is the exit code the process ends with after the command ran.
 	ExitCode int
 }
@@ -180,26 +183,14 @@ func isNotFound(err error) bool {
 
 // putLocal uploads one local file, symlink or directory.
 func (e *Env) putLocal(ctx context.Context, name string, l LocalFile, uid, gid int) error {
-	local := filepath.Join(e.Dir, name, filepath.FromSlash(l.Path))
-	o := PutOpts{Mode: l.Mode, Type: l.Type, Target: l.Target, UID: uid, GID: gid}
-	if l.Type != "file" {
-		e.progress("push %s/%s (%s)", name, l.Path, l.Type)
-		return e.C.Put(ctx, name, l.Path, nil, o)
-	}
-	f, err := os.Open(local)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	e.progress("push %s/%s", name, l.Path)
-	return e.C.Put(ctx, name, l.Path, f, o)
+	return e.putItemNow(ctx, name, e.putItem(name, l, uid, gid))
 }
 
 // deleteListed removes one deleted-list path from the container's view;
 // true when it was there.
 func (e *Env) deleteListed(ctx context.Context, name, p string) (bool, error) {
 	e.progress("delete %s/%s", name, p)
-	err := e.C.Remove(ctx, name, p, true)
+	err := e.retryBusy(ctx, func() error { return e.C.Remove(ctx, name, p, true) })
 	if isNotFound(err) {
 		return false, nil
 	}
@@ -237,6 +228,30 @@ func (e *Env) PushContainer(ctx context.Context, name string) (PushResult, error
 	byPath := map[string]LocalFile{}
 	for _, l := range local {
 		byPath[l.Path] = l
+	}
+	if _, ok := e.C.(Batcher); ok {
+		var ops []BatchOp
+		var paths []string
+		for _, ch := range append(append([]Change{}, d.Added...), d.Changed...) {
+			l := byPath[ch.Path]
+			uid, gid := e.ownerFor(name, l, nil)
+			ops = append(ops, BatchOp{Put: e.putItem(name, l, uid, gid)})
+			paths = append(paths, ch.Path)
+		}
+		np := len(ops)
+		for _, ch := range d.ToDelete {
+			ops = append(ops, BatchOp{Remove: ch.Path})
+			paths = append(paths, ch.Path)
+		}
+		sent, err := e.sendOps(ctx, name, ops)
+		for i := 0; i < sent; i++ {
+			if i < np {
+				r.Pushed = append(r.Pushed, paths[i])
+			} else {
+				r.Deleted = append(r.Deleted, paths[i])
+			}
+		}
+		return r, e.pushShort(name, len(ops), sent, paths, err)
 	}
 	b := e.newBatch(len(d.Added) + len(d.Changed) + len(d.ToDelete))
 	for _, ch := range append(append([]Change{}, d.Added...), d.Changed...) {
@@ -717,6 +732,10 @@ type SyncPlan struct {
 	local       []LocalFile
 	index       *Index // the checkout index, nil for a folder from the old pull
 	listed      []string
+	// Skipped counts image files left out of the upload because they are
+	// unchanged from what pull checked out.
+	Skipped int `json:"skipped_unchanged,omitempty"`
+	upload  []LocalFile
 }
 
 func plural(n int, one, many string) string {
@@ -724,6 +743,21 @@ func plural(n int, one, many string) string {
 		return fmt.Sprintf("%d %s", n, one)
 	}
 	return fmt.Sprintf("%d %s", n, many)
+}
+
+func (p *SyncPlan) count() {
+	p.Files, p.Symlinks, p.Dirs = 0, 0, 0
+	for _, l := range p.upload {
+		switch l.Type {
+		case "symlink":
+			p.Symlinks++
+		case "dir":
+			p.Dirs++
+		default:
+			p.Files++
+		}
+	}
+	p.summarize()
 }
 
 func (p *SyncPlan) summarize() {
@@ -743,6 +777,9 @@ func (p *SyncPlan) summarize() {
 	}
 	if len(p.Delete) > 0 {
 		parts = append(parts, "deleting "+plural(len(p.Delete), "image file", "image files"))
+	}
+	if p.Skipped > 0 {
+		parts = append(parts, plural(p.Skipped, "unchanged image file", "unchanged image files")+" not uploaded")
 	}
 	p.Summary = p.Container + ": " + strings.Join(parts, ", ")
 }
@@ -791,17 +828,8 @@ func (e *Env) PlanSync(names []string) ([]SyncPlan, error) {
 			p.index = ix
 			p.Delete = append(p.Delete, gone...)
 		}
-		for _, l := range local {
-			switch l.Type {
-			case "symlink":
-				p.Symlinks++
-			case "dir":
-				p.Dirs++
-			default:
-				p.Files++
-			}
-		}
-		p.summarize()
+		p.upload = local
+		p.count()
 		plans = append(plans, p)
 	}
 	return plans, nil
@@ -828,34 +856,83 @@ func (e *Env) Sync(ctx context.Context, names []string, noApply bool) (SyncResul
 	if _, err := RequireActive(ctx, e.C); err != nil {
 		return res, err
 	}
+	for i := range plans {
+		p := &plans[i]
+		if p.index == nil {
+			continue
+		}
+		// what the device holds in its changes now is lost by the reset, so it is sent again
+		m, err := e.C.Manifest(ctx, p.Container)
+		if err != nil {
+			return res, err
+		}
+		inlay := map[string]bool{}
+		for _, f := range m.Files {
+			if f.Type != "deleted" {
+				inlay[f.Path] = true
+			}
+		}
+		p.upload = uploadSet(p.local, p.index, inlay)
+		p.Skipped = len(p.local) - len(p.upload)
+		p.count()
+	}
 	for _, p := range plans {
 		e.progress("%s", p.Summary)
 	}
 	var rest []string
 	for i := range plans {
 		p := &plans[i]
-		e.progress("reset %s", p.Container)
-		b := e.newBatch(1 + len(p.local) + len(p.Delete))
-		if err := e.C.Reset(b.next(ctx), p.Container); err != nil {
-			return res, err
-		}
-		nix := newIndex()
-		for _, l := range p.local {
+		var ops []BatchOp
+		owners := map[string][2]int{}
+		for _, l := range p.upload {
 			uid, gid := e.ownerFor(p.Container, l, p.index)
-			if err := e.putLocal(b.next(ctx), p.Container, l, uid, gid); err != nil {
-				return res, err
-			}
-			nix.set(entryOf(l, uid, gid))
+			owners[l.Path] = [2]int{uid, gid}
+			ops = append(ops, BatchOp{Put: e.putItem(p.Container, l, uid, gid)})
 		}
 		for _, d := range p.Delete {
-			if _, err := e.deleteListed(b.next(ctx), p.Container, d); err != nil {
-				return res, err
+			ops = append(ops, BatchOp{Remove: d})
+		}
+		e.progress("reset %s", p.Container)
+		rctx := e.opCtx(ctx, len(ops) == 0)
+		if err := e.retryBusy(ctx, func() error { return e.C.Reset(rctx, p.Container) }); err != nil {
+			return res, err
+		}
+		sent, err := e.sendOps(ctx, p.Container, ops)
+		if err != nil {
+			missing := len(ops) - sent
+			if p.index != nil {
+				for j := sent; j < len(p.upload); j++ {
+					p.index.Pending = append(p.index.Pending, p.upload[j].Path)
+				}
+				p.index.save(e.Dir, p.Container)
 			}
+			first := ""
+			if sent < len(p.upload) {
+				first = ", first " + p.upload[sent].Path
+			} else if sent < len(ops) {
+				first = ", first " + ops[sent].Remove
+			}
+			kind := KindGeneric
+			if ee, ok := err.(*Error); ok {
+				kind = ee.Kind
+			}
+			return res, errf(kind, fmt.Sprintf("%s was reset and only %d of %d changes reached it (%d missing%s): %s; run pvr devmode sync again to finish",
+				p.Container, sent, len(ops), missing, first, err.Error()))
 		}
 		if p.index != nil {
-			// the device now has exactly the local tree
-			nix.Deleted = append(nix.Deleted, p.listed...)
-			if err := nix.save(e.Dir, p.Container); err != nil {
+			// the device now has the image plus the local tree
+			for _, l := range p.upload {
+				o := owners[l.Path]
+				p.index.set(entryOf(l, o[0], o[1]))
+			}
+			for _, d := range p.Delete {
+				if !ix2contains(p.listed, d) {
+					p.index.drop(d)
+				}
+			}
+			p.index.Deleted = append([]string(nil), p.listed...)
+			p.index.Pending = nil
+			if err := p.index.save(e.Dir, p.Container); err != nil {
 				return res, err
 			}
 		}
@@ -921,4 +998,13 @@ func (e *Env) Remove(ctx context.Context, container string, paths []string, recu
 	rr, err := e.afterChange(ctx, container, len(r.Removed) > 0)
 	r.Restarted, r.RestartNote = rr.Restarted, rr.Note
 	return r, err
+}
+
+func ix2contains(list []string, p string) bool {
+	for _, q := range list {
+		if q == p {
+			return true
+		}
+	}
+	return false
 }

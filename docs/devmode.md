@@ -293,6 +293,26 @@ Rules:
   then resets, uploads and deletes per container, and applies all containers
   once its files are done restarts each app container. For a checkout it also
   deletes the checked-out paths gone from the folder and rewrites the index.
+  Files that `pull` wrote unchanged from the image are not uploaded: the reset
+  keeps the image, so `sync` sends only paths the index does not know, paths
+  whose content, mode or link target differ from the index, and files the device
+  holds in its changes now (a reset empties them), plus the deletions. The line
+  then ends with `N unchanged image files not uploaded`. A folder without an
+  index still uploads everything. Over the Hub the uploads go in batches of up to
+  500 ops and 512 KiB of inline content per `apply_changes` call (files over 256
+  KiB go as objects); only the last call leaves the restart to the device. When
+  the device answers `BUSY` (too many devmode commands), pvr waits 1s, 2s, 4s, 8s
+  and then every 8s, up to about 60s in all, and tries again; `push` does the same.
+  Over the Hub `push` sends its changes in the same batches. If one fails, the
+  error says how many changes reached the device and how many are pending; run
+  `pvr devmode push` again and it sends only those.
+  If an upload fails after the reset, the error says the container was reset and
+  how many changes are missing, pvr exits non-zero, and the unsent paths are kept
+  in the index (`pending`) so the next `pvr devmode sync` or `push` sends them:
+
+  ```
+  pvr devmode sync bench nginx
+  ```
   `--no-restart` (or `--no-apply`) skips the restarts. A system container is not
   restarted unless you pass `--yes`, which reboots the device for it. Without
   container names every container with a directory in `./devmode` is synced.
@@ -392,7 +412,7 @@ Hub, the tools of `<hub>/mcp`:
 | `status`, `push`, `sync` (folder without an index), `pull` (device without tar) | `ls` (recursive, with `include_deleted`; entries from the devmode changes and deleted image paths), `hash` |
 | `pull` | `get_tree` (a download link, after `pending` answers); `PANTAVISOR_TOO_OLD` or an unknown tool means no tar support |
 | `pull` (device without tar) | `get_file` (in parts, or a download link for large files) |
-| `push`, `sync` | `lease`, `apply_changes` (the restart is left to the device on the last call of a command, `restart:false` on the others and with `--no-restart`) with `put`, `mkdir`, `symlink` ops (with `uid` and `gid`); files over 256 KiB go through `get_object_upload_link` and a `source` |
+| `push`, `sync` | `lease`, `apply_changes` (`push` and `sync` batch up to 500 ops and 512 KiB inline per call; the restart is left to the device on the last call of a command, `restart:false` on the others and with `--no-restart`) with `put`, `mkdir`, `symlink` ops (with `uid` and `gid`); files over 256 KiB go through `get_object_upload_link` and a `source` |
 | `rm`, deleted list | `lease`, `apply_changes` with `rm` |
 | `reset` | `lease`, `reset_changes` (answers carry `restarted` and `restart_note`) |
 | `apply` | `lease`, `container_ctl` (restart), `container_status` to wait |
