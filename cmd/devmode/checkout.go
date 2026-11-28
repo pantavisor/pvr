@@ -63,6 +63,9 @@ type Index struct {
 	Roots []string `json:"roots,omitempty"`
 	// Deleted lists the deleted-list paths already deleted on the device.
 	Deleted []string `json:"deleted,omitempty"`
+	// Pending lists paths a sync reset the container for but could not send;
+	// the next sync or push sends them again.
+	Pending []string `json:"pending,omitempty"`
 
 	m map[string]IndexEntry
 }

@@ -83,6 +83,22 @@ func computeIndexDiff(root, name string, ix *Index, local []LocalFile, list []st
 			d.Unchanged++
 		}
 	}
+	changed := map[string]bool{}
+	for _, c := range d.Changed {
+		changed[c.Path] = true
+	}
+	goneSet := map[string]bool{}
+	for _, p := range gone {
+		goneSet[p] = true
+	}
+	for _, p := range ix.Pending {
+		if !changed[p] && !goneSet[p] {
+			if _, ok, _ := statLocal(base, p); ok {
+				d.Changed = append(d.Changed, Change{p, "unsent"})
+				d.Unchanged--
+			}
+		}
+	}
 	for _, p := range collapse(gone) {
 		d.Deleted = append(d.Deleted, Change{Path: p})
 	}
@@ -144,6 +160,9 @@ func (e *Env) pushIndexed(ctx context.Context, name string, ix *Index) (r PushRe
 	}
 	r.Unchanged = d.Unchanged
 	base := filepath.Join(e.Dir, name)
+	if _, ok := e.C.(Batcher); ok {
+		return e.pushIndexedBatched(ctx, name, ix, d, base, r)
+	}
 	b := e.newBatch(len(d.Added) + len(d.Changed) + len(d.Deleted) + len(d.ToDelete))
 	for _, ch := range append(append([]Change{}, d.Added...), d.Changed...) {
 		l, ok, err := statLocal(base, ch.Path)
@@ -174,7 +193,61 @@ func (e *Env) pushIndexed(ctx context.Context, name string, ix *Index) (r PushRe
 			r.Deleted = append(r.Deleted, ch.Path)
 		}
 	}
+	ix.Pending = nil
 	return r, nil
+}
+
+// pushIndexedBatched is pushIndexed for a backend that takes many changes in
+// one call: the index follows the changes that reached the device.
+func (e *Env) pushIndexedBatched(ctx context.Context, name string, ix *Index, d Diff, base string, r PushResult) (PushResult, error) {
+	type step struct {
+		path string
+		kind int // 0 put, 1 delete of a gone path, 2 delete of a listed path
+		l    LocalFile
+		uid  int
+		gid  int
+	}
+	var steps []step
+	var ops []BatchOp
+	for _, ch := range append(append([]Change{}, d.Added...), d.Changed...) {
+		l, ok, err := statLocal(base, ch.Path)
+		if err != nil || !ok {
+			return r, errf(KindGeneric, ch.Path+" changed while pushing")
+		}
+		uid, gid := e.ownerFor(name, l, ix)
+		steps = append(steps, step{path: ch.Path, l: l, uid: uid, gid: gid})
+		ops = append(ops, BatchOp{Put: e.putItem(name, l, uid, gid)})
+	}
+	for _, ch := range d.Deleted {
+		steps = append(steps, step{path: ch.Path, kind: 1})
+		ops = append(ops, BatchOp{Remove: ch.Path})
+	}
+	for _, ch := range d.ToDelete {
+		steps = append(steps, step{path: ch.Path, kind: 2})
+		ops = append(ops, BatchOp{Remove: ch.Path})
+	}
+	sent, err := e.sendOps(ctx, name, ops)
+	paths := make([]string, len(steps))
+	for i, s := range steps {
+		paths[i] = s.path
+	}
+	for _, s := range steps[:sent] {
+		switch s.kind {
+		case 0:
+			ix.set(entryOf(s.l, s.uid, s.gid))
+			r.Pushed = append(r.Pushed, s.path)
+		case 1:
+			ix.drop(s.path)
+			r.Deleted = append(r.Deleted, s.path)
+		default:
+			ix.markDeleted(s.path)
+			r.Deleted = append(r.Deleted, s.path)
+		}
+	}
+	if err == nil {
+		ix.Pending = nil
+	}
+	return r, e.pushShort(name, len(ops), sent, paths, err)
 }
 
 // goneFromIndex lists the checked-out paths that are missing in the folder.
