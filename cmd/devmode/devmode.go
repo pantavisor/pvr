@@ -81,6 +81,11 @@ func waitFlags(fs *flag.FlagSet, o *options) {
 	fs.DurationVar(&o.timeout, "timeout", 90*time.Second, "how long to wait for a restarted container (exit code 15 when it does not come back)")
 }
 
+func rebootWaitFlags(fs *flag.FlagSet, o *options) {
+	fs.BoolVar(&o.noWait, "no-wait", false, "return right after the request, do not wait for the device to reboot")
+	fs.DurationVar(&o.timeout, "timeout", RebootWaitDefault, "how long to wait for the device to come back (exit code 15 when it does not)")
+}
+
 func restartFlag(fs *flag.FlagSet, o *options) {
 	fs.BoolVar(&o.noRestart, "no-restart", false, "do not restart the changed containers; run 'pvr devmode apply' later")
 }
@@ -256,23 +261,25 @@ func joinNames(n []string) string { return strings.Join(n, ", ") }
 func CommandDevmode() cli.Command {
 	specs := []spec{
 		dev(spec{
-			name: "enter", args: "<device> [--base N] [--resume]", maxPos: 0,
+			name: "enter", args: "<device> [--base N] [--resume] [--no-wait] [--timeout D]", maxPos: 0,
 			usage: "Create and run a devmode revision; the device reboots",
 			desc: "Runs 'pvcontrol devmode create [N] [--resume]' on the device.\n" +
-				"Without --base the committed revision is the base. The device reboots into the devmode revision.",
+				"Without --base the committed revision is the base. The device reboots into the devmode revision and pvr waits until devmode runs\n" +
+				"(polls the status, --timeout default 180s, exit code 15 when it does not; --no-wait returns at once).",
 			flags: func(fs *flag.FlagSet, o *options) {
 				transportFlags(fs, o)
+				rebootWaitFlags(fs, o)
 				fs.StringVar(&o.base, "base", "", "revision number or locals/<name> to base devmode on (default: committed revision)")
 				fs.BoolVar(&o.resume, "resume", false, "keep a left-over devmode revision of that base")
 			},
 			run: func(ctx context.Context, env *Env, o *options, c *cli.Context, pos []string) (interface{}, func(io.Writer), error) {
-				r, err := env.C.Enter(ctx, o.base, o.resume)
+				r, waited, err := env.EnterWait(ctx, o.base, o.resume)
 				if err != nil {
 					return nil, nil, err
 				}
 				return r, func(w io.Writer) {
 					fmt.Fprintf(w, "devmode revision %s (base %s)\n", r.Revision, r.Base)
-					if r.Reboot {
+					if r.Reboot && !waited {
 						fmt.Fprintln(w, "the device reboots now; wait for it, then run pvr devmode status")
 					}
 				}, nil
@@ -496,12 +503,14 @@ func CommandDevmode() cli.Command {
 			},
 		}),
 		dev(spec{
-			name: "leave", args: "<device> [--rev REV]", maxPos: 0,
+			name: "leave", args: "<device> [--rev REV] [--no-wait] [--timeout D]", maxPos: 0,
 			usage: "Run the committed revision again; the device reboots",
 			desc: "Runs 'pvcontrol devmode status' to read the base, then 'pvcontrol cmd run <base>'.\n" +
-				"Use --rev to run another revision.",
+				"Use --rev to run another revision. pvr waits until devmode has stopped (--timeout default 180s, exit code 15 when it does not;\n" +
+				"--no-wait returns at once).",
 			flags: func(fs *flag.FlagSet, o *options) {
 				transportFlags(fs, o)
+				rebootWaitFlags(fs, o)
 				fs.StringVar(&o.rev, "rev", "", "revision to run (default: the base of the devmode revision)")
 			},
 			run: func(ctx context.Context, env *Env, o *options, c *cli.Context, pos []string) (interface{}, func(io.Writer), error) {
@@ -516,11 +525,16 @@ func CommandDevmode() cli.Command {
 				if rev == "" {
 					return nil, nil, errf(KindGeneric, "the device did not report a base revision; use --rev")
 				}
-				if err := env.C.Leave(ctx, rev); err != nil {
+				waited, err := env.LeaveWait(ctx, rev)
+				if err != nil {
 					return nil, nil, err
 				}
 				return map[string]interface{}{"revision": rev, "reboot": true}, func(w io.Writer) {
-					fmt.Fprintf(w, "running %s; the device reboots now\n", rev)
+					if waited {
+						fmt.Fprintf(w, "running %s; devmode has stopped\n", rev)
+					} else {
+						fmt.Fprintf(w, "running %s; the device reboots now\n", rev)
+					}
 				}, nil
 			},
 		}),

@@ -100,7 +100,7 @@ devmode changed) into `./devmode/<container>/`. Edit, add or delete anything
 there; `push` sends exactly what you changed.
 
 ```
-pvr devmode enter bench              # device reboots into a devmode revision
+pvr devmode enter bench              # device reboots into a devmode revision; waits until it runs
 pvr devmode pull bench nginx         # check out the whole container into ./devmode/nginx/
 $EDITOR devmode/nginx/etc/nginx/nginx.conf
 rm devmode/nginx/etc/nginx/conf.d/default.conf
@@ -110,7 +110,7 @@ pvr devmode push bench nginx --no-restart   # send them, restart later
 pvr devmode apply bench nginx        # restart the container (also: reboot for a system container, with --yes)
 pvr devmode push bench --watch       # push and apply on every save
 pvr devmode sync bench nginx         # make the container match ./devmode exactly
-pvr devmode leave bench              # run the committed revision again
+pvr devmode leave bench              # run the committed revision again; waits until devmode stopped
 ```
 
 Example session:
@@ -258,7 +258,7 @@ deletes it because it is gone from the folder.
 
 | Command | Runs on the device |
 |---|---|
-| `enter <device> [--base N] [--resume]` | `pvcontrol devmode create [N] [--resume]` |
+| `enter <device> [--base N] [--resume] [--no-wait] [--timeout D]` | `pvcontrol devmode create [N] [--resume]` |
 | `status <device> [container...]` | `pvcontrol devmode status`, `pvcontrol containers ls`; for a folder without an index also `pvcontrol devmode files ls <c>` |
 | `push <device> [container...] [--watch] [--no-restart] [--yes] [--keep-owner] [--no-wait] [--timeout D]` | `pvcontrol devmode files put <c> <path> - --mode M --uid U --gid G` (file on stdin), `... put <c> <path> --type symlink --target T`, `... put <c> <path> --type dir --mode M`; then `pvcontrol devmode files rm <c> <path> --recursive` for deleted-list paths; then `pvcontrol devmode apply <c>` for each changed app container |
 | `sync <device> [container...] [--no-restart] [--yes] [--keep-owner] [--no-wait] [--timeout D]` | per container `pvcontrol devmode reset <c>`, the uploads of `push`, `pvcontrol devmode files rm <c> <path> --recursive` for the deleted list; then the restart of each app container (the steps of `apply`) |
@@ -266,7 +266,7 @@ deletes it because it is gone from the folder.
 | `apply <device> [container...] [--yes] [--no-wait] [--timeout D]` | `pvcontrol devmode apply <c>`, or `... --reboot` for a system container; `pvcontrol containers ls` every second to wait |
 | `reset <device> <container...> [--no-restart] [--no-wait] [--timeout D]` | `pvcontrol devmode reset <c>`, then `pvcontrol devmode apply <c>` for an app container |
 | `rm <device> <container> <path...> [--recursive] [--no-restart] [--no-wait] [--timeout D]` | `pvcontrol devmode files rm <c> <path> [--recursive]`, then `pvcontrol devmode apply <c>` for an app container |
-| `leave <device> [--rev REV]` | `pvcontrol devmode status` (base), `pvcontrol cmd run <base>` |
+| `leave <device> [--rev REV] [--no-wait] [--timeout D]` | `pvcontrol devmode status` (base), `pvcontrol cmd run <base>` |
 | `exec <device> <container> [--timeout D] [--cwd DIR] [--env K=V] [--stdin] [--max-output N] -- <command> [args...]` | `pvcontrol containers exec --timeout N <c> -- <command> [args...]` |
 | `logs <device> <container> [--tail N]` | `pvcontrol devmode status` for the revision, then `tail -n N /pantavisor/logs/<revision>/<container>/lxc/console.log` |
 | `devices [--no-scan]` | local only |
@@ -285,6 +285,16 @@ Rules:
 - `push` of a checkout sends the changes described above. For a folder without an
   index it adds and updates only, besides the deleted list, so image directories
   that devmode copied up as parents are never touched.
+- `enter` and `leave` wait by default, on every transport, until the device is
+  back and devmode runs (`enter`) or has stopped (`leave`). They poll the status
+  and keep polling while the device is unreachable during its reboot, up to
+  `--timeout` (default 180s, exit code 15 when it does not come back) and print
+  one line while waiting. `--no-wait` returns at once:
+
+  ```
+  pvr devmode enter bench --timeout 300s
+  pvr devmode leave bench --no-wait
+  ```
 - `sync` makes the container exactly the image plus `./devmode/<container>/`
   minus the deleted list. It first checks the whole local tree of every selected
   container (paths, types, deleted list) and stops before touching the device if
