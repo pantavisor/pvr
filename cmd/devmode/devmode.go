@@ -41,13 +41,13 @@ func (m *multi) Set(v string) error { *m = append(*m, v); return nil }
 
 // options holds every flag any devmode command takes.
 type options struct {
-	json, yes, watch, keepOwner, force, all, resume, noScan, noApply, recursive, noWait bool
-	exec, dir, base, rev                                                                string
-	sshOpts, envVars                                                                    multi
-	scanTimeout, timeout                                                                time.Duration
-	stdin                                                                               bool
-	maxOutput, tail                                                                     int
-	cwd                                                                                 string
+	json, yes, watch, keepOwner, force, all, resume, noScan, noApply, noRestart, recursive, noWait bool
+	exec, dir, base, rev                                                                           string
+	sshOpts, envVars                                                                               multi
+	scanTimeout, timeout                                                                           time.Duration
+	stdin                                                                                          bool
+	maxOutput, tail                                                                                int
+	cwd                                                                                            string
 	// rest is what follows -- on the command line (the exec command)
 	rest []string
 }
@@ -79,6 +79,10 @@ func transportFlags(fs *flag.FlagSet, o *options) {
 func waitFlags(fs *flag.FlagSet, o *options) {
 	fs.BoolVar(&o.noWait, "no-wait", false, "return right after the restart request, do not wait for the container")
 	fs.DurationVar(&o.timeout, "timeout", 90*time.Second, "how long to wait for a restarted container (exit code 15 when it does not come back)")
+}
+
+func restartFlag(fs *flag.FlagSet, o *options) {
+	fs.BoolVar(&o.noRestart, "no-restart", false, "do not restart the changed containers; run 'pvr devmode apply' later")
 }
 
 func dirFlag(fs *flag.FlagSet, o *options) {
@@ -207,7 +211,7 @@ func (s spec) command() cli.Command {
 			}
 			ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 			defer stop()
-			env := &Env{Dir: o.dir, JSON: o.json, Yes: o.yes, KeepOwner: o.keepOwner, NoWait: o.noWait, WaitTimeout: o.timeout,
+			env := &Env{Dir: o.dir, JSON: o.json, Yes: o.yes, KeepOwner: o.keepOwner, NoWait: o.noWait, NoRestart: o.noRestart, WaitTimeout: o.timeout,
 				Out: os.Stdout, Err: os.Stderr, In: os.Stdin}
 			if s.device {
 				b, closeBackend, err := resolve(c, o, device)
@@ -293,7 +297,7 @@ func CommandDevmode() cli.Command {
 			},
 		}),
 		dev(spec{
-			name: "push", args: "<device> [container...] [--watch] [--yes] [--keep-owner] [--no-wait] [--timeout D]", maxPos: -1,
+			name: "push", args: "<device> [container...] [--watch] [--no-restart] [--yes] [--keep-owner] [--no-wait] [--timeout D]", maxPos: -1,
 			usage: "Add and update files from ./devmode/<container>/ on the device",
 			desc: "For a folder made by 'pvr devmode pull' (it has a .devmode-index) push sends the files whose content, mode or symlink target differ\n" +
 				"from the index and the new ones, keeps the uid/gid the index recorded for edited files, and deletes the checked-out paths that are gone.\n" +
@@ -306,10 +310,14 @@ func CommandDevmode() cli.Command {
 				"Files keep their permission bits. The owner is root (0/0) unless --keep-owner uses the local numeric uid/gid.\n" +
 				"--watch pushes and applies again whenever the tree changes (400ms quiet time); --yes lets it reboot for system containers.\n" +
 				"With --watch each restart is waited for as in 'pvr devmode apply' (--timeout, --no-wait).\n" +
+				"Afterwards each changed app container is restarted, so a following 'pvr devmode exec' sees the change; the restart is waited for\n" +
+				"as in 'pvr devmode apply' (--timeout, --no-wait). A system container is not restarted (that is a device reboot): run\n" +
+				"'pvr devmode apply <device> <container> --yes'. --no-restart restarts nothing.\n" +
 				"Without container names every directory in ./devmode is pushed.",
 			flags: func(fs *flag.FlagSet, o *options) {
 				transportFlags(fs, o)
 				waitFlags(fs, o)
+				restartFlag(fs, o)
 				dirFlag(fs, o)
 				fs.BoolVar(&o.watch, "watch", false, "keep running: push and apply on every change")
 				fs.BoolVar(&o.yes, "yes", false, "allow a device reboot in watch mode")
@@ -325,49 +333,45 @@ func CommandDevmode() cli.Command {
 				}
 				return map[string]interface{}{"containers": r}, func(w io.Writer) {
 					env.printPush(w, r)
-					for _, x := range r {
-						if x.Apply != "" {
-							fmt.Fprintln(w, "run pvr devmode apply to make the container see the changes")
-							break
-						}
-					}
 				}, nil
 			},
 		}),
 		dev(spec{
-			name: "sync", args: "<device> [container...] [--no-apply] [--yes] [--keep-owner] [--no-wait] [--timeout D]", maxPos: -1,
+			name: "sync", args: "<device> [container...] [--no-restart] [--yes] [--keep-owner] [--no-wait] [--timeout D]", maxPos: -1,
 			usage: "Make a container exactly the image plus ./devmode/<container>/ minus the deleted list",
 			desc: "Checks the whole local tree of every selected container first (paths, file types, deleted list)\n" +
 				"and stops before touching the device if anything is wrong. Then it prints one line per container,\n" +
 				"for example 'pv-example-app: emptying devmode files, uploading 12 files, deleting 1 image file', and for each container runs:\n" +
 				"'pvcontrol devmode reset <container>', the uploads of 'pvr devmode push', and 'pvcontrol devmode files rm <container> <path> --recursive'\n" +
 				"for each path on ./devmode/<container>/.devmode-deleted.\n" +
-				"Then the containers are applied once, like 'pvr devmode apply': a system container needs a device reboot,\n" +
-				"which needs --yes or an interactive yes, otherwise exit code 13. --no-apply skips that step.\n" +
+				"Then each app container is restarted, like 'pvr devmode apply'. A system container is not restarted (that is a device reboot);\n" +
+				"--yes reboots the device for it, otherwise run 'pvr devmode apply <device> <container> --yes'.\n" +
+				"--no-restart (or --no-apply) skips the restarts.\n" +
 				"Restarts are waited for as in 'pvr devmode apply' (--timeout, --no-wait).\n" +
 				"Without container names every container that has a directory in ./devmode is synced.",
 			flags: func(fs *flag.FlagSet, o *options) {
 				transportFlags(fs, o)
 				waitFlags(fs, o)
 				dirFlag(fs, o)
-				fs.BoolVar(&o.noApply, "no-apply", false, "do not restart the containers afterwards")
+				restartFlag(fs, o)
+				fs.BoolVar(&o.noApply, "no-apply", false, "same as --no-restart")
 				fs.BoolVar(&o.yes, "yes", false, "allow a device reboot")
 				fs.BoolVar(&o.keepOwner, "keep-owner", false, "use the local uid/gid instead of 0/0")
 			},
 			run: func(ctx context.Context, env *Env, o *options, c *cli.Context, pos []string) (interface{}, func(io.Writer), error) {
-				r, err := env.Sync(ctx, pos, o.noApply)
+				r, err := env.Sync(ctx, pos, o.noApply || o.noRestart)
 				if err != nil {
 					return nil, nil, err
 				}
 				return r, func(w io.Writer) {
-					if r.Apply == nil {
-						fmt.Fprintln(w, "synced; run pvr devmode apply to make the containers see the changes")
-						return
+					fmt.Fprintln(w, "synced")
+					for _, p := range r.Containers {
+						RestartResult{p.Container, p.Restarted, p.RestartNote}.print(w, env.NoRestart)
 					}
-					if len(r.Apply.Restarted) > 0 {
+					if r.Apply != nil && len(r.Apply.Restarted) > 0 {
 						printRestarts(w, r.Apply)
 					}
-					if r.Apply.Reboot {
+					if r.Apply != nil && r.Apply.Reboot {
 						fmt.Fprintf(w, "the device reboots now (needed for %s)\n", r.Apply.Rebooted)
 					}
 				}, nil
@@ -433,35 +437,50 @@ func CommandDevmode() cli.Command {
 			},
 		}),
 		dev(spec{
-			name: "reset", args: "<device> <container...>", minPos: 1, maxPos: -1,
+			name: "reset", args: "<device> <container...> [--no-restart] [--no-wait] [--timeout D]", minPos: 1, maxPos: -1,
 			usage: "Empty the devmode files of containers on the device (back to the image)",
 			desc: "Runs 'pvcontrol devmode reset <container>' for each container. The local tree and the deleted list are not touched.\n" +
-				"Run 'pvr devmode apply' afterwards to restart the containers.",
-			flags: func(fs *flag.FlagSet, o *options) { transportFlags(fs, o) },
+				"Each app container is restarted afterwards so it runs the image again; a system container is not (run\n" +
+				"'pvr devmode apply <device> <container> --yes'). --no-restart restarts nothing.",
+			flags: func(fs *flag.FlagSet, o *options) { transportFlags(fs, o); waitFlags(fs, o); restartFlag(fs, o) },
 			run: func(ctx context.Context, env *Env, o *options, c *cli.Context, pos []string) (interface{}, func(io.Writer), error) {
 				if _, err := RequireActive(ctx, env.C); err != nil {
 					return nil, nil, err
 				}
 				done := []string{}
+				rs := []RestartResult{}
 				for _, n := range pos {
-					if err := env.C.Reset(ctx, n); err != nil {
+					if err := env.C.Reset(env.opCtx(ctx, true), n); err != nil {
 						return nil, nil, err
 					}
 					done = append(done, n)
+					rr, err := env.afterChange(ctx, n, true)
+					if err != nil {
+						return nil, nil, err
+					}
+					rs = append(rs, rr)
 				}
-				return map[string]interface{}{"containers": done}, func(w io.Writer) {
-					fmt.Fprintf(w, "%s: devmode files removed; run pvr devmode apply to restart\n", joinNames(done))
+				return map[string]interface{}{"containers": done, "restarts": rs}, func(w io.Writer) {
+					fmt.Fprintf(w, "%s: devmode files removed\n", joinNames(done))
+					for _, rr := range rs {
+						rr.print(w, env.NoRestart)
+					}
 				}, nil
 			},
 		}),
 		dev(spec{
-			name: "rm", args: "<device> <container> <path...> [--recursive]", minPos: 2, maxPos: -1,
+			name: "rm", args: "<device> <container> <path...> [--recursive] [--no-restart] [--no-wait] [--timeout D]", minPos: 2, maxPos: -1,
 			usage: "Delete image paths in a container and remember them in the deleted list",
 			desc: "Runs 'pvcontrol devmode files rm <container> <path> [--recursive]' for each path (container paths without a leading slash)\n" +
 				"and adds each path to ./devmode/<container>/.devmode-deleted, creating the directory if needed.\n" +
-				"push and sync delete the listed paths again. --recursive is needed for a directory with content.",
+				"push and sync delete the listed paths again. --recursive is needed for a directory with content.\n" +
+				"The local copy under ./devmode/<container>/ (and its checkout index entry) is removed too, so the tree and the list agree.\n" +
+				"Afterwards an app container is restarted; a system container is not (run 'pvr devmode apply <device> <container> --yes').\n" +
+				"--no-restart restarts nothing.",
 			flags: func(fs *flag.FlagSet, o *options) {
 				transportFlags(fs, o)
+				waitFlags(fs, o)
+				restartFlag(fs, o)
 				dirFlag(fs, o)
 				fs.BoolVar(&o.recursive, "recursive", false, "delete a directory with everything in it")
 			},
@@ -471,7 +490,8 @@ func CommandDevmode() cli.Command {
 					return nil, nil, err
 				}
 				return r, func(w io.Writer) {
-					fmt.Fprintf(w, "%s: deleted %s; run pvr devmode apply to restart\n", r.Container, joinNames(r.Removed))
+					fmt.Fprintf(w, "%s: deleted %s\n", r.Container, joinNames(r.Removed))
+					RestartResult{r.Container, r.Restarted, r.RestartNote}.print(w, env.NoRestart)
 				}, nil
 			},
 		}),

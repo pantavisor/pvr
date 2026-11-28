@@ -128,7 +128,11 @@ func (e *Env) Watch(ctx context.Context, names []string) error {
 // cycle pushes and applies one batch; failures are reported and the watch
 // goes on.
 func (e *Env) cycle(ctx context.Context, batch []string) {
+	// apply below restarts, or reboots a system container; push must not restart too
+	keep := e.NoRestart
+	e.NoRestart = true
 	res, err := e.Push(ctx, batch)
+	e.NoRestart = keep
 	if err != nil {
 		e.cycleError("push", err)
 		return

@@ -103,9 +103,9 @@ func TestSyncOrderAndSummary(t *testing.T) {
 	put(t, e, "a", DeletedListName, "# gone\nusr/share/doc\n\n")
 	os.MkdirAll(filepath.Join(e.Dir, "a", "var", "empty"), 0o755)
 	put(t, e, "b", "f", "1")
-	// b is a system container: without --yes the run ends with reboot_needed
+	// b is a system container: it is not restarted without --yes
 	res, err := e.Sync(context.Background(), nil, false)
-	if ee, ok := err.(*Error); !ok || ee.Kind != KindRebootNeeded {
+	if err != nil {
 		t.Fatal(err)
 	}
 	want := "a: emptying devmode files, uploading 2 files, 1 directory, deleting 1 image file"
@@ -116,15 +116,15 @@ func TestSyncOrderAndSummary(t *testing.T) {
 		t.Errorf("summary not printed up front: %q", errb.String())
 	}
 	c := f.cmds
-	// per container: reset, uploads, deleted list; apply only at the end
+	// per container: reset, uploads, deleted list, then its restart
 	order := []string{
 		"pvcontrol devmode reset a",
 		"pvcontrol devmode files put a etc/x.conf",
 		"pvcontrol devmode files put a var/empty --type dir",
 		"pvcontrol devmode files rm a usr/share/doc --recursive",
+		"pvcontrol devmode apply a", // a restarts once its own files are done
 		"pvcontrol devmode reset b",
 		"pvcontrol devmode files put b f",
-		"pvcontrol containers ls", // the apply step starts only after all uploads
 	}
 	last := -1
 	for _, p := range order {
@@ -134,8 +134,8 @@ func TestSyncOrderAndSummary(t *testing.T) {
 		}
 		last = i
 	}
-	if idx(c, "pvcontrol devmode apply b --reboot") >= 0 {
-		t.Error("rebooted without confirmation")
+	if idx(c, "pvcontrol devmode apply b") >= 0 {
+		t.Error("restarted or rebooted a system container")
 	}
 }
 
@@ -143,9 +143,12 @@ func TestSyncRebootNeedsYes(t *testing.T) {
 	f := &fakeDev{}
 	e, _ := newEnv(t, f)
 	put(t, e, "b", "f", "1")
-	_, err := e.Sync(context.Background(), []string{"b"}, false)
-	if ee, ok := err.(*Error); !ok || ee.Kind != KindRebootNeeded {
-		t.Fatalf("err = %v", err)
+	res, err := e.Sync(context.Background(), []string{"b"}, false)
+	if err != nil || res.Containers[0].Restarted || res.Containers[0].RestartNote == "" {
+		t.Fatalf("%v %+v", err, res.Containers)
+	}
+	if idx(f.cmds, "pvcontrol devmode apply") >= 0 {
+		t.Error("applied a system container without --yes")
 	}
 	e.Yes = true
 	if _, err := e.Sync(context.Background(), []string{"b"}, false); err != nil {
